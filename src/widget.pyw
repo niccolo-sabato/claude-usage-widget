@@ -15,7 +15,7 @@ To get a new sessionKey when it expires:
   1. Go to claude.ai (logged in)
   2. F12 → Application → Cookies → https://claude.ai
   3. Find "sessionKey" row, copy the Value
-  4. Paste via ≡ menu → Rinnova sessione
+  4. Paste via ≡ menu → Renew session
 
 To start at Windows login:
   Win+R → shell:startup → create shortcut to:
@@ -90,7 +90,7 @@ PCT_FG   = '#ffffff'
 MENU_BG  = '#2c2c2a'
 
 # ─── App ────────────────────────────────────────────
-APP_VERSION = '2.5.7'
+APP_VERSION = '2.5.8'
 
 # ─── Layout ──────────────────────────────────────────
 DEF_W    = 280
@@ -169,7 +169,7 @@ def bar_color(pct, accent):
 
 
 def format_reset(iso_str):
-    """Format reset time: 'alle 18:00 (tra 3h 26min)' or 'sab 11:00 (tra 2gg 5h)'."""
+    """Format reset time: 'reset 18:00 (3h 26min)' or 'reset Sat 11:00 (2d 5h)'."""
     if not iso_str:
         return None
     try:
@@ -180,11 +180,11 @@ def format_reset(iso_str):
     now_local = datetime.now().astimezone()
     secs = (target - datetime.now(timezone.utc)).total_seconds()
     if secs <= 0:
-        return 'tra poco'
+        return 'soon'
     total_h = int(secs) // 3600
     total_m = (int(secs) % 3600) // 60
     if total_h >= 48:
-        cd = f'{total_h // 24}gg {total_h % 24}h'
+        cd = f'{total_h // 24}d {total_h % 24}h'
     elif total_h > 0:
         cd = f'{total_h}h {total_m:02d}min'
     else:
@@ -192,7 +192,7 @@ def format_reset(iso_str):
     time_str = f'{local:%H:%M}'
     if local.date() == now_local.date():
         return f'reset {time_str} ({cd})'
-    days = ['lun', 'mar', 'mer', 'gio', 'ven', 'sab', 'dom']
+    days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
     return f'reset {days[local.weekday()]} {time_str} ({cd})'
 
 
@@ -250,11 +250,11 @@ def fetch_org_id(session_key):
         raise RuntimeError(f'curl: {result.stderr.strip()}')
     body = result.stdout.strip()
     if not body:
-        raise RuntimeError('Risposta vuota')
+        raise RuntimeError('Empty response')
     orgs = json.loads(body)
     if isinstance(orgs, list) and len(orgs) > 0:
         return orgs[0].get('uuid') or orgs[0].get('id')
-    raise RuntimeError('Nessuna organizzazione trovata')
+    raise RuntimeError('No organization found')
 
 
 def fetch_usage(cfg):
@@ -280,12 +280,12 @@ def fetch_usage(cfg):
     headers = parts[0] if len(parts) == 2 else ''
     body = parts[-1].strip()
     if not body:
-        raise RuntimeError('Risposta vuota')
+        raise RuntimeError('Empty response')
     sm = re.search(r'HTTP/[\d.]+ (\d+)', headers)
     if sm:
         code = int(sm.group(1))
         if code in (401, 403):
-            raise PermissionError('Session scaduta')
+            raise PermissionError('Session expired')
         if code >= 400:
             raise RuntimeError(f'HTTP {code}')
     km = re.search(r'sessionKey=([^;\s]+)', headers)
@@ -351,7 +351,7 @@ class Section:
         if pct is None:
             self._pct = 0
             self._color = BAR_BG
-            self.lbl_sub.config(text='non disponibile')
+            self.lbl_sub.config(text='not available')
             self._draw(self.cv.winfo_width())
             return
         self._pct = max(0, min(100, pct))
@@ -360,7 +360,7 @@ class Section:
         if cd:
             self.lbl_sub.config(text=cd)
         elif self._pct == 0:
-            self.lbl_sub.config(text='non utilizzato')
+            self.lbl_sub.config(text='not used')
         else:
             self.lbl_sub.config(text='')
         self._draw(self.cv.winfo_width())
@@ -457,7 +457,7 @@ class Widget:
             self.refresh()
             self._schedule()
         else:
-            self._error('Configurazione necessaria')
+            self._error('Setup required')
             self.root.after(300, self._setup_dialog)
 
         self.root.protocol('WM_DELETE_WINDOW', self._quit)
@@ -543,12 +543,12 @@ class Widget:
         self.content = tk.Frame(self.main, bg=BG)
         self.content.pack(fill='both', expand=True)
 
-        self.s_session = Section(self.content, 'Sessione Corrente', CLAUDE)
+        self.s_session = Section(self.content, 'Current Session', CLAUDE)
 
         # Expandable sections
         self.extra_frame = tk.Frame(self.content, bg=BG)
-        self.s_weekly = Section(self.extra_frame, 'Tutti i modelli (7gg)', BLUE)
-        self.s_sonnet = Section(self.extra_frame, 'Solo Sonnet (7gg)', PURPLE)
+        self.s_weekly = Section(self.extra_frame, 'All models (7d)', BLUE)
+        self.s_sonnet = Section(self.extra_frame, 'Sonnet only (7d)', PURPLE)
 
         # Bottom spacer
         self.bottom_pad = tk.Frame(self.content, bg=BG, height=6)
@@ -807,8 +807,8 @@ class Widget:
             wlog('FETCH  session scaduta (401/403)')
             try:
                 self.root.after(0, self._error,
-                                'Session scaduta \u2014 aggiorna sessionKey\n'
-                                '(\u2261 menu \u2192 Rinnova sessione)')
+                                'Session expired \u2014 update sessionKey\n'
+                                '(\u2261 menu \u2192 Renew session)')
             except Exception as ex:
                 wlog(f'FETCH  errore post-PermissionError: {ex}')
         except Exception as e:
@@ -898,7 +898,7 @@ class Widget:
         wlog(f'ERROR  {msg}')
         self.lbl_err.config(text=msg)
         self.lbl_err.pack(fill='x', padx=PAD, pady=(4, 0))
-        self.s_session.set_countdown('errore')
+        self.s_session.set_countdown('error')
         self.btn_r.config(fg=DIM)
 
     def _schedule(self):
@@ -951,15 +951,15 @@ class Widget:
         m.configure(bg=MENU_BG)
 
         FT_MENU = ('Segoe UI', 10)
-        mode_label = 'Modalit\u00e0 normale' if self._essential else 'Modalit\u00e0 essential'
+        mode_label = 'Normal mode' if self._essential else 'Essential mode'
         items = [
             ('\u21bb', FT_BTN, 'Refresh', self.refresh),
             ('\u21c5', FT_BTN, mode_label, self._toggle_essential),
             None,
-            ('\u2692', FT, 'Rinnova sessione\u2026', self._renew_session),
-            ('\u2699', FT, 'Apri config.json', self._open_config),
+            ('\u2692', FT, 'Renew session\u2026', self._renew_session),
+            ('\u2699', FT, 'Open config.json', self._open_config),
             None,
-            ('\u2715', FT, 'Chiudi', self._quit),
+            ('\u2715', FT, 'Quit', self._quit),
             None,
             (None, None, f'v{APP_VERSION}', None),
         ]
@@ -1040,11 +1040,11 @@ class Widget:
     # ── Session renewal ──────────────────────────────
 
     def _renew_session(self):
-        self._session_key_dialog('Rinnova Sessione')
+        self._session_key_dialog('Renew Session')
 
     def _session_dialog(self):
         dlg = tk.Toplevel(self.root)
-        dlg.title('Rinnova Sessione')
+        dlg.title('Renew Session')
         dlg.configure(bg=BG)
         dlg.overrideredirect(True)
         dlg.attributes('-topmost', True)
@@ -1062,7 +1062,7 @@ class Widget:
         tb = tk.Frame(dlg, bg=BG_TITLE, height=30)
         tb.pack(fill='x')
         tb.pack_propagate(False)
-        tk.Label(tb, text='  Rinnova Sessione', font=FT_B, fg=FG,
+        tk.Label(tb, text='  Renew Session', font=FT_B, fg=FG,
                  bg=BG_TITLE).pack(side='left', padx=4)
         close_btn = tk.Label(tb, text=' \u2715 ', font=('Segoe UI', 10),
                              fg=DIM, bg=BG_TITLE, cursor='hand2')
@@ -1079,14 +1079,14 @@ class Widget:
         body.pack(fill='both', expand=True, padx=PAD, pady=(8, PAD))
 
         steps = [
-            '1. Accedi a claude.ai nel browser (gi\u00e0 aperto)',
-            '2. Premi F12 per aprire DevTools',
-            '3. Clicca il tab "Application" in alto',
-            '   (se non lo vedi, clicca \u00bb per mostrare altri tab)',
-            '4. Nel pannello sinistro: Cookies \u2192 https://claude.ai',
-            '5. Cerca la riga con Name = "sessionKey"',
-            '6. Doppio-click sulla colonna "Value" per selezionarlo',
-            '7. Ctrl+C per copiare, poi incolla qui sotto:',
+            '1. Log in to claude.ai in your browser',
+            '2. Press F12 to open DevTools',
+            '3. Click the "Application" tab at the top',
+            '   (if not visible, click \u00bb to show more tabs)',
+            '4. Left panel: Cookies \u2192 https://claude.ai',
+            '5. Find the row with Name = "sessionKey"',
+            '6. Double-click the "Value" column to select it',
+            '7. Ctrl+C to copy, then paste below:',
         ]
         for step in steps:
             fg_c = DIM if step.startswith('   ') else FG
@@ -1106,14 +1106,14 @@ class Widget:
         def save_key():
             key = entry.get().strip().strip('"').strip("'")
             if not key:
-                status_lbl.config(text='Incolla il sessionKey nel campo sopra', fg=RED)
+                status_lbl.config(text='Paste the sessionKey in the field above', fg=RED)
                 return
             if not key.startswith('sk-ant-'):
-                status_lbl.config(text='Il valore deve iniziare con sk-ant-', fg=RED)
+                status_lbl.config(text='The value must start with sk-ant-', fg=RED)
                 return
             save_btn.config(bg=DIM)
             save_btn.unbind('<Button-1>')
-            status_lbl.config(text='Verifica in corso...', fg=BLUE)
+            status_lbl.config(text='Verifying...', fg=BLUE)
             dlg.update_idletasks()
             def detect():
                 try:
@@ -1128,14 +1128,14 @@ class Widget:
                 dlg.destroy()
                 self.refresh()
             def on_err(msg):
-                status_lbl.config(text=f'Errore: {msg}', fg=RED)
+                status_lbl.config(text=f'Error: {msg}', fg=RED)
                 save_btn.config(bg=CLAUDE)
                 save_btn.bind('<Button-1>', lambda e: save_key())
             threading.Thread(target=detect, daemon=True).start()
 
         btn_frame = tk.Frame(body, bg=BG)
         btn_frame.pack(fill='x', pady=(6, 0))
-        save_btn = tk.Label(btn_frame, text=' Salva e Aggiorna ', font=FT_B,
+        save_btn = tk.Label(btn_frame, text=' Save and Update ', font=FT_B,
                             fg=BG, bg=CLAUDE, cursor='hand2', padx=8, pady=2)
         save_btn.pack(side='right')
         save_btn.bind('<Button-1>', lambda e: save_key())
@@ -1194,9 +1194,9 @@ class Widget:
         body.pack(fill='both', expand=True, padx=PAD, pady=(10, PAD))
 
         # ── Guide button ──
-        tk.Label(body, text='Come ottenere il Session Key:', font=FT_B,
+        tk.Label(body, text='How to get the Session Key:', font=FT_B,
                  fg=CLAUDE, bg=BG, anchor='w').pack(fill='x')
-        guide_btn = tk.Label(body, text=' \U0001F4D6  Apri guida nel browser ', font=FT,
+        guide_btn = tk.Label(body, text=' \U0001F4D6  Open guide in browser ', font=FT,
                              fg=BG, bg=BLUE, cursor='hand2', padx=8, pady=3)
         guide_btn.pack(anchor='w', pady=(6, 10))
         guide_btn.bind('<Button-1>', lambda e: self._open_guide())
@@ -1204,7 +1204,7 @@ class Widget:
         guide_btn.bind('<Leave>', lambda e: guide_btn.config(bg=BLUE))
 
         # ── Entry ──
-        tk.Label(body, text='Incolla qui il Session Key:', font=FT, fg=FG, bg=BG,
+        tk.Label(body, text='Paste your Session Key here:', font=FT, fg=FG, bg=BG,
                  anchor='w').pack(fill='x')
         entry = tk.Entry(body, font=FT_S, bg=BAR_BG, fg=FG,
                          insertbackground=FG, bd=0, highlightthickness=1,
@@ -1221,14 +1221,14 @@ class Widget:
         def save_key():
             key = entry.get().strip().strip('"').strip("'")
             if not key:
-                status_lbl.config(text='Incolla il sessionKey nel campo sopra', fg=RED)
+                status_lbl.config(text='Paste the sessionKey in the field above', fg=RED)
                 return
             if not key.startswith('sk-ant-'):
-                status_lbl.config(text='Il valore deve iniziare con sk-ant-', fg=RED)
+                status_lbl.config(text='The value must start with sk-ant-', fg=RED)
                 return
             save_btn.config(bg=DIM)
             save_btn.unbind('<Button-1>')
-            status_lbl.config(text='Verifica in corso...', fg=BLUE)
+            status_lbl.config(text='Verifying...', fg=BLUE)
             dlg.update_idletasks()
             def detect():
                 try:
@@ -1246,14 +1246,14 @@ class Widget:
                     self._schedule()
                 self.refresh()
             def on_err(msg):
-                status_lbl.config(text=f'Errore: {msg}', fg=RED)
+                status_lbl.config(text=f'Error: {msg}', fg=RED)
                 save_btn.config(bg=CLAUDE)
                 save_btn.bind('<Button-1>', lambda e: save_key())
             threading.Thread(target=detect, daemon=True).start()
 
         btn_frame = tk.Frame(body, bg=BG)
         btn_frame.pack(fill='x', pady=(6, 0))
-        save_btn = tk.Label(btn_frame, text=' Connetti ', font=FT_B,
+        save_btn = tk.Label(btn_frame, text=' Connect ', font=FT_B,
                             fg=BG, bg=CLAUDE, cursor='hand2', padx=12, pady=2)
         save_btn.pack(side='right')
         save_btn.bind('<Button-1>', lambda e: save_key())
