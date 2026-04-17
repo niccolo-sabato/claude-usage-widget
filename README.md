@@ -2,33 +2,7 @@
 
 A floating always-on-top desktop widget for Windows that displays real-time **Claude.ai** usage statistics. Built with Python + tkinter, styled in the Windows 11 Material design language: rounded corners, translucent background, pill-shaped progress bars.
 
-**Version:** 2.6.0 · **Platform:** Windows 10/11 · **License:** MIT
-
----
-
-## Visual overview
-
-### Standard mode (collapsed)
-
-One-bar summary view with title bar and controls:
-
-![Standard collapsed](docs/images/widget-standard.png)
-
-### Standard mode (expanded)
-
-Click the white dot (bottom-left) to reveal all three bars at once - expansion is always upward:
-
-![Standard expanded](docs/images/widget-standard-expanded.png)
-
-### Essential mode
-
-Ultra-compact view for the taskbar - double-click the orange dot to toggle:
-
-![Essential mode](docs/images/widget-essential.png)
-
-### Settings dropdown (≡ menu)
-
-![Settings menu](docs/images/menu-dropdown.png)
+**Version:** 2.6.2 · **Platform:** Windows 10/11 · **License:** MIT
 
 ---
 
@@ -332,6 +306,38 @@ Full details: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 - **No telemetry, no analytics, no third-party services**
 - **Session key stored locally only** in `%LOCALAPPDATA%\Claude Usage\config.json`
 - **Source is 100% open** - audit the code yourself
+
+---
+
+## Screenshots
+
+### Standard mode (collapsed)
+
+Single-bar view with title bar and controls.
+
+![Standard collapsed](docs/images/widget-standard.png)
+
+### Standard mode (expanded)
+
+Click the white dot (bottom-left) to reveal all three bars. Expansion is always upward to keep the bottom edge fixed.
+
+![Standard expanded](docs/images/widget-standard-expanded.png)
+
+### Essential mode (compact)
+
+Ultra-compact view optimized for the taskbar. Double-click the orange dot to toggle.
+
+![Essential mode](docs/images/widget-essential.png)
+
+### Essential mode (expanded)
+
+Essential mode also supports expansion to show all three bars.
+
+![Essential expanded](docs/images/widget-essential-expanded.png)
+
+### Settings dropdown (≡ menu)
+
+![Settings menu](docs/images/menu-dropdown.png)
 
 ---
 

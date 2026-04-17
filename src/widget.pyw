@@ -90,7 +90,7 @@ PCT_FG   = '#ffffff'
 MENU_BG  = '#2c2c2a'
 
 # ─── App ────────────────────────────────────────────
-APP_VERSION = '2.6.1'
+APP_VERSION = '2.6.2'
 
 # ─── Layout ──────────────────────────────────────────
 DEF_W    = 280
@@ -1156,7 +1156,10 @@ class Widget:
     # ── Language submenu ─────────────────────────────
 
     def _show_language_menu(self):
-        """Open language selection submenu."""
+        """Open language selection submenu (deferred to run after close_menu)."""
+        self.root.after(10, self._show_language_menu_now)
+
+    def _show_language_menu_now(self):
         if self._menu_win and self._menu_win.winfo_exists():
             self._menu_win.destroy()
         m = tk.Toplevel(self.root)
