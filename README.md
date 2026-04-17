@@ -1,4 +1,4 @@
-# Claude Usage Widget
+﻿# Claude Usage Widget
 
 A floating always-on-top desktop widget for Windows that displays real-time **Claude.ai** usage statistics. Built with Python + tkinter, styled in the Windows 11 Material design language: rounded corners, translucent background, pill-shaped progress bars.
 
@@ -16,13 +16,13 @@ One-bar summary view with title bar and controls:
 
 ### Standard mode (expanded)
 
-Click the white dot (bottom-left) to reveal all three bars at once — expansion is always upward:
+Click the white dot (bottom-left) to reveal all three bars at once - expansion is always upward:
 
 ![Standard expanded](docs/images/widget-standard-expanded.png)
 
 ### Essential mode
 
-Ultra-compact view for the taskbar — double-click the orange dot to toggle:
+Ultra-compact view for the taskbar - double-click the orange dot to toggle:
 
 ![Essential mode](docs/images/widget-essential.png)
 
@@ -39,12 +39,12 @@ Ultra-compact view for the taskbar — double-click the orange dot to toggle:
 - **Instant refresh** when a reset time is reached
 - **Two display modes**: standard (full) and essential (compact, single bar)
 - **Drag-to-move** and **drag-to-resize** from the orange corner dot
-- **Always above the taskbar** — including after virtual desktop switch
+- **Always above the taskbar** - including after virtual desktop switch
 - **Multi-language UI**: English, Italian, Japanese
 - **Smooth animations** for expand/collapse with no visual artifacts
-- **Single instance enforcement** — second launch brings existing to front
+- **Single instance enforcement** - second launch brings existing to front
 - **Crash protection** with structured logging + self-heal
-- **Persistent geometry** — remembers position, size, and mode across restarts
+- **Persistent geometry** - remembers position, size, and mode across restarts
 - **Hidden from taskbar & Win+Tab** (floating widget, not a window)
 
 ---
@@ -59,10 +59,10 @@ Ultra-compact view for the taskbar — double-click the orange dot to toggle:
 
 Each bar is color-coded:
 - 🟧 Accent (Claude orange / blue / purple) under 75%
-- 🟨 Orange at 75-89% — warning zone
-- 🟥 Red at 90%+ — about to hit limit
+- 🟨 Orange at 75-89% - warning zone
+- 🟥 Red at 90%+ - about to hit limit
 
-Under each bar: `reset 18:00 (3h 26min)` — shows when the limit refreshes.
+Under each bar: `reset 18:00 (3h 26min)` - shows when the limit refreshes.
 
 ---
 
@@ -83,18 +83,18 @@ The installer:
 
 ### Chrome companion extension (optional)
 
-The **Claude Session Key** Chrome extension lets you copy the sessionKey with one click instead of digging into DevTools. Available in the `extension/` folder of this repo — pending publication on the Chrome Web Store.
+The **Claude Session Key** Chrome extension lets you copy the sessionKey with one click instead of digging into DevTools. Available in the `extension/` folder of this repo - pending publication on the Chrome Web Store.
 
 ---
 
 ## First-time setup
 
-1. Launch the widget — the **Setup dialog** opens automatically
+1. Launch the widget - the **Setup dialog** opens automatically
 2. Click **"Open guide in browser"** → detailed step-by-step visual guide
 3. Paste the `sessionKey` into the widget
-4. Click **Connect** — the widget auto-detects your `org_id` and starts monitoring
+4. Click **Connect** - the widget auto-detects your `org_id` and starts monitoring
 
-Your `sessionKey` is a cookie Claude.ai uses to authenticate you. The widget reads usage data with the same session you're logged in with in your browser — no API key, no password, no OAuth.
+Your `sessionKey` is a cookie Claude.ai uses to authenticate you. The widget reads usage data with the same session you're logged in with in your browser - no API key, no password, no OAuth.
 
 ---
 
@@ -124,7 +124,7 @@ The two dots in the bottom corners control mode and size:
 - **Click and drag** horizontally → resize the widget
 - **Double-click** → toggle essential mode
 
-Height is always auto-sized to content — you only control width.
+Height is always auto-sized to content - you only control width.
 
 ### Settings menu (≡)
 
@@ -146,13 +146,13 @@ Height is always auto-sized to content — you only control width.
 
 ### Standard mode (full)
 
-Shows the title bar, all three bars with labels, reset times, and section dividers. Click the white dot to toggle between single-bar and three-bar view — all expansions happen **upward** to keep the bottom edge anchored (ideal when placed on the taskbar).
+Shows the title bar, all three bars with labels, reset times, and section dividers. Click the white dot to toggle between single-bar and three-bar view - all expansions happen **upward** to keep the bottom edge anchored (ideal when placed on the taskbar).
 
 ### Essential mode (compact)
 
 Minimal UI optimized for the taskbar:
 - No title bar
-- Single bar showing: `55% 19:24 (3min 00s)` — percentage + last refresh time + countdown
+- Single bar showing: `55% 19:24 (3min 00s)` - percentage + last refresh time + countdown
 - Compact controls at bottom-right: **✕** close, **↻** refresh, current time
 - Reset time text underneath the bar
 
@@ -193,7 +193,7 @@ Uses Win32 `SetWindowPos(HWND_TOPMOST)` re-asserted every 500ms, plus `FocusOut`
 
 ### Hidden from taskbar & Win+Tab
 
-Uses `WS_EX_TOOLWINDOW` extended style to hide from the taskbar and the Win+Tab switcher — it's a pure floating widget, not a window.
+Uses `WS_EX_TOOLWINDOW` extended style to hide from the taskbar and the Win+Tab switcher - it's a pure floating widget, not a window.
 
 ### Single instance
 
@@ -235,7 +235,7 @@ Config file: `%LOCALAPPDATA%\Claude Usage\config.json`
 }
 ```
 
-All fields are managed by the widget — you don't normally edit this file. See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for details.
+All fields are managed by the widget - you don't normally edit this file. See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for details.
 
 ---
 
@@ -307,11 +307,11 @@ python -m PyInstaller --onedir --noconsole `
 
 The widget is a **single Python file** (`src/widget.pyw`, ~1500 lines) with these main components:
 
-- **`Section` class** — one usage bar with canvas-based pill rendering
-- **`Widget` class** — main window, menu, dialogs, animations, lifecycle
-- **`fetch_usage` / `fetch_org_id`** — HTTP calls via curl subprocess
-- **`LANG` dict + `t()` / `set_lang()`** — i18n system
-- **`dwm_round` / Win32 calls** — platform integration (topmost, rounded corners, toolwindow)
+- **`Section` class** - one usage bar with canvas-based pill rendering
+- **`Widget` class** - main window, menu, dialogs, animations, lifecycle
+- **`fetch_usage` / `fetch_org_id`** - HTTP calls via curl subprocess
+- **`LANG` dict + `t()` / `set_lang()`** - i18n system
+- **`dwm_round` / Win32 calls** - platform integration (topmost, rounded corners, toolwindow)
 
 Full details: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 
@@ -331,7 +331,7 @@ Full details: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 - **No data is sent anywhere** except `claude.ai/api/organizations/*/usage` (the same endpoint Claude.ai itself uses)
 - **No telemetry, no analytics, no third-party services**
 - **Session key stored locally only** in `%LOCALAPPDATA%\Claude Usage\config.json`
-- **Source is 100% open** — audit the code yourself
+- **Source is 100% open** - audit the code yourself
 
 ---
 

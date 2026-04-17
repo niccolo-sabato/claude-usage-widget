@@ -1,4 +1,4 @@
-# Architecture — Claude Usage Widget
+﻿# Architecture - Claude Usage Widget
 
 ## Source File
 
@@ -149,7 +149,7 @@ Widget.__init__()
 | Variable | Type | Default | Description |
 |----------|------|---------|-------------|
 | `cfg` | `dict` | from config.json | Configuration data |
-| `root` | `tk.Tk` | — | Root window |
+| `root` | `tk.Tk` | - | Root window |
 | `_job` | `str|None` | `None` | Scheduled refresh `after()` ID |
 | `_countdown_job` | `str|None` | `None` | Countdown timer `after()` ID |
 | `_topmost_job` | `str|None` | `None` | Keep-topmost `after()` ID |
@@ -160,8 +160,8 @@ Widget.__init__()
 | `_essential` | `bool` | `False` | Whether essential (compact) mode is active |
 | `_rs_x, _rs_y, _rs_w, _rs_h` | `int` | `0` | Resize start state |
 | `_menu_win` | `tk.Toplevel|None` | `None` | Active menu window |
-| `_bar_icon` | `tk.PhotoImage|None` | — | Title bar icon image |
-| `_hwnd` | `int` | — | Win32 window handle |
+| `_bar_icon` | `tk.PhotoImage|None` | - | Title bar icon image |
+| `_hwnd` | `int` | - | Win32 window handle |
 
 ### Methods
 
@@ -254,17 +254,17 @@ Widget.__init__()
 ```
 Main Thread (tkinter)
 ├── UI rendering and event handling
-├── root.mainloop() — never blocks
-├── root.after() — scheduled callbacks
-│   ├── _schedule_tick() — every refresh_ms (default 300000ms)
-│   ├── _tick_countdown() — every 1000ms
-│   ├── _keep_topmost() — every 2000ms
-│   └── _on_data() / _error() — from fetch thread
+├── root.mainloop() - never blocks
+├── root.after() - scheduled callbacks
+│   ├── _schedule_tick() - every refresh_ms (default 300000ms)
+│   ├── _tick_countdown() - every 1000ms
+│   ├── _keep_topmost() - every 2000ms
+│   └── _on_data() / _error() - from fetch thread
 │
 Background Threads (daemon=True)
-└── _fetch() — one at a time, spawned by refresh()
-    ├── subprocess.run(curl, timeout=20) — blocking
-    └── root.after(0, callback) — returns result to main thread
+└── _fetch() - one at a time, spawned by refresh()
+    ├── subprocess.run(curl, timeout=20) - blocking
+    └── root.after(0, callback) - returns result to main thread
 ```
 
 **Thread Safety**: The fetch thread never touches UI directly. It communicates with the main thread exclusively via `root.after(0, callback)`, which schedules the callback on the tkinter event loop. The `daemon=True` flag ensures the thread dies with the process.

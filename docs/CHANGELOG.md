@@ -1,4 +1,4 @@
-# Changelog — Claude Usage Widget
+﻿# Changelog - Claude Usage Widget
 
 > Reconstructed from code structure, comments, and architectural patterns.
 > Exact dates are not available; entries are ordered by inferred development sequence.
@@ -13,7 +13,7 @@ Final state: single-file Python application compiled to EXE via PyInstaller (Pyt
 
 ## Development Timeline
 
-### Phase 1 — Initial Development
+### Phase 1 - Initial Development
 
 **Core widget with basic usage display**
 
@@ -27,7 +27,7 @@ Final state: single-file Python application compiled to EXE via PyInstaller (Pyt
 - Implemented drag-to-move via title bar
 - Set up basic logging with `wlog()` function
 
-### Phase 2 — Windows 11 Integration
+### Phase 2 - Windows 11 Integration
 
 **Native W11 look and feel**
 
@@ -38,7 +38,7 @@ Final state: single-file Python application compiled to EXE via PyInstaller (Pyt
 - Retained shadow for dropdown menus and dialogs
 - Added W11-styled hamburger dropdown menu with hover effects and rounded corners
 
-### Phase 3 — Display Modes
+### Phase 3 - Display Modes
 
 **Essential mode and expand/collapse**
 
@@ -52,7 +52,7 @@ Final state: single-file Python application compiled to EXE via PyInstaller (Pyt
 - Added `_restore_essential()` for startup restoration with saved geometry
 - Implemented resize via ochre dot drag
 
-### Phase 4 — Robustness
+### Phase 4 - Robustness
 
 **Crash protection and single instance**
 
@@ -64,7 +64,7 @@ Final state: single-file Python application compiled to EXE via PyInstaller (Pyt
 - Implemented auto-save on every successful data fetch (crash protection)
 - Added log file size management (max 200 lines, truncation every 50 writes)
 
-### Phase 5 — Window Management
+### Phase 5 - Window Management
 
 **Win+Tab visibility and keep-topmost**
 
@@ -73,7 +73,7 @@ Final state: single-file Python application compiled to EXE via PyInstaller (Pyt
 - Implemented 2-second keep-topmost loop via `SetWindowPos(HWND_TOPMOST)`
 - Used `SWP_NOACTIVATE` to prevent focus stealing
 
-### Phase 6 — Session Management
+### Phase 6 - Session Management
 
 **Session key renewal and auto-rotation**
 
@@ -82,7 +82,7 @@ Final state: single-file Python application compiled to EXE via PyInstaller (Pyt
 - Added automatic session key rotation detection from API response headers
 - Added "Rinnova sessione" menu item that opens claude.ai + dialog
 
-### Phase 7 — Polish
+### Phase 7 - Polish
 
 **Countdown timer, multi-monitor, and UX improvements**
 
@@ -93,7 +93,7 @@ Final state: single-file Python application compiled to EXE via PyInstaller (Pyt
 - Added reset time formatting in Italian locale with relative countdown
 - Improved error handling and display
 
-### Phase 8 — Deployment
+### Phase 8 - Deployment
 
 **PyInstaller packaging and AppData migration**
 

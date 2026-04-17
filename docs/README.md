@@ -1,4 +1,4 @@
-# Claude Usage Widget
+﻿# Claude Usage Widget
 
 A floating always-on-top desktop widget for Windows 11 that displays real-time Claude.ai usage statistics. Built with Python (tkinter), styled with Windows 11 Material design language, featuring rounded corners, translucent background, and pill-shaped progress bars.
 
@@ -108,9 +108,9 @@ Bars change color based on usage percentage:
 
 The sub-label below each bar shows when the usage window resets:
 
-- **Same day**: `alle 18:00 (3h 26min)` — "at 18:00 (3h 26min remaining)"
-- **Different day**: `sab 11:00 (2gg 5h)` — "Sat 11:00 (2 days 5h remaining)"
-- **Already reset**: `tra poco` — "shortly"
+- **Same day**: `alle 18:00 (3h 26min)` - "at 18:00 (3h 26min remaining)"
+- **Different day**: `sab 11:00 (2gg 5h)` - "Sat 11:00 (2 days 5h remaining)"
+- **Already reset**: `tra poco` - "shortly"
 - **Not used**: `non utilizzato`
 
 ### Countdown Timer

@@ -1,4 +1,4 @@
-# Features — Claude Usage Widget
+﻿# Features - Claude Usage Widget
 
 ## 1. Usage Monitoring
 
@@ -233,8 +233,8 @@ Despite being an `overrideredirect` window (no standard window frame), the widge
 
 ### How It Works
 1. `_make_wintab_visible()` modifies the window's extended styles via Win32 API
-2. Adds `WS_EX_APPWINDOW` (0x00040000) — makes the window appear in task switchers
-3. Removes `WS_EX_TOOLWINDOW` (0x00000080) — prevents "tool window" behavior that hides from taskbar/task view
+2. Adds `WS_EX_APPWINDOW` (0x00040000) - makes the window appear in task switchers
+3. Removes `WS_EX_TOOLWINDOW` (0x00000080) - prevents "tool window" behavior that hides from taskbar/task view
 4. Calls `SetWindowPos` with `SWP_FRAMECHANGED` to force the style update
 
 ### Why This Is Needed
@@ -254,9 +254,9 @@ DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE=33, DWMWCP_ROUND=2)
 ```
 
 ### Shadow Control
-- Main widget: `shadow=False` — removes CS_DROPSHADOW from window class and zeroes DWM frame margins
-- Menu dropdowns: `shadow=True` (default) — retains native shadow for depth effect
-- Session dialog: `shadow=True` — retains shadow
+- Main widget: `shadow=False` - removes CS_DROPSHADOW from window class and zeroes DWM frame margins
+- Menu dropdowns: `shadow=True` (default) - retains native shadow for depth effect
+- Session dialog: `shadow=True` - retains shadow
 
 ### Applied To
 | Window | Delay | Shadow |
@@ -397,10 +397,10 @@ A W11-styled dropdown menu accessible from the title bar.
 |------|:----:|--------|
 | Aggiorna | ↻ | Manual refresh |
 | Modalita normale/essential | ⇅ | Toggle essential mode |
-| — separator — | | |
+| - separator - | | |
 | Rinnova sessione... | ⚒ | Open session renewal flow |
 | Apri config.json | ⚙ | Open config in Notepad |
-| — separator — | | |
+| - separator - | | |
 | Chiudi | ✕ | Quit widget |
 
 ### Behavior
@@ -434,7 +434,7 @@ The widget renders correctly on high-DPI displays and mixed-DPI multi-monitor se
 ```python
 ctypes.windll.shcore.SetProcessDpiAwareness(2)
 ```
-Value 2 = `PROCESS_PER_MONITOR_DPI_AWARE_V2` — the highest level of DPI awareness on Windows 10/11. This means:
+Value 2 = `PROCESS_PER_MONITOR_DPI_AWARE_V2` - the highest level of DPI awareness on Windows 10/11. This means:
 - The widget uses physical pixels, not logical pixels
 - Font rendering adapts to the current monitor's DPI
 - Moving between monitors with different DPIs is handled by Windows
@@ -464,7 +464,7 @@ Usage bars are drawn as pill/capsule shapes using Canvas primitives, providing a
 ### Rendering Steps
 1. Draw full-width background pill in `BAR_BG` (#3a3a38)
 2. If percentage > 0, draw foreground pill proportional to percentage
-3. Foreground width: `max(BAR_H, canvas_width * pct / 100)` — minimum width equals bar height to prevent the pill from becoming a thin sliver
+3. Foreground width: `max(BAR_H, canvas_width * pct / 100)` - minimum width equals bar height to prevent the pill from becoming a thin sliver
 4. In compact mode, overlay centered percentage text in white bold
 
 ### Shape Construction

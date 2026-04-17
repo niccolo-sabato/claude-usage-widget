@@ -1,4 +1,4 @@
-# Design Specification — Claude Usage Widget
+﻿# Design Specification - Claude Usage Widget
 
 ## Design Language
 
@@ -37,7 +37,7 @@ Windows 11 Material design: dark theme, rounded corners, translucent background,
 | Dot White Hover | `DOT_W_H` | `#ffffff` | Expand dot on hover |
 | Dot White Dim | `DOT_W_D` | `#a0a09e` | Expand dot when collapsed (inactive) |
 | Percentage FG | `PCT_FG` | `#ffffff` | Percentage text inside bar (essential mode) |
-| Resize Dot Hover | — | `#E06030` | Ochre dot on mouse enter |
+| Resize Dot Hover | - | `#E06030` | Ochre dot on mouse enter |
 
 ### Save Button States
 
@@ -215,10 +215,10 @@ All overlay elements use `place()` (absolute positioning on the `main` frame) ra
 | Button | Default FG | Hover FG | Hover BG |
 |--------|:----------:|:--------:|:--------:|
 | Close (✕) | `#7a7a78` | `#E85858` (RED) | `#3a3a38` |
-| Refresh (↻) | `#7a7a78` | `#5B9BD5` (BLUE) | — |
-| Hamburger (≡) | `#7a7a78` | `#e4e4e4` (FG) | — |
-| Expand dot (●) | `#a0a09e` / `#d0d0d0` | `#ffffff` | — |
-| Resize dot (●) | `#C8962A` | `#E06030` | — |
+| Refresh (↻) | `#7a7a78` | `#5B9BD5` (BLUE) | - |
+| Hamburger (≡) | `#7a7a78` | `#e4e4e4` (FG) | - |
+| Expand dot (●) | `#a0a09e` / `#d0d0d0` | `#ffffff` | - |
+| Resize dot (●) | `#C8962A` | `#E06030` | - |
 
 ### Expand Dot State
 

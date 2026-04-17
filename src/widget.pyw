@@ -90,7 +90,7 @@ PCT_FG   = '#ffffff'
 MENU_BG  = '#2c2c2a'
 
 # ─── App ────────────────────────────────────────────
-APP_VERSION = '2.6.0'
+APP_VERSION = '2.6.1'
 
 # ─── Layout ──────────────────────────────────────────
 DEF_W    = 280
@@ -151,7 +151,7 @@ LANG = {
         'days': ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
         'unit_d': 'd', 'unit_h': 'h', 'unit_min': 'min',
         'setup_required': 'Setup required',
-        'session_expired': 'Session expired \u2014 update sessionKey\n(\u2261 menu \u2192 Renew session)',
+        'session_expired': 'Session expired: update sessionKey\n(\u2261 menu \u2192 Renew session)',
         'error': 'error',
         'empty_response': 'Empty response',
         'no_org': 'No organization found',
@@ -187,7 +187,7 @@ LANG = {
         'days': ['lun', 'mar', 'mer', 'gio', 'ven', 'sab', 'dom'],
         'unit_d': 'gg', 'unit_h': 'h', 'unit_min': 'min',
         'setup_required': 'Configurazione necessaria',
-        'session_expired': 'Sessione scaduta \u2014 aggiorna sessionKey\n(\u2261 menu \u2192 Rinnova sessione)',
+        'session_expired': 'Sessione scaduta: aggiorna sessionKey\n(\u2261 menu \u2192 Rinnova sessione)',
         'error': 'errore',
         'empty_response': 'Risposta vuota',
         'no_org': 'Nessuna organizzazione trovata',
@@ -221,7 +221,7 @@ LANG = {
         'days': ['\u6708', '\u706b', '\u6c34', '\u6728', '\u91d1', '\u571f', '\u65e5'],
         'unit_d': '\u65e5', 'unit_h': '\u6642\u9593', 'unit_min': '\u5206',
         'setup_required': '\u30bb\u30c3\u30c8\u30a2\u30c3\u30d7\u304c\u5fc5\u8981\u3067\u3059',
-        'session_expired': '\u30bb\u30c3\u30b7\u30e7\u30f3\u6709\u52b9\u671f\u9650\u5207\u308c \u2014 sessionKey\u3092\u66f4\u65b0\n(\u2261 \u30e1\u30cb\u30e5\u30fc \u2192 \u30bb\u30c3\u30b7\u30e7\u30f3\u66f4\u65b0)',
+        'session_expired': '\u30bb\u30c3\u30b7\u30e7\u30f3\u6709\u52b9\u671f\u9650\u5207\u308c: sessionKey\u3092\u66f4\u65b0\n(\u2261 \u30e1\u30cb\u30e5\u30fc \u2192 \u30bb\u30c3\u30b7\u30e7\u30f3\u66f4\u65b0)',
         'error': '\u30a8\u30e9\u30fc',
         'empty_response': '\u5fdc\u7b54\u304c\u7a7a\u3067\u3059',
         'no_org': '\u7d44\u7e54\u304c\u898b\u3064\u304b\u308a\u307e\u305b\u3093',

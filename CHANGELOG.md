@@ -1,4 +1,4 @@
-# Changelog
+﻿# Changelog
 
 All notable changes to the Claude Usage Widget.
 
@@ -20,7 +20,7 @@ For a more detailed narrative of early development phases, see
   `_RES/assets` so it works from source and from the bundled exe.
 - Updated `claude-usage-setup.iss` to reference the new paths.
 
-## [2.5.7] — 2026-03-26
+## [2.5.7] - 2026-03-26
 
 Current stable release. See [`docs/CHANGELOG.md`](docs/CHANGELOG.md) for the
 full development history (Phases 1-8) covering:

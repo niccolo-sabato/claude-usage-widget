@@ -1,4 +1,4 @@
-# Configuration — Claude Usage Widget
+﻿# Configuration - Claude Usage Widget
 
 ## File Location
 
@@ -62,8 +62,8 @@ When config.json is missing or a field is absent, the following defaults apply:
 
 | Field | Fallback | Source |
 |-------|----------|--------|
-| `session_key` | — (widget shows error) | None |
-| `org_id` | — (widget shows error) | None |
+| `session_key` | - (widget shows error) | None |
+| `org_id` | - (widget shows error) | None |
 | `refresh_ms` | `300000` | `REFRESH` constant |
 | `x` | `100` | `cfg.get('x', 100)` |
 | `y` | `100` | `cfg.get('y', 100)` |
@@ -97,9 +97,9 @@ def save_cfg(data):
 
 - Overwrites the entire file atomically (write mode, not append)
 - Called from:
-  - `_save_geometry()` — position, size, mode state
-  - `fetch_usage()` — session key auto-rotation
-  - `_session_dialog()` — manual session key renewal
+  - `_save_geometry()` - position, size, mode state
+  - `fetch_usage()` - session key auto-rotation
+  - `_session_dialog()` - manual session key renewal
 - Encoding: UTF-8
 - Indentation: 2 spaces
 
