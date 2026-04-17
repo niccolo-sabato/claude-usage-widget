@@ -6,6 +6,32 @@ A floating always-on-top desktop widget for Windows that displays real-time **Cl
 
 ---
 
+## Visual overview
+
+### Standard mode (collapsed)
+
+One-bar summary view with title bar and controls:
+
+![Standard collapsed](docs/images/widget-standard.png)
+
+### Standard mode (expanded)
+
+Click the white dot (bottom-left) to reveal all three bars at once — expansion is always upward:
+
+![Standard expanded](docs/images/widget-standard-expanded.png)
+
+### Essential mode
+
+Ultra-compact view for the taskbar — double-click the orange dot to toggle:
+
+![Essential mode](docs/images/widget-essential.png)
+
+### Settings dropdown (≡ menu)
+
+![Settings menu](docs/images/menu-dropdown.png)
+
+---
+
 ## Features at a glance
 
 - **Three live usage bars**: current 5-hour session, 7-day all models, 7-day Sonnet-only
