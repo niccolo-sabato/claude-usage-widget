@@ -90,7 +90,7 @@ PCT_FG   = '#ffffff'
 MENU_BG  = '#2c2c2a'
 
 # ─── App ────────────────────────────────────────────
-APP_VERSION = '2.5.8'
+APP_VERSION = '2.6.0'
 
 # ─── Layout ──────────────────────────────────────────
 DEF_W    = 280
@@ -138,6 +138,125 @@ def wlog(msg):
 # ─── API ─────────────────────────────────────────────
 API_URL  = 'https://claude.ai/api/organizations/{}/usage'
 
+# ─── i18n ───────────────────────────────────────────
+LANG = {
+    'en': {
+        'current_session': 'Current Session',
+        'all_models': 'All models (7d)',
+        'sonnet_only': 'Sonnet only (7d)',
+        'not_available': 'not available',
+        'not_used': 'not used',
+        'soon': 'soon',
+        'reset_prefix': 'reset',
+        'days': ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+        'unit_d': 'd', 'unit_h': 'h', 'unit_min': 'min',
+        'setup_required': 'Setup required',
+        'session_expired': 'Session expired \u2014 update sessionKey\n(\u2261 menu \u2192 Renew session)',
+        'error': 'error',
+        'empty_response': 'Empty response',
+        'no_org': 'No organization found',
+        'session_expired_short': 'Session expired',
+        # Menu
+        'menu_refresh': 'Refresh',
+        'menu_mode_normal': 'Normal mode',
+        'menu_mode_essential': 'Essential mode',
+        'menu_renew': 'Renew session\u2026',
+        'menu_open_config': 'Open config.json',
+        'menu_quit': 'Quit',
+        'menu_language': 'Language',
+        # Dialog
+        'dlg_renew_title': 'Renew Session',
+        'dlg_setup_title': 'Setup',
+        'dlg_howto': 'How to get the Session Key:',
+        'dlg_open_guide': ' \U0001F4D6  Open guide in browser ',
+        'dlg_paste_here': 'Paste your Session Key here:',
+        'dlg_paste_empty': 'Paste the sessionKey in the field above',
+        'dlg_invalid_prefix': 'The value must start with sk-ant-',
+        'dlg_verifying': 'Verifying...',
+        'dlg_error_prefix': 'Error',
+        'dlg_connect': ' Connect ',
+    },
+    'it': {
+        'current_session': 'Sessione Corrente',
+        'all_models': 'Tutti i modelli (7gg)',
+        'sonnet_only': 'Solo Sonnet (7gg)',
+        'not_available': 'non disponibile',
+        'not_used': 'non utilizzato',
+        'soon': 'tra poco',
+        'reset_prefix': 'reset',
+        'days': ['lun', 'mar', 'mer', 'gio', 'ven', 'sab', 'dom'],
+        'unit_d': 'gg', 'unit_h': 'h', 'unit_min': 'min',
+        'setup_required': 'Configurazione necessaria',
+        'session_expired': 'Sessione scaduta \u2014 aggiorna sessionKey\n(\u2261 menu \u2192 Rinnova sessione)',
+        'error': 'errore',
+        'empty_response': 'Risposta vuota',
+        'no_org': 'Nessuna organizzazione trovata',
+        'session_expired_short': 'Sessione scaduta',
+        'menu_refresh': 'Aggiorna',
+        'menu_mode_normal': 'Modalit\u00e0 normale',
+        'menu_mode_essential': 'Modalit\u00e0 essential',
+        'menu_renew': 'Rinnova sessione\u2026',
+        'menu_open_config': 'Apri config.json',
+        'menu_quit': 'Chiudi',
+        'menu_language': 'Lingua',
+        'dlg_renew_title': 'Rinnova Sessione',
+        'dlg_setup_title': 'Configurazione',
+        'dlg_howto': 'Come ottenere il Session Key:',
+        'dlg_open_guide': ' \U0001F4D6  Apri guida nel browser ',
+        'dlg_paste_here': 'Incolla qui il Session Key:',
+        'dlg_paste_empty': 'Incolla il sessionKey nel campo sopra',
+        'dlg_invalid_prefix': 'Il valore deve iniziare con sk-ant-',
+        'dlg_verifying': 'Verifica in corso...',
+        'dlg_error_prefix': 'Errore',
+        'dlg_connect': ' Connetti ',
+    },
+    'ja': {
+        'current_session': '\u73fe\u5728\u306e\u30bb\u30c3\u30b7\u30e7\u30f3',
+        'all_models': '\u5168\u30e2\u30c7\u30eb (7\u65e5)',
+        'sonnet_only': 'Sonnet\u306e\u307f (7\u65e5)',
+        'not_available': '\u5229\u7528\u4e0d\u53ef',
+        'not_used': '\u672a\u4f7f\u7528',
+        'soon': '\u307e\u3082\u306a\u304f',
+        'reset_prefix': '\u30ea\u30bb\u30c3\u30c8',
+        'days': ['\u6708', '\u706b', '\u6c34', '\u6728', '\u91d1', '\u571f', '\u65e5'],
+        'unit_d': '\u65e5', 'unit_h': '\u6642\u9593', 'unit_min': '\u5206',
+        'setup_required': '\u30bb\u30c3\u30c8\u30a2\u30c3\u30d7\u304c\u5fc5\u8981\u3067\u3059',
+        'session_expired': '\u30bb\u30c3\u30b7\u30e7\u30f3\u6709\u52b9\u671f\u9650\u5207\u308c \u2014 sessionKey\u3092\u66f4\u65b0\n(\u2261 \u30e1\u30cb\u30e5\u30fc \u2192 \u30bb\u30c3\u30b7\u30e7\u30f3\u66f4\u65b0)',
+        'error': '\u30a8\u30e9\u30fc',
+        'empty_response': '\u5fdc\u7b54\u304c\u7a7a\u3067\u3059',
+        'no_org': '\u7d44\u7e54\u304c\u898b\u3064\u304b\u308a\u307e\u305b\u3093',
+        'session_expired_short': '\u30bb\u30c3\u30b7\u30e7\u30f3\u6709\u52b9\u671f\u9650\u5207\u308c',
+        'menu_refresh': '\u66f4\u65b0',
+        'menu_mode_normal': '\u901a\u5e38\u30e2\u30fc\u30c9',
+        'menu_mode_essential': '\u30b7\u30f3\u30d7\u30eb\u30e2\u30fc\u30c9',
+        'menu_renew': '\u30bb\u30c3\u30b7\u30e7\u30f3\u66f4\u65b0\u2026',
+        'menu_open_config': 'config.json\u3092\u958b\u304f',
+        'menu_quit': '\u7d42\u4e86',
+        'menu_language': '\u8a00\u8a9e',
+        'dlg_renew_title': '\u30bb\u30c3\u30b7\u30e7\u30f3\u66f4\u65b0',
+        'dlg_setup_title': '\u30bb\u30c3\u30c8\u30a2\u30c3\u30d7',
+        'dlg_howto': 'Session Key\u306e\u53d6\u5f97\u65b9\u6cd5:',
+        'dlg_open_guide': ' \U0001F4D6  \u30d6\u30e9\u30a6\u30b6\u3067\u30ac\u30a4\u30c9\u3092\u958b\u304f ',
+        'dlg_paste_here': 'Session Key\u3092\u3053\u3053\u306b\u8cbc\u308a\u4ed8\u3051:',
+        'dlg_paste_empty': '\u4e0a\u306e\u30d5\u30a3\u30fc\u30eb\u30c9\u306bsessionKey\u3092\u8cbc\u308a\u4ed8\u3051\u3066\u304f\u3060\u3055\u3044',
+        'dlg_invalid_prefix': '\u5024\u306fsk-ant-\u3067\u59cb\u307e\u308b\u5fc5\u8981\u304c\u3042\u308a\u307e\u3059',
+        'dlg_verifying': '\u78ba\u8a8d\u4e2d...',
+        'dlg_error_prefix': '\u30a8\u30e9\u30fc',
+        'dlg_connect': ' \u63a5\u7d9a ',
+    },
+}
+
+_current_lang = 'en'
+
+def t(key):
+    """Translate a key using the current language (fallback to English)."""
+    return LANG.get(_current_lang, LANG['en']).get(key, LANG['en'].get(key, key))
+
+def set_lang(code):
+    global _current_lang
+    if code in LANG:
+        _current_lang = code
+
 
 # ═══════════════════════════════════════════════════════
 # Helpers
@@ -180,20 +299,22 @@ def format_reset(iso_str):
     now_local = datetime.now().astimezone()
     secs = (target - datetime.now(timezone.utc)).total_seconds()
     if secs <= 0:
-        return 'soon'
+        return t('soon')
     total_h = int(secs) // 3600
     total_m = (int(secs) % 3600) // 60
+    ud, uh, umin = t('unit_d'), t('unit_h'), t('unit_min')
     if total_h >= 48:
-        cd = f'{total_h // 24}d {total_h % 24}h'
+        cd = f'{total_h // 24}{ud} {total_h % 24}{uh}'
     elif total_h > 0:
-        cd = f'{total_h}h {total_m:02d}min'
+        cd = f'{total_h}{uh} {total_m:02d}{umin}'
     else:
-        cd = f'{total_m}min'
+        cd = f'{total_m}{umin}'
     time_str = f'{local:%H:%M}'
+    prefix = t('reset_prefix')
     if local.date() == now_local.date():
-        return f'reset {time_str} ({cd})'
-    days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
-    return f'reset {days[local.weekday()]} {time_str} ({cd})'
+        return f'{prefix} {time_str} ({cd})'
+    days = t('days')
+    return f'{prefix} {days[local.weekday()]} {time_str} ({cd})'
 
 
 def pill(cv, x, y, w, h, color):
@@ -250,11 +371,11 @@ def fetch_org_id(session_key):
         raise RuntimeError(f'curl: {result.stderr.strip()}')
     body = result.stdout.strip()
     if not body:
-        raise RuntimeError('Empty response')
+        raise RuntimeError(t('empty_response'))
     orgs = json.loads(body)
     if isinstance(orgs, list) and len(orgs) > 0:
         return orgs[0].get('uuid') or orgs[0].get('id')
-    raise RuntimeError('No organization found')
+    raise RuntimeError(t('no_org'))
 
 
 def fetch_usage(cfg):
@@ -280,12 +401,12 @@ def fetch_usage(cfg):
     headers = parts[0] if len(parts) == 2 else ''
     body = parts[-1].strip()
     if not body:
-        raise RuntimeError('Empty response')
+        raise RuntimeError(t('empty_response'))
     sm = re.search(r'HTTP/[\d.]+ (\d+)', headers)
     if sm:
         code = int(sm.group(1))
         if code in (401, 403):
-            raise PermissionError('Session expired')
+            raise PermissionError(t('session_expired_short'))
         if code >= 400:
             raise RuntimeError(f'HTTP {code}')
     km = re.search(r'sessionKey=([^;\s]+)', headers)
@@ -351,7 +472,7 @@ class Section:
         if pct is None:
             self._pct = 0
             self._color = BAR_BG
-            self.lbl_sub.config(text='not available')
+            self.lbl_sub.config(text=t('not_available'))
             self._draw(self.cv.winfo_width())
             return
         self._pct = max(0, min(100, pct))
@@ -360,7 +481,7 @@ class Section:
         if cd:
             self.lbl_sub.config(text=cd)
         elif self._pct == 0:
-            self.lbl_sub.config(text='not used')
+            self.lbl_sub.config(text=t('not_used'))
         else:
             self.lbl_sub.config(text='')
         self._draw(self.cv.winfo_width())
@@ -390,6 +511,8 @@ class Widget:
 
     def __init__(self):
         self.cfg = load_cfg()
+        # Load language from config, default English
+        set_lang(self.cfg.get('language', 'en'))
         self.root = tk.Tk()
         self._job = None
         self._countdown_job = None
@@ -457,7 +580,7 @@ class Widget:
             self.refresh()
             self._schedule()
         else:
-            self._error('Setup required')
+            self._error(t('setup_required'))
             self.root.after(300, self._setup_dialog)
 
         self.root.protocol('WM_DELETE_WINDOW', self._quit)
@@ -543,12 +666,12 @@ class Widget:
         self.content = tk.Frame(self.main, bg=BG)
         self.content.pack(fill='both', expand=True)
 
-        self.s_session = Section(self.content, 'Current Session', CLAUDE)
+        self.s_session = Section(self.content, t('current_session'), CLAUDE)
 
         # Expandable sections
         self.extra_frame = tk.Frame(self.content, bg=BG)
-        self.s_weekly = Section(self.extra_frame, 'All models (7d)', BLUE)
-        self.s_sonnet = Section(self.extra_frame, 'Sonnet only (7d)', PURPLE)
+        self.s_weekly = Section(self.extra_frame, t('all_models'), BLUE)
+        self.s_sonnet = Section(self.extra_frame, t('sonnet_only'), PURPLE)
 
         # Bottom spacer
         self.bottom_pad = tk.Frame(self.content, bg=BG, height=6)
@@ -807,8 +930,7 @@ class Widget:
             wlog('FETCH  session scaduta (401/403)')
             try:
                 self.root.after(0, self._error,
-                                'Session expired \u2014 update sessionKey\n'
-                                '(\u2261 menu \u2192 Renew session)')
+                                t('session_expired'))
             except Exception as ex:
                 wlog(f'FETCH  errore post-PermissionError: {ex}')
         except Exception as e:
@@ -898,7 +1020,7 @@ class Widget:
         wlog(f'ERROR  {msg}')
         self.lbl_err.config(text=msg)
         self.lbl_err.pack(fill='x', padx=PAD, pady=(4, 0))
-        self.s_session.set_countdown('error')
+        self.s_session.set_countdown(t('error'))
         self.btn_r.config(fg=DIM)
 
     def _schedule(self):
@@ -951,15 +1073,20 @@ class Widget:
         m.configure(bg=MENU_BG)
 
         FT_MENU = ('Segoe UI', 10)
-        mode_label = 'Normal mode' if self._essential else 'Essential mode'
+        mode_label = t('menu_mode_normal') if self._essential else t('menu_mode_essential')
+        # Language submenu label with current
+        lang_names = {'en': 'English', 'it': 'Italiano', 'ja': '\u65e5\u672c\u8a9e'}
+        cur_lang = lang_names.get(_current_lang, 'English')
+        lang_label = f"{t('menu_language')}: {cur_lang}"
         items = [
-            ('\u21bb', FT_BTN, 'Refresh', self.refresh),
+            ('\u21bb', FT_BTN, t('menu_refresh'), self.refresh),
             ('\u21c5', FT_BTN, mode_label, self._toggle_essential),
             None,
-            ('\u2692', FT, 'Renew session\u2026', self._renew_session),
-            ('\u2699', FT, 'Open config.json', self._open_config),
+            ('\u2692', FT, t('menu_renew'), self._renew_session),
+            ('\u2699', FT, t('menu_open_config'), self._open_config),
+            ('\U0001F310', FT, lang_label, self._show_language_menu),
             None,
-            ('\u2715', FT, 'Quit', self._quit),
+            ('\u2715', FT, t('menu_quit'), self._quit),
             None,
             (None, None, f'v{APP_VERSION}', None),
         ]
@@ -1026,6 +1153,57 @@ class Widget:
             wlog('MENU   chiuso')
         self._menu_win = None
 
+    # ── Language submenu ─────────────────────────────
+
+    def _show_language_menu(self):
+        """Open language selection submenu."""
+        if self._menu_win and self._menu_win.winfo_exists():
+            self._menu_win.destroy()
+        m = tk.Toplevel(self.root)
+        self._menu_win = m
+        m.overrideredirect(True)
+        m.attributes('-topmost', True)
+        m.configure(bg=MENU_BG)
+        langs = [('en', 'English'), ('it', 'Italiano'), ('ja', '\u65e5\u672c\u8a9e')]
+        for code, name in langs:
+            marker = '\u25cf ' if code == _current_lang else '  '
+            lbl = tk.Label(m, text=f'  {marker}{name}', font=('Segoe UI', 10),
+                           fg=FG, bg=MENU_BG, anchor='w', cursor='hand2',
+                           padx=10, pady=6)
+            lbl.pack(fill='x')
+            lbl.bind('<Enter>', lambda e, l=lbl: l.config(bg=HOVER_BG))
+            lbl.bind('<Leave>', lambda e, l=lbl: l.config(bg=MENU_BG))
+            lbl.bind('<Button-1>', lambda e, c=code: self._set_language(c))
+        m.update_idletasks()
+        mw, mh = m.winfo_reqwidth(), m.winfo_reqheight()
+        bx = self.root.winfo_rootx() + self.root.winfo_width() - mw
+        widget_bottom = self.root.winfo_rooty() + self.root.winfo_height()
+        screen_h = self.root.winfo_screenheight()
+        if widget_bottom + mh > screen_h - 50:
+            by = self.root.winfo_rooty() - mh - 2
+        else:
+            by = self.root.winfo_rooty() + TITLE_H + 2
+        m.geometry(f'+{bx}+{by}')
+        m.after(10, lambda: dwm_round(m))
+        m.after(20, lambda: self._lift_menu(m))
+        m.bind('<Escape>', lambda e: self._close_menu())
+        m.bind('<FocusOut>', lambda e: self.root.after(100, self._close_menu))
+        m.focus_set()
+
+    def _set_language(self, code):
+        """Apply new language — save to config, retranslate visible UI."""
+        set_lang(code)
+        self.cfg['language'] = code
+        save_cfg(self.cfg)
+        self._close_menu()
+        # Retranslate section labels
+        self.s_session.lbl.config(text=t('current_session'))
+        self.s_weekly.lbl.config(text=t('all_models'))
+        self.s_sonnet.lbl.config(text=t('sonnet_only'))
+        # Refresh to update reset text + any visible messages
+        if self.cfg.get('session_key') and self.cfg.get('org_id'):
+            self.refresh()
+
     # ── Open config ──────────────────────────────────
 
     def _open_config(self):
@@ -1040,7 +1218,7 @@ class Widget:
     # ── Session renewal ──────────────────────────────
 
     def _renew_session(self):
-        self._session_key_dialog('Renew Session')
+        self._session_key_dialog(t('dlg_renew_title'))
 
     def _session_dialog(self):
         dlg = tk.Toplevel(self.root)
@@ -1106,14 +1284,14 @@ class Widget:
         def save_key():
             key = entry.get().strip().strip('"').strip("'")
             if not key:
-                status_lbl.config(text='Paste the sessionKey in the field above', fg=RED)
+                status_lbl.config(text=t('dlg_paste_empty'), fg=RED)
                 return
             if not key.startswith('sk-ant-'):
-                status_lbl.config(text='The value must start with sk-ant-', fg=RED)
+                status_lbl.config(text=t('dlg_invalid_prefix'), fg=RED)
                 return
             save_btn.config(bg=DIM)
             save_btn.unbind('<Button-1>')
-            status_lbl.config(text='Verifying...', fg=BLUE)
+            status_lbl.config(text=t('dlg_verifying'), fg=BLUE)
             dlg.update_idletasks()
             def detect():
                 try:
@@ -1128,7 +1306,7 @@ class Widget:
                 dlg.destroy()
                 self.refresh()
             def on_err(msg):
-                status_lbl.config(text=f'Error: {msg}', fg=RED)
+                status_lbl.config(text=f"{t('dlg_error_prefix')}: {msg}", fg=RED)
                 save_btn.config(bg=CLAUDE)
                 save_btn.bind('<Button-1>', lambda e: save_key())
             threading.Thread(target=detect, daemon=True).start()
@@ -1194,9 +1372,9 @@ class Widget:
         body.pack(fill='both', expand=True, padx=PAD, pady=(10, PAD))
 
         # ── Guide button ──
-        tk.Label(body, text='How to get the Session Key:', font=FT_B,
+        tk.Label(body, text=t('dlg_howto'), font=FT_B,
                  fg=CLAUDE, bg=BG, anchor='w').pack(fill='x')
-        guide_btn = tk.Label(body, text=' \U0001F4D6  Open guide in browser ', font=FT,
+        guide_btn = tk.Label(body, text=t('dlg_open_guide'), font=FT,
                              fg=BG, bg=BLUE, cursor='hand2', padx=8, pady=3)
         guide_btn.pack(anchor='w', pady=(6, 10))
         guide_btn.bind('<Button-1>', lambda e: self._open_guide())
@@ -1204,7 +1382,7 @@ class Widget:
         guide_btn.bind('<Leave>', lambda e: guide_btn.config(bg=BLUE))
 
         # ── Entry ──
-        tk.Label(body, text='Paste your Session Key here:', font=FT, fg=FG, bg=BG,
+        tk.Label(body, text=t('dlg_paste_here'), font=FT, fg=FG, bg=BG,
                  anchor='w').pack(fill='x')
         entry = tk.Entry(body, font=FT_S, bg=BAR_BG, fg=FG,
                          insertbackground=FG, bd=0, highlightthickness=1,
@@ -1221,14 +1399,14 @@ class Widget:
         def save_key():
             key = entry.get().strip().strip('"').strip("'")
             if not key:
-                status_lbl.config(text='Paste the sessionKey in the field above', fg=RED)
+                status_lbl.config(text=t('dlg_paste_empty'), fg=RED)
                 return
             if not key.startswith('sk-ant-'):
-                status_lbl.config(text='The value must start with sk-ant-', fg=RED)
+                status_lbl.config(text=t('dlg_invalid_prefix'), fg=RED)
                 return
             save_btn.config(bg=DIM)
             save_btn.unbind('<Button-1>')
-            status_lbl.config(text='Verifying...', fg=BLUE)
+            status_lbl.config(text=t('dlg_verifying'), fg=BLUE)
             dlg.update_idletasks()
             def detect():
                 try:
@@ -1246,14 +1424,14 @@ class Widget:
                     self._schedule()
                 self.refresh()
             def on_err(msg):
-                status_lbl.config(text=f'Error: {msg}', fg=RED)
+                status_lbl.config(text=f"{t('dlg_error_prefix')}: {msg}", fg=RED)
                 save_btn.config(bg=CLAUDE)
                 save_btn.bind('<Button-1>', lambda e: save_key())
             threading.Thread(target=detect, daemon=True).start()
 
         btn_frame = tk.Frame(body, bg=BG)
         btn_frame.pack(fill='x', pady=(6, 0))
-        save_btn = tk.Label(btn_frame, text=' Connect ', font=FT_B,
+        save_btn = tk.Label(btn_frame, text=t('dlg_connect'), font=FT_B,
                             fg=BG, bg=CLAUDE, cursor='hand2', padx=12, pady=2)
         save_btn.pack(side='right')
         save_btn.bind('<Button-1>', lambda e: save_key())
@@ -1262,7 +1440,7 @@ class Widget:
         entry.bind('<Return>', lambda e: save_key())
 
     def _setup_dialog(self):
-        self._session_key_dialog('Setup', is_setup=True)
+        self._session_key_dialog(t('dlg_setup_title'), is_setup=True)
 
     # ── Quit ─────────────────────────────────────────
 

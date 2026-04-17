@@ -2,7 +2,7 @@
 ; Run from the installer/ folder. All Source paths are relative to this script.
 
 #define MyAppName "Claude Usage"
-#define MyAppVersion "2.5.8"
+#define MyAppVersion "2.6.0"
 #define MyAppPublisher "Omakase"
 #define MyAppExeName "Claude Usage.exe"
 #define MyAppIcon "claude.ico"
@@ -32,6 +32,8 @@ CloseApplicationsFilter=Claude Usage.exe
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
+Name: "italian"; MessagesFile: "compiler:Languages\Italian.isl"
+Name: "japanese"; MessagesFile: "compiler:Languages\Japanese.isl"
 
 [InstallDelete]
 ; Clean previous installation to avoid stale files

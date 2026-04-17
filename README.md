@@ -1,85 +1,215 @@
 # Claude Usage Widget
 
-A floating always-on-top desktop widget for Windows 11 that displays real-time
-Claude.ai usage statistics. Built with Python + tkinter, styled in the Windows 11
-Material design language: rounded corners, translucent background, pill-shaped
-progress bars.
+A floating always-on-top desktop widget for Windows that displays real-time **Claude.ai** usage statistics. Built with Python + tkinter, styled in the Windows 11 Material design language: rounded corners, translucent background, pill-shaped progress bars.
 
-Shows three metrics with live progress bars:
+**Version:** 2.6.0 · **Platform:** Windows 10/11 · **License:** MIT
+
+---
+
+## Features at a glance
+
+- **Three live usage bars**: current 5-hour session, 7-day all models, 7-day Sonnet-only
+- **Auto-refresh every 3 minutes** with live countdown timer
+- **Instant refresh** when a reset time is reached
+- **Two display modes**: standard (full) and essential (compact, single bar)
+- **Drag-to-move** and **drag-to-resize** from the orange corner dot
+- **Always above the taskbar** — including after virtual desktop switch
+- **Multi-language UI**: English, Italian, Japanese
+- **Smooth animations** for expand/collapse with no visual artifacts
+- **Single instance enforcement** — second launch brings existing to front
+- **Crash protection** with structured logging + self-heal
+- **Persistent geometry** — remembers position, size, and mode across restarts
+- **Hidden from taskbar & Win+Tab** (floating widget, not a window)
+
+---
+
+## Usage statistics shown
 
 | Metric | Description |
 |---|---|
-| Sessione Corrente | 5-hour rolling session window |
-| Tutti i modelli (7gg) | 7-day aggregate across all models |
-| Solo Sonnet (7gg) | 7-day Sonnet-only usage |
+| **Current Session** | 5-hour rolling session window (most relevant during active work) |
+| **All models (7d)** | 7-day aggregate across all Claude models |
+| **Sonnet only (7d)** | 7-day Sonnet-specific usage (tracked separately by Anthropic) |
 
-Version: **2.5.7**
+Each bar is color-coded:
+- 🟧 Accent (Claude orange / blue / purple) under 75%
+- 🟨 Orange at 75-89% — warning zone
+- 🟥 Red at 90%+ — about to hit limit
 
----
-
-## Installation (end users)
-
-1. Download `ClaudeUsage-Setup.exe` from the latest GitHub Release.
-2. Run the installer (requires admin).
-3. Launch **Claude Usage** from the desktop/start menu.
-4. First-time setup: paste your Claude.ai `sessionKey`. See
-   [guide/session-key-guide.html](guide/session-key-guide.html) or the companion
-   Chrome extension (below).
-
-User data (config, logs) lives in `%LOCALAPPDATA%\Claude Usage\`.
-
-### Session key setup (2 methods)
-
-**Method A — Chrome extension (recommended)**
-
-Install the unpacked extension from `extension/` (or from the release ZIP). Click
-the extension icon while logged into claude.ai; it copies your session key
-directly into the widget's config.
-
-**Method B — Manual**
-
-1. Open claude.ai while logged in.
-2. DevTools (F12) -> Application -> Cookies -> `https://claude.ai`.
-3. Copy the `sessionKey` value.
-4. In the widget's menu, choose "Rinnova sessione" and paste.
-
-Full instructions: [guide/session-key-guide.html](guide/session-key-guide.html).
+Under each bar: `reset 18:00 (3h 26min)` — shows when the limit refreshes.
 
 ---
 
-## Development
+## Install
 
-### Prerequisites
+### End users (recommended)
 
-- Python 3.14 (tkinter included)
-- [PyInstaller](https://pyinstaller.org)
-- [Inno Setup 6](https://jrsoftware.org/isinfo.php) (for building the installer)
+1. Download `ClaudeUsage-Setup.exe` from the [Releases page](https://github.com/niccolo-sabato/claude-usage-widget/releases)
+2. Run the installer (the setup language matches your Windows system language)
+3. At first launch, paste your Claude.ai **sessionKey** (see [First-time setup](#first-time-setup))
 
-### Run from source
+The installer:
+- Installs to `C:\Program Files\Claude Usage\`
+- Stores config/logs in `%LOCALAPPDATA%\Claude Usage\`
+- Creates Desktop and Start Menu shortcuts
+- Adds an entry to "Add/Remove Programs"
+- Works on Windows 10 (1809+) and Windows 11
 
-```powershell
-pythonw "src\widget.pyw"
+### Chrome companion extension (optional)
+
+The **Claude Session Key** Chrome extension lets you copy the sessionKey with one click instead of digging into DevTools. Available in the `extension/` folder of this repo — pending publication on the Chrome Web Store.
+
+---
+
+## First-time setup
+
+1. Launch the widget — the **Setup dialog** opens automatically
+2. Click **"Open guide in browser"** → detailed step-by-step visual guide
+3. Paste the `sessionKey` into the widget
+4. Click **Connect** — the widget auto-detects your `org_id` and starts monitoring
+
+Your `sessionKey` is a cookie Claude.ai uses to authenticate you. The widget reads usage data with the same session you're logged in with in your browser — no API key, no password, no OAuth.
+
+---
+
+## Controls
+
+### Title bar (standard mode)
+
+| Element | Action |
+|---|---|
+| Claude icon + "Claude Usage" | Drag to move the widget |
+| Current time (HH:MM) | Shows system clock |
+| **↻ Refresh** | Force immediate refresh |
+| **≡ Menu** | Opens settings dropdown |
+| **✕ Close** | Quit the widget (saves geometry) |
+
+### Corner dots
+
+The two dots in the bottom corners control mode and size:
+
+| Dot | Action | Gesture |
+|---|---|---|
+| **⚪ White (bottom-left)** | Expand/collapse extra bars | **Single click** |
+| **🟠 Orange (bottom-right)** | Resize widget width | **Drag** |
+| **🟠 Orange (bottom-right)** | Toggle **Essential mode** ↔ Standard | **Double-click** |
+
+**Important:** The orange dot does double duty:
+- **Click and drag** horizontally → resize the widget
+- **Double-click** → toggle essential mode
+
+Height is always auto-sized to content — you only control width.
+
+### Settings menu (≡)
+
+| Item | Action |
+|---|---|
+| ↻ **Refresh** | Force immediate data refresh |
+| ⇅ **Normal / Essential mode** | Toggle between the two display modes |
+| ⚒ **Renew session…** | Update the sessionKey (when it expires) |
+| ⚙ **Open config.json** | Open config file in Notepad |
+| 🌐 **Language** | Switch UI language (EN / IT / JA) |
+| ✕ **Quit** | Close the widget |
+| *v2.6.0* | Current version (non-clickable) |
+
+**In essential mode:** right-click anywhere on the widget to open the menu.
+
+---
+
+## Display modes
+
+### Standard mode (full)
+
+Shows the title bar, all three bars with labels, reset times, and section dividers. Click the white dot to toggle between single-bar and three-bar view — all expansions happen **upward** to keep the bottom edge anchored (ideal when placed on the taskbar).
+
+### Essential mode (compact)
+
+Minimal UI optimized for the taskbar:
+- No title bar
+- Single bar showing: `55% 19:24 (3min 00s)` — percentage + last refresh time + countdown
+- Compact controls at bottom-right: **✕** close, **↻** refresh, current time
+- Reset time text underneath the bar
+
+Toggle with **double-click on the orange dot**.
+
+---
+
+## Auto-refresh and countdown
+
+- **Default interval:** 3 minutes (180 seconds)
+- **Countdown display:** `19:24 (2min 30s)` after the last refresh time
+- **Update frequency:**
+  - Every 30 seconds when > 30 seconds remaining
+  - Every 1 second in the final 30 seconds
+- **Reset trigger:** if a reset time is reached, the widget refreshes instantly regardless of the countdown
+
+Configurable via `config.json` (`refresh_ms` field, in milliseconds).
+
+---
+
+## Language support
+
+Three languages built-in, selectable from the ≡ menu:
+
+- 🇬🇧 **English** (default for new installs)
+- 🇮🇹 **Italiano**
+- 🇯🇵 **日本語**
+
+The selected language is saved in `config.json` and persists across restarts. The **installer** also supports these three languages and auto-selects based on your Windows system language.
+
+---
+
+## Technical features
+
+### Always on top
+
+Uses Win32 `SetWindowPos(HWND_TOPMOST)` re-asserted every 500ms, plus `FocusOut` and `Visibility` event handlers. The widget stays above the taskbar even after virtual desktop switches.
+
+### Hidden from taskbar & Win+Tab
+
+Uses `WS_EX_TOOLWINDOW` extended style to hide from the taskbar and the Win+Tab switcher — it's a pure floating widget, not a window.
+
+### Single instance
+
+A Windows named mutex (`Global\ClaudeUsageWidget`) ensures only one instance runs at a time. Launching it again brings the existing widget to the foreground.
+
+### Crash protection
+
+- Global `sys.excepthook` + signal handlers catch all errors
+- Structured logs in `%LOCALAPPDATA%\Claude Usage\widget.log`
+- Auto-save geometry on every refresh (protects against force-kills)
+- Refresh schedule continues even if a single fetch fails
+
+### DWM rounded corners
+
+Uses `DwmSetWindowAttribute` with `DWMWA_WINDOW_CORNER_PREFERENCE` (Windows 11 only). Windows 10 uses square corners.
+
+### Smooth animations
+
+Expand/collapse uses a cover-overlay technique: the window resizes smoothly upward while a frame of the background color hides any unpainted areas, then vanishes when the animation completes. Result: zero flicker, zero artifacts.
+
+---
+
+## Configuration
+
+Config file: `%LOCALAPPDATA%\Claude Usage\config.json`
+
+```json
+{
+  "session_key": "sk-ant-sid01-...",
+  "org_id": "35e32db5-a5be-4592-b287-bcc9e4f12768",
+  "language": "en",
+  "refresh_ms": 180000,
+  "x": 100,
+  "y": 100,
+  "width": 280,
+  "height": 90,
+  "expanded": false,
+  "essential": false
+}
 ```
 
-### Build the installer
-
-```powershell
-.\scripts\build.ps1
-```
-
-This will:
-
-1. Stop any running `Claude Usage.exe`.
-2. Run PyInstaller (onedir, windowed) with icons bundled.
-3. Copy `guide/` alongside the exe.
-4. Run Inno Setup to build `releases\ClaudeUsage-Setup.exe`.
-5. Zip `extension/` into `releases\claude-session-key-extension.zip`.
-
-### Package just the extension
-
-```powershell
-.\scripts\package-extension.ps1
-```
+All fields are managed by the widget — you don't normally edit this file. See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for details.
 
 ---
 
@@ -88,52 +218,103 @@ This will:
 ```
 claude-usage-widget/
 ├── src/
-│   ├── widget.pyw                      # Main application (tkinter)
-│   └── assets/                         # Runtime icons (bundled by PyInstaller)
-│       ├── claude.ico
-│       ├── icon-app.png
-│       ├── icon-bar.png
-│       └── icon-symbol.png
-├── extension/                          # Chrome extension (session key helper)
-│   ├── manifest.json
-│   ├── popup.html
-│   ├── popup.js
-│   └── icon16/48/128.png
+│   ├── widget.pyw              # Main source (1500+ lines, single file)
+│   └── assets/                 # Runtime icons (claude.ico, icon-bar.png)
+├── extension/                  # Chrome extension (copy sessionKey with one click)
 ├── guide/
-│   └── session-key-guide.html          # In-app session key walkthrough
+│   └── session-key-guide.html  # Browser-based setup guide
 ├── installer/
-│   ├── claude-usage-setup.iss          # Inno Setup script
-│   └── chrome-store-assets/            # Promo images + screenshots
-├── docs/                               # Architecture, design, features, changelog
+│   ├── claude-usage-setup.iss  # Inno Setup script
+│   └── chrome-store-assets/    # Promo images for Chrome Web Store
 ├── scripts/
-│   ├── build.ps1                       # Full build pipeline
-│   └── package-extension.ps1           # Extension ZIP only
-├── releases/                           # Built artifacts (gitignored)
-├── .gitignore
-├── LICENSE
-├── CHANGELOG.md
-└── README.md
+│   ├── build.ps1               # PyInstaller + Inno Setup build
+│   └── package-extension.ps1   # ZIP the extension folder
+├── docs/                       # Detailed documentation
+│   ├── ARCHITECTURE.md
+│   ├── DESIGN.md
+│   ├── FEATURES.md
+│   ├── CONFIGURATION.md
+│   └── CHANGELOG.md
+├── releases/                   # Built artifacts (gitignored)
+└── README.md                   # This file
 ```
-
-`build/`, `dist/`, `releases/*.exe`, `releases/*.zip`, `config.json`, and `*.log`
-are gitignored. The `releases/` folder itself is tracked (as a placeholder) but
-its built artifacts are published only via GitHub Releases.
 
 ---
 
-## Documentation
+## Build from source
 
-In-depth docs live under [`docs/`](docs/):
+### Prerequisites
 
-- [README.md](docs/README.md) — detailed user guide
-- [ARCHITECTURE.md](docs/ARCHITECTURE.md) — internals & threading model
-- [FEATURES.md](docs/FEATURES.md) — full feature list
-- [CONFIGURATION.md](docs/CONFIGURATION.md) — `config.json` reference
-- [DESIGN.md](docs/DESIGN.md) — visual design system
-- [CHANGELOG.md](docs/CHANGELOG.md) — detailed history
+- **Python 3.11+** with `pip`
+- **PyInstaller:** `pip install pyinstaller`
+- **Inno Setup 6+** (for the installer): https://jrsoftware.org/isdl.php
+- **curl** (ships with Windows 10/11)
+
+### Build steps
+
+```powershell
+# Build the exe + installer
+.\scripts\build.ps1
+```
+
+Output: `releases/ClaudeUsage-Setup.exe` (~12 MB)
+
+Or manually:
+
+```powershell
+# 1. Build with PyInstaller
+python -m PyInstaller --onedir --noconsole `
+    --name "Claude Usage" `
+    --icon src/assets/claude.ico `
+    --add-data "src/assets/icon-bar.png;." `
+    --add-data "src/assets/claude.ico;." `
+    --distpath dist --workpath build `
+    src/widget.pyw --noconfirm
+
+# 2. Build the installer
+& "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe" installer/claude-usage-setup.iss
+```
+
+---
+
+## Architecture overview
+
+The widget is a **single Python file** (`src/widget.pyw`, ~1500 lines) with these main components:
+
+- **`Section` class** — one usage bar with canvas-based pill rendering
+- **`Widget` class** — main window, menu, dialogs, animations, lifecycle
+- **`fetch_usage` / `fetch_org_id`** — HTTP calls via curl subprocess
+- **`LANG` dict + `t()` / `set_lang()`** — i18n system
+- **`dwm_round` / Win32 calls** — platform integration (topmost, rounded corners, toolwindow)
+
+Full details: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+
+---
+
+## Known behaviors
+
+- **Windows 10:** Square corners (DWM rounded corners require Windows 11)
+- **First launch:** defaults to English; the language is persisted after the first manual change
+- **Session expiry:** when the sessionKey expires (typically after 30 days or explicit logout), the widget shows a session-expired notice; use **≡ → Renew session** to update
+- **Taskbar overlap:** the widget always stays above the taskbar thanks to the 500ms topmost re-assert
+
+---
+
+## Privacy
+
+- **No data is sent anywhere** except `claude.ai/api/organizations/*/usage` (the same endpoint Claude.ai itself uses)
+- **No telemetry, no analytics, no third-party services**
+- **Session key stored locally only** in `%LOCALAPPDATA%\Claude Usage\config.json`
+- **Source is 100% open** — audit the code yourself
 
 ---
 
 ## License
 
-[MIT](LICENSE) — Copyright (c) 2026 Niccolò Sabato / Omakase.
+MIT License © 2026 Niccolò Sabato / Omakase. See [LICENSE](LICENSE).
+
+---
+
+## Contributing / bugs
+
+This is a personal project shared publicly because it might be useful to others. Issues and PRs welcome at https://github.com/niccolo-sabato/claude-usage-widget
