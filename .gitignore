@@ -1,0 +1,30 @@
+# PyInstaller
+build/
+dist/
+*.spec
+
+# Legacy built artifacts at root
+/Claude Usage.exe
+
+# Runtime
+*.log
+config.json
+__pycache__/
+*.pyc
+
+# Build artifacts (use releases/ folder for committed ones)
+releases/*.exe
+releases/*.zip
+
+# Editor
+.vscode/
+.idea/
+*.swp
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Secrets
+secrets/
+.env

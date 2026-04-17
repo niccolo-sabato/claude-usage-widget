@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    width: 320px;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: #1e1e1c;
+    color: #e4e4e4;
+    padding: 16px;
+  }
+  h1 {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  h1 img { width: 20px; height: 20px; }
+  .status {
+    font-size: 12px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    margin-bottom: 12px;
+    line-height: 1.5;
+  }
+  .status.loading { background: #2a2a28; color: #b0b0ae; }
+  .status.success { background: #1a2e1a; color: #6BC275; }
+  .status.error { background: #2e1a1a; color: #E85858; }
+  .key-box {
+    background: #262624;
+    border: 1px solid #3a3a38;
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-family: 'Cascadia Code', 'Consolas', monospace;
+    font-size: 11px;
+    color: #DA7756;
+    word-break: break-all;
+    max-height: 60px;
+    overflow-y: auto;
+    margin-bottom: 12px;
+    display: none;
+  }
+  .btn {
+    display: block;
+    width: 100%;
+    padding: 8px;
+    border: none;
+    border-radius: 6px;
+    font-family: 'Segoe UI', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .btn-primary { background: #DA7756; color: #1e1e1c; }
+  .btn-primary:hover { background: #E08060; }
+  .btn-copy { background: #6BC275; color: #1e1e1c; display: none; }
+  .btn-copy:hover { background: #7ED48A; }
+  .btn-copy.copied { background: #3a3a38; color: #6BC275; }
+  .hint {
+    font-size: 11px;
+    color: #7a7a78;
+    margin-top: 10px;
+    text-align: center;
+  }
+  .hint a { color: #5BA8C8; text-decoration: none; }
+  .hint a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+  <h1><img src="icon48.png" alt=""> Claude Session Key</h1>
+  <div id="status" class="status loading">Searching for session key...</div>
+  <div id="keyBox" class="key-box"></div>
+  <button id="btnFetch" class="btn btn-primary" style="display:none;">Retry</button>
+  <button id="btnCopy" class="btn btn-copy">Copy to Clipboard</button>
+  <div class="hint">Paste this key in the Claude Usage widget setup</div>
+  <script src="popup.js"></script>
+</body>
+</html>

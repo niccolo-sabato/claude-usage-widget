@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "Claude Session Key",
+  "version": "1.0.0",
+  "description": "Copy your Claude.ai session key with one click. For use with Claude Usage Widget.",
+  "permissions": ["cookies", "activeTab"],
+  "host_permissions": ["*://*.claude.ai/*"],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icon16.png",
+      "48": "icon48.png",
+      "128": "icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icon16.png",
+    "48": "icon48.png",
+    "128": "icon128.png"
+  }
+}

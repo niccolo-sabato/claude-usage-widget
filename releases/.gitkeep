@@ -1,0 +1,2 @@
+# Built artifacts (.exe, .zip) land here via scripts/build.ps1 and are published
+# through GitHub Releases. Contents are gitignored.
