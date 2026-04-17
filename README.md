@@ -2,7 +2,7 @@
 
 A floating always-on-top desktop widget for Windows that displays real-time **Claude.ai** usage statistics. Built with Python + tkinter, styled in the Windows 11 Material design language: rounded corners, translucent background, pill-shaped progress bars.
 
-**Version:** 2.6.2 · **Platform:** Windows 10/11 · **License:** MIT
+**Version:** 2.6.3 · **Platform:** Windows 10/11 · **License:** MIT
 
 ---
 
@@ -343,7 +343,7 @@ Essential mode also supports expansion to show all three bars.
 
 ## License
 
-MIT License © 2026 Niccolò Sabato / Omakase. See [LICENSE](LICENSE).
+MIT License © 2026 Niccolò Sabato. See [LICENSE](LICENSE).
 
 ---
 

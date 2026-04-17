@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -26,25 +26,38 @@
     min-height: 100vh;
     display: flex;
     justify-content: center;
-    padding: 40px 20px;
+    padding: 30px 20px 40px;
   }
-  .container {
-    max-width: 560px;
-    width: 100%;
+  .container { max-width: 560px; width: 100%; }
+
+  .lang-bar {
+    display: flex;
+    justify-content: center;
+    gap: 4px;
+    margin-bottom: 24px;
   }
-  .header {
-    text-align: center;
-    margin-bottom: 32px;
-  }
-  .header h1 {
-    font-size: 22px;
-    font-weight: 600;
-    margin-bottom: 6px;
-  }
-  .header p {
-    font-size: 13px;
+  .lang-btn {
+    background: var(--bg2);
     color: var(--dim);
+    border: 1px solid var(--bar);
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.15s;
   }
+  .lang-btn:hover { background: var(--bg3); color: var(--fg); }
+  .lang-btn.active {
+    background: var(--accent);
+    color: var(--bg);
+    border-color: var(--accent);
+  }
+
+  .header { text-align: center; margin-bottom: 28px; }
+  .header h1 { font-size: 22px; font-weight: 600; margin-bottom: 6px; }
+  .header p { font-size: 13px; color: var(--dim); }
   .badge {
     display: inline-block;
     background: var(--bg3);
@@ -56,7 +69,6 @@
     margin-top: 8px;
   }
 
-  /* Accordion */
   .method {
     background: var(--bg2);
     border-radius: var(--radius);
@@ -73,6 +85,7 @@
     display: flex;
     align-items: center;
     gap: 12px;
+    -webkit-user-select: none;
     user-select: none;
   }
   .method-header:hover { background: var(--bg3); }
@@ -90,15 +103,8 @@
   .method-icon.settings { background: #2a2a3a; color: var(--blue); }
   .method-icon.devtools { background: #3a2a2a; color: var(--accent); }
   .method-info { flex: 1; }
-  .method-title {
-    font-size: 14px;
-    font-weight: 600;
-    margin-bottom: 2px;
-  }
-  .method-desc {
-    font-size: 12px;
-    color: var(--dim);
-  }
+  .method-title { font-size: 14px; font-weight: 600; margin-bottom: 2px; }
+  .method-desc { font-size: 12px; color: var(--dim); }
   .method-tag {
     font-size: 10px;
     font-weight: 600;
@@ -116,11 +122,7 @@
     flex-shrink: 0;
   }
   .method.open .chevron { transform: rotate(90deg); }
-
-  .method-body {
-    display: none;
-    padding: 0 18px 18px;
-  }
+  .method-body { display: none; padding: 0 18px 18px; }
   .method.open .method-body { display: block; }
 
   .step {
@@ -144,10 +146,7 @@
     flex-shrink: 0;
     margin-top: 1px;
   }
-  .step-text {
-    font-size: 13px;
-    line-height: 1.6;
-  }
+  .step-text { font-size: 13px; line-height: 1.6; }
   .step-text code {
     background: var(--bg);
     color: var(--accent);
@@ -156,14 +155,8 @@
     font-family: 'Cascadia Code', 'Consolas', monospace;
     font-size: 12px;
   }
-  .step-text .path {
-    color: var(--blue);
-    font-weight: 500;
-  }
-  .step-text a {
-    color: var(--accent);
-    text-decoration: none;
-  }
+  .step-text .path { color: var(--blue); font-weight: 500; }
+  .step-text a { color: var(--accent); text-decoration: none; }
   .step-text a:hover { text-decoration: underline; }
 
   .btn {
@@ -180,8 +173,6 @@
     margin-top: 10px;
   }
   .btn:active { transform: scale(0.97); }
-  .btn-accent { background: var(--accent); color: var(--bg); }
-  .btn-accent:hover { background: #E08060; }
   a.btn, .btn { text-decoration: none; }
   .btn-green, a.btn-green { background: var(--green); color: #0d1f0d !important; }
   .btn-green:hover { background: #7ED48A; }
@@ -202,10 +193,7 @@
     color: var(--dim);
     margin-bottom: 20px;
   }
-  .browser-detected span {
-    color: var(--green);
-    font-weight: 600;
-  }
+  .browser-detected span { color: var(--green); font-weight: 600; }
 
   .footer {
     text-align: center;
@@ -217,9 +205,16 @@
 </head>
 <body>
 <div class="container">
+
+  <div class="lang-bar">
+    <button class="lang-btn" data-lang="en">English</button>
+    <button class="lang-btn" data-lang="it">Italiano</button>
+    <button class="lang-btn" data-lang="ja">&#x65e5;&#x672c;&#x8a9e;</button>
+  </div>
+
   <div class="header">
-    <h1>Session Key Setup</h1>
-    <p>Choose a method to get your Claude.ai session key</p>
+    <h1 data-i18n="title">Session Key Setup</h1>
+    <p data-i18n="subtitle">Choose a method to get your Claude.ai session key</p>
     <div class="badge">Claude Usage Widget</div>
   </div>
 
@@ -230,41 +225,33 @@
     <div class="method-header" onclick="toggle(this)">
       <div class="method-icon chrome">&#9913;</div>
       <div class="method-info">
-        <div class="method-title">Chrome Extension</div>
-        <div class="method-desc">Install once, one click to copy</div>
+        <div class="method-title" data-i18n="m1_title">Chrome Extension</div>
+        <div class="method-desc" data-i18n="m1_desc">Install once, one click to copy</div>
       </div>
-      <span class="method-tag tag-easy">Recommended</span>
+      <span class="method-tag tag-easy" data-i18n="tag_recommended">Recommended</span>
       <span class="chevron">&#9654;</span>
     </div>
     <div class="method-body">
       <div class="step">
         <div class="step-num">1</div>
         <div class="step-text">
-          Install the <strong>Claude Session Key</strong> extension:<br>
-          <a id="extensionLink" href="#" class="btn btn-green" style="margin-top:8px" target="_blank">Install Extension</a>
+          <span data-i18n="m1_s1">Install the <strong>Claude Session Key</strong> extension:</span><br>
+          <a id="extensionLink" href="#" class="btn btn-green" data-i18n="m1_btn" target="_blank" rel="noopener">Install Extension</a>
         </div>
       </div>
       <div class="step">
         <div class="step-num">2</div>
-        <div class="step-text">
-          Go to <a href="https://claude.ai" target="_blank">claude.ai</a> and make sure you're logged in
-        </div>
+        <div class="step-text" data-i18n="m1_s2">Go to <a href="https://claude.ai" target="_blank" rel="noopener">claude.ai</a> and make sure you're logged in</div>
       </div>
       <div class="step">
         <div class="step-num">3</div>
-        <div class="step-text">
-          Click the <strong>Claude Session Key</strong> extension icon in your toolbar
-        </div>
+        <div class="step-text" data-i18n="m1_s3">Click the <strong>Claude Session Key</strong> extension icon in your toolbar</div>
       </div>
       <div class="step">
         <div class="step-num">4</div>
-        <div class="step-text">
-          Click <strong>"Copy to Clipboard"</strong> and paste the key in the widget setup
-        </div>
+        <div class="step-text" data-i18n="m1_s4">Click <strong>"Copy to Clipboard"</strong> and paste the key in the widget setup</div>
       </div>
-      <div class="note">
-        Works with Chrome, Edge, Brave, and other Chromium browsers.
-      </div>
+      <div class="note" data-i18n="m1_note">Works with Chrome, Edge, Brave, and other Chromium browsers.</div>
     </div>
   </div>
 
@@ -273,15 +260,13 @@
     <div class="method-header" onclick="toggle(this)">
       <div class="method-icon settings">&#9881;</div>
       <div class="method-info">
-        <div class="method-title">Browser Settings</div>
-        <div class="method-desc">No installation needed, any browser</div>
+        <div class="method-title" data-i18n="m2_title">Browser Settings</div>
+        <div class="method-desc" data-i18n="m2_desc">No installation needed, any browser</div>
       </div>
-      <span class="method-tag tag-medium">Medium</span>
+      <span class="method-tag tag-medium" data-i18n="tag_medium">Medium</span>
       <span class="chevron">&#9654;</span>
     </div>
-    <div class="method-body" id="settingsBody">
-      <!-- Populated by JS based on browser -->
-    </div>
+    <div class="method-body" id="settingsBody"></div>
   </div>
 
   <!-- Method 3: DevTools -->
@@ -289,111 +274,254 @@
     <div class="method-header" onclick="toggle(this)">
       <div class="method-icon devtools">&lt;/&gt;</div>
       <div class="method-info">
-        <div class="method-title">Developer Tools</div>
-        <div class="method-desc">For developers - direct cookie access</div>
+        <div class="method-title" data-i18n="m3_title">Developer Tools</div>
+        <div class="method-desc" data-i18n="m3_desc">For developers - direct cookie access</div>
       </div>
-      <span class="method-tag tag-advanced">Advanced</span>
+      <span class="method-tag tag-advanced" data-i18n="tag_advanced">Advanced</span>
       <span class="chevron">&#9654;</span>
     </div>
-    <div class="method-body">
-      <div class="step">
-        <div class="step-num">1</div>
-        <div class="step-text">
-          Go to <a href="https://claude.ai" target="_blank">claude.ai</a> (logged in)
-        </div>
-      </div>
-      <div class="step">
-        <div class="step-num">2</div>
-        <div class="step-text">
-          Press <code>F12</code> to open DevTools
-        </div>
-      </div>
-      <div class="step">
-        <div class="step-num">3</div>
-        <div class="step-text">
-          Click the <span class="path">Application</span> tab
-          <span style="color:var(--dim)">(Firefox: <span class="path">Storage</span>)</span>
-        </div>
-      </div>
-      <div class="step">
-        <div class="step-num">4</div>
-        <div class="step-text">
-          In the left panel: <span class="path">Cookies</span> &rarr; <span class="path">https://claude.ai</span>
-        </div>
-      </div>
-      <div class="step">
-        <div class="step-num">5</div>
-        <div class="step-text">
-          Find the row <code>sessionKey</code>, double-click its <strong>Value</strong>, then <code>Ctrl+C</code>
-        </div>
-      </div>
-    </div>
+    <div class="method-body" id="devtoolsBody"></div>
   </div>
 
-  <div class="footer">Claude Usage Widget v2.5.5 &mdash; Omakase</div>
+  <div class="footer">Claude Usage Widget v2.6.3</div>
 </div>
 
 <script>
-function toggle(header) {
-  const method = header.parentElement;
-  method.classList.toggle('open');
-}
+const I18N = {
+  en: {
+    title: 'Session Key Setup',
+    subtitle: 'Choose a method to get your Claude.ai session key',
+    browser_detected: 'Browser detected',
+    m1_title: 'Chrome Extension',
+    m1_desc: 'Install once, one click to copy',
+    tag_recommended: 'Recommended',
+    m1_s1: 'Install the <strong>Claude Session Key</strong> extension:',
+    m1_btn: 'Install Extension',
+    m1_s2: 'Go to <a href="https://claude.ai" target="_blank" rel="noopener">claude.ai</a> and make sure you\u2019re logged in',
+    m1_s3: 'Click the <strong>Claude Session Key</strong> extension icon in your toolbar',
+    m1_s4: 'Click <strong>"Copy to Clipboard"</strong> and paste the key in the widget setup',
+    m1_note: 'Works with Chrome, Edge, Brave, and other Chromium browsers.',
+    m2_title: 'Browser Settings',
+    m2_desc: 'No installation needed, any browser',
+    tag_medium: 'Medium',
+    m3_title: 'Developer Tools',
+    m3_desc: 'For developers - direct cookie access',
+    tag_advanced: 'Advanced',
+    settings_note: 'This method works without installing anything. The exact menu labels may vary by browser version and language.',
+  },
+  it: {
+    title: 'Configurazione Session Key',
+    subtitle: 'Scegli un metodo per ottenere la tua Claude.ai session key',
+    browser_detected: 'Browser rilevato',
+    m1_title: 'Estensione Chrome',
+    m1_desc: 'Installa una volta, un click per copiare',
+    tag_recommended: 'Consigliato',
+    m1_s1: 'Installa l\u2019estensione <strong>Claude Session Key</strong>:',
+    m1_btn: 'Installa estensione',
+    m1_s2: 'Vai su <a href="https://claude.ai" target="_blank" rel="noopener">claude.ai</a> e assicurati di aver effettuato l\u2019accesso',
+    m1_s3: 'Clicca sull\u2019icona dell\u2019estensione <strong>Claude Session Key</strong> nella barra degli strumenti',
+    m1_s4: 'Clicca <strong>"Copia negli appunti"</strong> e incolla il valore nella configurazione del widget',
+    m1_note: 'Funziona con Chrome, Edge, Brave e altri browser Chromium.',
+    m2_title: 'Impostazioni browser',
+    m2_desc: 'Nessuna installazione, qualsiasi browser',
+    tag_medium: 'Medio',
+    m3_title: 'Strumenti sviluppatore',
+    m3_desc: 'Per sviluppatori: accesso diretto ai cookie',
+    tag_advanced: 'Avanzato',
+    settings_note: 'Questo metodo funziona senza installare nulla. Le voci del menu possono variare in base al browser e alla lingua.',
+  },
+  ja: {
+    title: '\u30bb\u30c3\u30b7\u30e7\u30f3\u30ad\u30fc\u306e\u8a2d\u5b9a',
+    subtitle: 'Claude.ai\u30bb\u30c3\u30b7\u30e7\u30f3\u30ad\u30fc\u306e\u53d6\u5f97\u65b9\u6cd5\u3092\u9078\u629e',
+    browser_detected: '\u691c\u51fa\u3055\u308c\u305f\u30d6\u30e9\u30a6\u30b6',
+    m1_title: 'Chrome\u62e1\u5f35\u6a5f\u80fd',
+    m1_desc: '\u4e00\u5ea6\u30a4\u30f3\u30b9\u30c8\u30fc\u30eb\u3057\u3066\u30af\u30ea\u30c3\u30af\u3067\u30b3\u30d4\u30fc',
+    tag_recommended: '\u63a8\u5968',
+    m1_s1: '<strong>Claude Session Key</strong>\u62e1\u5f35\u6a5f\u80fd\u3092\u30a4\u30f3\u30b9\u30c8\u30fc\u30eb:',
+    m1_btn: '\u62e1\u5f35\u6a5f\u80fd\u3092\u30a4\u30f3\u30b9\u30c8\u30fc\u30eb',
+    m1_s2: '<a href="https://claude.ai" target="_blank" rel="noopener">claude.ai</a>\u3078\u30ed\u30b0\u30a4\u30f3\u6e08\u307f\u3067\u30a2\u30af\u30bb\u30b9',
+    m1_s3: '\u30c4\u30fc\u30eb\u30d0\u30fc\u306e<strong>Claude Session Key</strong>\u30a2\u30a4\u30b3\u30f3\u3092\u30af\u30ea\u30c3\u30af',
+    m1_s4: '<strong>"Copy to Clipboard"</strong>\u3092\u30af\u30ea\u30c3\u30af\u3057\u3001\u30a6\u30a3\u30b8\u30a7\u30c3\u30c8\u306e\u8a2d\u5b9a\u306b\u8cbc\u308a\u4ed8\u3051',
+    m1_note: 'Chrome\u3001Edge\u3001Brave\u3001\u305d\u306e\u4ed6\u306eChromium\u7cfb\u30d6\u30e9\u30a6\u30b6\u3067\u52d5\u4f5c\u3057\u307e\u3059\u3002',
+    m2_title: '\u30d6\u30e9\u30a6\u30b6\u8a2d\u5b9a',
+    m2_desc: '\u30a4\u30f3\u30b9\u30c8\u30fc\u30eb\u4e0d\u8981\u3001\u3069\u306e\u30d6\u30e9\u30a6\u30b6\u3067\u3082',
+    tag_medium: '\u4e2d\u7d1a',
+    m3_title: '\u958b\u767a\u8005\u30c4\u30fc\u30eb',
+    m3_desc: '\u958b\u767a\u8005\u5411\u3051: Cookie\u306b\u76f4\u63a5\u30a2\u30af\u30bb\u30b9',
+    tag_advanced: '\u4e0a\u7d1a',
+    settings_note: '\u3053\u306e\u65b9\u6cd5\u306f\u30a4\u30f3\u30b9\u30c8\u30fc\u30eb\u4e0d\u8981\u3067\u3059\u3002\u30e1\u30cb\u30e5\u30fc\u540d\u306f\u30d6\u30e9\u30a6\u30b6\u306e\u30d0\u30fc\u30b8\u30e7\u30f3\u3084\u8a00\u8a9e\u306b\u3088\u308a\u7570\u306a\u308a\u307e\u3059\u3002',
+  },
+};
 
-// Detect browser
-const ua = navigator.userAgent;
-let browser = 'Chrome';
-if (ua.includes('Edg/')) browser = 'Edge';
-else if (ua.includes('Firefox/')) browser = 'Firefox';
-else if (ua.includes('Brave')) browser = 'Brave';
-else if (ua.includes('OPR/')) browser = 'Opera';
+// Browser-specific step translations
+const STEPS = {
+  en: {
+    Chrome: [
+      'Go to <a href="https://claude.ai" target="_blank" rel="noopener">claude.ai</a> and make sure you\u2019re logged in',
+      'Click the <strong>lock icon</strong> in the address bar, left of the URL',
+      'Click <span class="path">Cookies and site data</span>',
+      'Expand <span class="path">claude.ai</span> &rarr; <span class="path">Cookies</span>',
+      'Click <code>sessionKey</code> and copy the <strong>Content</strong> value',
+    ],
+    Edge: [
+      'Go to <a href="https://claude.ai" target="_blank" rel="noopener">claude.ai</a> and make sure you\u2019re logged in',
+      'Click the <strong>lock icon</strong> in the address bar',
+      'Click <span class="path">Cookies</span>',
+      'Expand <span class="path">claude.ai</span> &rarr; <span class="path">Cookies</span>',
+      'Click <code>sessionKey</code> and copy the <strong>Content</strong> value',
+    ],
+    Firefox: [
+      'Go to <a href="https://claude.ai" target="_blank" rel="noopener">claude.ai</a> and make sure you\u2019re logged in',
+      'Click the <strong>lock icon</strong> in the address bar',
+      'Click <span class="path">Connection secure</span> &rarr; <span class="path">More information</span>',
+      'Go to <span class="path">Security</span> tab &rarr; <span class="path">View Cookies</span>',
+      'Find <code>sessionKey</code>, select the value, <code>Ctrl+C</code> to copy',
+    ],
+  },
+  it: {
+    Chrome: [
+      'Vai su <a href="https://claude.ai" target="_blank" rel="noopener">claude.ai</a> e accedi',
+      'Clicca sull\u2019<strong>icona del lucchetto</strong> nella barra degli indirizzi, a sinistra dell\u2019URL',
+      'Clicca <span class="path">Cookie e dati dei siti</span>',
+      'Espandi <span class="path">claude.ai</span> &rarr; <span class="path">Cookie</span>',
+      'Clicca <code>sessionKey</code> e copia il valore di <strong>Contenuto</strong>',
+    ],
+    Edge: [
+      'Vai su <a href="https://claude.ai" target="_blank" rel="noopener">claude.ai</a> e accedi',
+      'Clicca sull\u2019<strong>icona del lucchetto</strong> nella barra degli indirizzi',
+      'Clicca <span class="path">Cookie</span>',
+      'Espandi <span class="path">claude.ai</span> &rarr; <span class="path">Cookie</span>',
+      'Clicca <code>sessionKey</code> e copia il valore di <strong>Contenuto</strong>',
+    ],
+    Firefox: [
+      'Vai su <a href="https://claude.ai" target="_blank" rel="noopener">claude.ai</a> e accedi',
+      'Clicca sull\u2019<strong>icona del lucchetto</strong> nella barra degli indirizzi',
+      'Clicca <span class="path">Connessione sicura</span> &rarr; <span class="path">Altre informazioni</span>',
+      'Vai al tab <span class="path">Sicurezza</span> &rarr; <span class="path">Visualizza cookie</span>',
+      'Trova <code>sessionKey</code>, seleziona il valore, <code>Ctrl+C</code> per copiare',
+    ],
+  },
+  ja: {
+    Chrome: [
+      '<a href="https://claude.ai" target="_blank" rel="noopener">claude.ai</a>\u306b\u30a2\u30af\u30bb\u30b9\u3057\u30ed\u30b0\u30a4\u30f3',
+      '\u30a2\u30c9\u30ec\u30b9\u30d0\u30fc\u306eURL\u5de6\u5074\u306e<strong>\u9375\u30a2\u30a4\u30b3\u30f3</strong>\u3092\u30af\u30ea\u30c3\u30af',
+      '<span class="path">Cookie\u3068\u30b5\u30a4\u30c8\u30c7\u30fc\u30bf</span>\u3092\u30af\u30ea\u30c3\u30af',
+      '<span class="path">claude.ai</span> &rarr; <span class="path">Cookie</span>\u3092\u5c55\u958b',
+      '<code>sessionKey</code>\u3092\u30af\u30ea\u30c3\u30af\u3057\u3001<strong>\u30b3\u30f3\u30c6\u30f3\u30c4</strong>\u306e\u5024\u3092\u30b3\u30d4\u30fc',
+    ],
+    Edge: [
+      '<a href="https://claude.ai" target="_blank" rel="noopener">claude.ai</a>\u306b\u30a2\u30af\u30bb\u30b9\u3057\u30ed\u30b0\u30a4\u30f3',
+      '\u30a2\u30c9\u30ec\u30b9\u30d0\u30fc\u306e<strong>\u9375\u30a2\u30a4\u30b3\u30f3</strong>\u3092\u30af\u30ea\u30c3\u30af',
+      '<span class="path">Cookie</span>\u3092\u30af\u30ea\u30c3\u30af',
+      '<span class="path">claude.ai</span> &rarr; <span class="path">Cookie</span>\u3092\u5c55\u958b',
+      '<code>sessionKey</code>\u3092\u30af\u30ea\u30c3\u30af\u3057\u3001<strong>\u30b3\u30f3\u30c6\u30f3\u30c4</strong>\u306e\u5024\u3092\u30b3\u30d4\u30fc',
+    ],
+    Firefox: [
+      '<a href="https://claude.ai" target="_blank" rel="noopener">claude.ai</a>\u306b\u30a2\u30af\u30bb\u30b9\u3057\u30ed\u30b0\u30a4\u30f3',
+      '\u30a2\u30c9\u30ec\u30b9\u30d0\u30fc\u306e<strong>\u9375\u30a2\u30a4\u30b3\u30f3</strong>\u3092\u30af\u30ea\u30c3\u30af',
+      '<span class="path">\u63a5\u7d9a\u306f\u5b89\u5168</span> &rarr; <span class="path">\u8a73\u7d30</span>\u3092\u30af\u30ea\u30c3\u30af',
+      '<span class="path">\u30bb\u30ad\u30e5\u30ea\u30c6\u30a3</span>\u30bf\u30d6 &rarr; <span class="path">Cookie\u3092\u8868\u793a</span>',
+      '<code>sessionKey</code>\u3092\u898b\u3064\u3051\u3001\u5024\u3092\u9078\u629e\u3057\u3066<code>Ctrl+C</code>\u3067\u30b3\u30d4\u30fc',
+    ],
+  },
+};
 
-document.getElementById('browserDetected').innerHTML =
-  `Browser detected: <span>${browser}</span>`;
-
-// Hide extension method for Firefox (different extension format)
-if (browser === 'Firefox') {
-  document.getElementById('methodExtension').style.display = 'none';
-}
-
-// Browser-specific settings instructions
-const settingsBody = document.getElementById('settingsBody');
-const steps = {
-  Chrome: [
-    { n: '1', t: 'Go to <a href="https://claude.ai" target="_blank">claude.ai</a> and make sure you\'re logged in' },
-    { n: '2', t: 'Click the <strong>lock icon</strong> (or tune icon) in the address bar, left of the URL' },
-    { n: '3', t: 'Click <span class="path">Cookies and site data</span>' },
-    { n: '4', t: 'Expand <span class="path">claude.ai</span> &rarr; <span class="path">Cookies</span>' },
-    { n: '5', t: 'Click <code>sessionKey</code> &mdash; the value appears at the bottom of the panel' },
-    { n: '6', t: 'Select the <strong>Content</strong> field value, <code>Ctrl+C</code> to copy' },
+const DEVTOOLS = {
+  en: [
+    'Go to <a href="https://claude.ai" target="_blank" rel="noopener">claude.ai</a> (logged in)',
+    'Press <code>F12</code> to open DevTools',
+    'Click the <span class="path">Application</span> tab (Firefox: <span class="path">Storage</span>)',
+    'Left panel: <span class="path">Cookies</span> &rarr; <span class="path">https://claude.ai</span>',
+    'Find the <code>sessionKey</code> row, double-click its <strong>Value</strong>, then <code>Ctrl+C</code>',
   ],
-  Edge: [
-    { n: '1', t: 'Go to <a href="https://claude.ai" target="_blank">claude.ai</a> and make sure you\'re logged in' },
-    { n: '2', t: 'Click the <strong>lock icon</strong> in the address bar' },
-    { n: '3', t: 'Click <span class="path">Cookies</span>' },
-    { n: '4', t: 'Expand <span class="path">claude.ai</span> &rarr; <span class="path">Cookies</span>' },
-    { n: '5', t: 'Click <code>sessionKey</code> &mdash; copy the <strong>Content</strong> value' },
+  it: [
+    'Vai su <a href="https://claude.ai" target="_blank" rel="noopener">claude.ai</a> (dopo aver effettuato l\u2019accesso)',
+    'Premi <code>F12</code> per aprire gli strumenti sviluppatore',
+    'Clicca la scheda <span class="path">Application</span> (Firefox: <span class="path">Archiviazione</span>)',
+    'Pannello sinistro: <span class="path">Cookie</span> &rarr; <span class="path">https://claude.ai</span>',
+    'Trova la riga <code>sessionKey</code>, doppio click su <strong>Valore</strong>, poi <code>Ctrl+C</code>',
   ],
-  Firefox: [
-    { n: '1', t: 'Go to <a href="https://claude.ai" target="_blank">claude.ai</a> and make sure you\'re logged in' },
-    { n: '2', t: 'Click the <strong>lock icon</strong> in the address bar' },
-    { n: '3', t: 'Click <span class="path">Connection secure</span> &rarr; <span class="path">More information</span>' },
-    { n: '4', t: 'Click the <span class="path">Privacy &amp; Security</span> tab' },
-    { n: '5', t: 'Click <span class="path">View Cookies</span>' },
-    { n: '6', t: 'Find <code>sessionKey</code>, select its value, <code>Ctrl+C</code>' },
-  ],
-  Brave: [
-    { n: '1', t: 'Go to <a href="https://claude.ai" target="_blank">claude.ai</a> and make sure you\'re logged in' },
-    { n: '2', t: 'Click the <strong>lock icon</strong> in the address bar' },
-    { n: '3', t: 'Click <span class="path">Cookies and site data</span>' },
-    { n: '4', t: 'Expand <span class="path">claude.ai</span> &rarr; <span class="path">Cookies</span>' },
-    { n: '5', t: 'Click <code>sessionKey</code> &mdash; copy the <strong>Content</strong> value' },
+  ja: [
+    '<a href="https://claude.ai" target="_blank" rel="noopener">claude.ai</a>\u306b\u30ed\u30b0\u30a4\u30f3\u6e08\u307f\u3067\u30a2\u30af\u30bb\u30b9',
+    '<code>F12</code>\u3067DevTools\u3092\u958b\u304f',
+    '<span class="path">Application</span>\u30bf\u30d6\u3092\u30af\u30ea\u30c3\u30af (Firefox\u306e\u5834\u5408: <span class="path">Storage</span>)',
+    '\u5de6\u306e\u30d1\u30cd\u30eb: <span class="path">Cookie</span> &rarr; <span class="path">https://claude.ai</span>',
+    '<code>sessionKey</code>\u306e\u884c\u3092\u898b\u3064\u3051\u3001<strong>\u5024</strong>\u3092\u30c0\u30d6\u30eb\u30af\u30ea\u30c3\u30af\u3057\u3001<code>Ctrl+C</code>',
   ],
 };
 
-const browserSteps = steps[browser] || steps.Chrome;
-settingsBody.innerHTML = browserSteps.map(s =>
-  `<div class="step"><div class="step-num">${s.n}</div><div class="step-text">${s.t}</div></div>`
-).join('') + '<div class="note">This method works without installing anything. The exact menu labels may vary by browser version and language.</div>';
+function toggle(header) {
+  header.parentElement.classList.toggle('open');
+}
+
+function detectBrowser() {
+  const ua = navigator.userAgent;
+  if (ua.includes('Edg/')) return 'Edge';
+  if (ua.includes('Firefox/')) return 'Firefox';
+  if (ua.includes('Brave')) return 'Brave';
+  if (ua.includes('OPR/')) return 'Opera';
+  return 'Chrome';
+}
+
+function applyLanguage(lang) {
+  if (!I18N[lang]) lang = 'en';
+  document.documentElement.lang = lang;
+  const dict = I18N[lang];
+
+  // Update all [data-i18n] elements
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.getAttribute('data-i18n');
+    if (dict[key]) el.innerHTML = dict[key];
+  });
+
+  // Browser detected line
+  const browser = detectBrowser();
+  document.getElementById('browserDetected').innerHTML =
+    `${dict.browser_detected}: <span>${browser}</span>`;
+
+  // Hide extension method for Firefox
+  document.getElementById('methodExtension').style.display =
+    browser === 'Firefox' ? 'none' : '';
+
+  // Browser-specific settings steps
+  const stepList = (STEPS[lang] && STEPS[lang][browser]) || STEPS[lang].Chrome;
+  const settingsBody = document.getElementById('settingsBody');
+  settingsBody.innerHTML = stepList.map((t, i) =>
+    `<div class="step"><div class="step-num">${i + 1}</div><div class="step-text">${t}</div></div>`
+  ).join('') + `<div class="note">${dict.settings_note}</div>`;
+
+  // DevTools steps
+  const dtList = DEVTOOLS[lang] || DEVTOOLS.en;
+  document.getElementById('devtoolsBody').innerHTML = dtList.map((t, i) =>
+    `<div class="step"><div class="step-num">${i + 1}</div><div class="step-text">${t}</div></div>`
+  ).join('');
+
+  // Update active button state
+  document.querySelectorAll('.lang-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.lang === lang);
+  });
+
+  // Persist choice
+  try { localStorage.setItem('guideLang', lang); } catch {}
+}
+
+// Determine initial language: URL hash > localStorage > browser > English
+function initialLanguage() {
+  const m = location.hash.match(/lang=([a-z]{2})/i);
+  if (m && I18N[m[1]]) return m[1];
+  try {
+    const stored = localStorage.getItem('guideLang');
+    if (stored && I18N[stored]) return stored;
+  } catch {}
+  const nav = (navigator.language || 'en').slice(0, 2);
+  return I18N[nav] ? nav : 'en';
+}
+
+document.querySelectorAll('.lang-btn').forEach(btn => {
+  btn.addEventListener('click', () => applyLanguage(btn.dataset.lang));
+});
+
+applyLanguage(initialLanguage());
 </script>
 </body>
 </html>

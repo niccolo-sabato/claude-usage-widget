@@ -90,7 +90,7 @@ PCT_FG   = '#ffffff'
 MENU_BG  = '#2c2c2a'
 
 # ─── App ────────────────────────────────────────────
-APP_VERSION = '2.6.2'
+APP_VERSION = '2.6.3'
 
 # ─── Layout ──────────────────────────────────────────
 DEF_W    = 280
@@ -1327,12 +1327,13 @@ class Widget:
     # ── Open session key guide ────────────────────────
 
     def _open_guide(self):
-        """Open session key guide HTML in default browser."""
+        """Open session key guide HTML in default browser with current language."""
         guide = os.path.join(EXE_DIR, 'guide', 'session-key-guide.html')
         if not os.path.exists(guide):
             guide = os.path.join(os.path.dirname(EXE_DIR), 'guide', 'session-key-guide.html')
         if os.path.exists(guide):
-            webbrowser.open(guide)
+            # Pass current widget language via URL hash
+            webbrowser.open(f'file:///{guide}#lang={_current_lang}')
         else:
             webbrowser.open('https://claude.ai')
 
