@@ -90,7 +90,7 @@ PCT_FG   = '#ffffff'
 MENU_BG  = '#2c2c2a'
 
 # ─── App ────────────────────────────────────────────
-APP_VERSION = '2.6.3'
+APP_VERSION = '2.6.4'
 
 # ─── Layout ──────────────────────────────────────────
 DEF_W    = 280
@@ -877,15 +877,12 @@ class Widget:
         w.unbind('<Button-3>')
 
     def _update_minsize(self):
-        """Update minimum width based on sub-label text + essential controls."""
-        if self._essential:
-            self.root.update_idletasks()
-            sub_w = self.s_session.lbl_sub.winfo_reqwidth() + PAD + 6
-            ess_w = self.ess_bar.winfo_reqwidth() + 20  # dot + margin
-            needed = max(MIN_W, sub_w + ess_w)
-            self.root.minsize(needed, 0)
-        else:
-            self.root.minsize(MIN_W, 0)
+        """Update minimum width to avoid clipping sub-label + controls."""
+        self.root.update_idletasks()
+        sub_w = self.s_session.lbl_sub.winfo_reqwidth() + PAD + 6
+        ess_w = self.ess_bar.winfo_reqwidth() + 20 if self._essential else 20
+        needed = max(MIN_W, sub_w + ess_w)
+        self.root.minsize(needed, 0)
 
     def _auto_height(self):
         self.root.update_idletasks()
