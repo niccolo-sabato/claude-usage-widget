@@ -95,7 +95,7 @@ PCT_FG   = '#ffffff'
 MENU_BG  = '#2c2c2a'
 
 # ─── App ────────────────────────────────────────────
-APP_VERSION = '2.8.19'
+APP_VERSION = '2.8.20'
 
 # ─── Auto-update ────────────────────────────────────
 UPDATE_REPO = 'niccolo-sabato/claude-usage-widget'
@@ -1135,8 +1135,9 @@ class Widget:
         # places per-widget bindings used to miss in essential mode.
         self.root.bind('<Button-3>', self._show_menu)
 
-        # Refresh button
-        self.btn_r = tk.Label(self.tb, text=' \u21bb ', font=FT_BTN,
+        # Refresh button — same font + glyph + FE0E presentation as the
+        # Refresh row in the settings menu so the two icons look identical.
+        self.btn_r = tk.Label(self.tb, text=' \u21bb\uFE0E ', font=FT_EMOJI_11,
                               fg=DIM, bg=BG_TITLE, cursor='hand2')
         self.btn_r.pack(side='right')
         self.btn_r.bind('<Button-1>', lambda e: self.refresh())
@@ -1203,7 +1204,7 @@ class Widget:
         self.ess_close.bind('<Button-1>', lambda e: self._quit())
         self.ess_close.bind('<Enter>', lambda e: self.ess_close.config(fg=RED))
         self.ess_close.bind('<Leave>', lambda e: self.ess_close.config(fg=DIM))
-        self.ess_refresh = tk.Label(self.ess_bar, text='\u21bb', font=FT_BTN,
+        self.ess_refresh = tk.Label(self.ess_bar, text='\u21bb\uFE0E', font=FT_EMOJI_11,
                                     fg=DIM, bg=BG, cursor='hand2',
                                     bd=0, highlightthickness=0, padx=2, pady=0)
         self.ess_refresh.pack(side='left')
@@ -1779,22 +1780,24 @@ class Widget:
         lang_label = f"{t('menu_language')}: {cur_lang}"
         cur_secs = self.cfg.get('refresh_ms', REFRESH) // 1000
         interval_label = f"{t('menu_refresh_interval')} ({cur_secs}s)"
-        # All icons share the same Segoe UI Emoji font & size for visual
-        # consistency. U+FE0E forces monochrome/text presentation on BMP
-        # glyphs that Windows would otherwise render as color emoji at a
-        # different visual weight than the neighboring icons.
+        # Single font + size for every icon so the menu reads as a coherent
+        # column. Segoe UI Emoji at size 11 matches the title-bar refresh
+        # icon (same font+size below), so the two refresh glyphs look
+        # identical. U+FE0E forces text-style (monochrome) presentation on
+        # BMP glyphs that would otherwise render as color emoji at a
+        # different visual weight than the arrow icons next to them.
         items = [
-            ('\u21bb\uFE0E',       FT_EMOJI, t('menu_refresh'),         self.refresh),
-            ('\u21F5\uFE0E',       FT_EMOJI, mode_label,                self._toggle_essential),
+            ('\u21bb\uFE0E',       FT_EMOJI_11, t('menu_refresh'),         self.refresh),
+            ('\u21F5\uFE0E',       FT_EMOJI_11, mode_label,                self._toggle_essential),
             None,
-            ('\u23F3\uFE0E',       FT_EMOJI, interval_label,            self._show_interval_dialog),
-            ('\U0001F5DD\uFE0E',   FT_EMOJI, t('menu_renew'),           self._renew_session),
-            ('\u2197\uFE0E',       FT_EMOJI, t('menu_open_claude'),     self._open_claude_usage),
-            ('{ }',                FT_EMOJI, t('menu_open_config'),     self._open_config),
-            ('\U0001F30D\uFE0E',   FT_EMOJI, lang_label,                self._show_language_menu),
+            ('\u23F3\uFE0E',       FT_EMOJI_11, interval_label,            self._show_interval_dialog),
+            ('\U0001F5DD\uFE0E',   FT_EMOJI_11, t('menu_renew'),           self._renew_session),
+            ('\u2197\uFE0E',       FT_EMOJI_11, t('menu_open_claude'),     self._open_claude_usage),
+            ('{ }',                FT_EMOJI_11, t('menu_open_config'),     self._open_config),
+            ('\U0001F30D\uFE0E',   FT_EMOJI_11, lang_label,                self._show_language_menu),
             None,
-            ('\u2B06\uFE0E',       FT_EMOJI, t('menu_check_updates'),   self._check_updates_manual),
-            ('\u2715',             FT_EMOJI, t('menu_quit'),            self._quit),
+            ('\u2B06\uFE0E',       FT_EMOJI_11, t('menu_check_updates'),   self._check_updates_manual),
+            ('\u2715',             FT_EMOJI_11, t('menu_quit'),            self._quit),
             None,
             (None, None, f'v{APP_VERSION}', None),
         ]
@@ -1849,18 +1852,44 @@ class Widget:
         return 'break'
 
     def _bind_menu_autoclose(self, m):
-        """Intentionally a no-op.
+        """Close the menu when it loses focus (click-outside, Alt-tab, etc.).
 
-        Earlier versions wired up click-outside-to-close and FocusOut-to-close,
-        but both patterns fought with the update banner's topmost focus steal
-        and with the event bindtags (root is in every child's bindtag chain,
-        so a <Button-1> on the root widget would also fire for clicks on
-        children that were meant to interact with something else). The menu
-        now closes only on explicit user action: clicking a menu item, the
-        hamburger button again, or Escape. That's predictable and avoids a
-        whole class of flaky behavior.
+        _show_menu dismisses the update banner before creating the menu, so
+        we no longer have a competing topmost window stealing focus — the
+        FocusOut pattern that worked up to v2.7.5 is safe again.
+        A short `after(150)` grace period protects against transient focus
+        bounces during Toplevel setup.
         """
-        pass
+        m._opened_at = time.monotonic()
+
+        def on_focus_out(_e=None):
+            # Ignore the initial focus bounce while the menu is being mapped.
+            if time.monotonic() - m._opened_at < 0.2:
+                return
+            self.root.after(150, self._close_if_unfocused)
+
+        m.bind('<FocusOut>', on_focus_out)
+
+    def _close_if_unfocused(self):
+        """Close the menu only if focus hasn't returned to it in the meantime."""
+        m = self._menu_win
+        if not m or not m.winfo_exists():
+            return
+        try:
+            focused = m.focus_displayof()
+            if focused is None:
+                self._close_menu()
+                return
+            # focus_displayof may return a child of the menu — walk up to see
+            # if the focused widget is inside our Toplevel.
+            t = focused
+            while t is not None:
+                if t is m:
+                    return  # still inside menu — keep open
+                t = t.master
+            self._close_menu()
+        except Exception:
+            self._close_menu()
 
     def _lift_menu(self, m):
         """Force menu Toplevel above everything including the main widget."""
