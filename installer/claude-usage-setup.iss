@@ -2,7 +2,7 @@
 ; Run from the installer/ folder. All Source paths are relative to this script.
 
 #define MyAppName "Claude Usage"
-#define MyAppVersion "2.8.28"
+#define MyAppVersion "2.8.29"
 #define MyAppPublisher "Niccolo Sabato"
 #define MyAppExeName "Claude Usage.exe"
 #define MyAppIcon "claude.ico"
@@ -59,12 +59,10 @@ Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "
 Name: "{group}\Uninstall {#MyAppName}"; Filename: "{uninstallexe}"
 
 [Run]
-; Flush Windows icon cache after install
-Filename: "ie4uinit.exe"; Parameters: "-show"; Flags: runhidden nowait
-; Relaunch unconditionally after install. "postinstall" was adding a check box
-; on the Finished wizard page, which simply doesn't exist under /VERYSILENT
-; (our auto-update flow), so the widget never came back up. Dropping the flag
-; runs the exe in every mode.
+; Relaunch the widget FIRST so its cold start overlaps with everything else —
+; "postinstall" was adding a check box on the Finished wizard page, which
+; simply doesn't exist under /VERYSILENT (our auto-update flow), so the widget
+; never came back up. Dropping the flag runs the exe in every mode.
 Filename: "{app}\{#MyAppExeName}"; Flags: nowait
 
 [UninstallDelete]
