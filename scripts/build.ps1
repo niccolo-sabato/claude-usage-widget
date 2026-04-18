@@ -40,7 +40,7 @@ $PyiArgs = @(
     '--specpath',   $Build,
     (Join-Path $Src 'widget.pyw')
 )
-& pyinstaller @PyiArgs
+& python -m PyInstaller @PyiArgs
 if ($LASTEXITCODE -ne 0) { throw "PyInstaller failed with exit code $LASTEXITCODE" }
 
 # 3. Copy guide into dist so it ships alongside the exe
@@ -54,7 +54,8 @@ Copy-Item -Force (Join-Path $Guide 'session-key-guide.html') $DistGuide
 Write-Host "[4/5] Running Inno Setup..."
 $Iscc = @(
     'C:\Program Files (x86)\Inno Setup 6\ISCC.exe',
-    'C:\Program Files\Inno Setup 6\ISCC.exe'
+    'C:\Program Files\Inno Setup 6\ISCC.exe',
+    (Join-Path $env:LOCALAPPDATA 'Programs\Inno Setup 6\ISCC.exe')
 ) | Where-Object { Test-Path $_ } | Select-Object -First 1
 if (-not $Iscc) { throw 'ISCC.exe not found. Install Inno Setup 6.' }
 & $Iscc (Join-Path $Installer 'claude-usage-setup.iss')
