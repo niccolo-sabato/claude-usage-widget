@@ -95,7 +95,7 @@ PCT_FG   = '#ffffff'
 MENU_BG  = '#2c2c2a'
 
 # ─── App ────────────────────────────────────────────
-APP_VERSION = '2.8.25'
+APP_VERSION = '2.8.26'
 
 # ─── Auto-update ────────────────────────────────────
 UPDATE_REPO = 'niccolo-sabato/claude-usage-widget'
@@ -139,8 +139,8 @@ FT_EMOJI_11  = ('Segoe UI Emoji', 11)      # Emoji icons in dialogs/menus
 # We use it only for the refresh icon (title bar, menu row, essential mode)
 # so the three occurrences are pixel-identical; the rest of the menu keeps
 # the original emoji+arrow icon set.
-FT_MDL2_TB   = ('Segoe MDL2 Assets', 10)   # smaller title bar / essential-mode size
-FT_MDL2_MENU = ('Segoe MDL2 Assets', 11)   # matches FT_EMOJI_11 menu-row height
+FT_MDL2_TB   = ('Segoe MDL2 Assets', 9)    # tight title bar / essential-mode size
+FT_MDL2_MENU = ('Segoe MDL2 Assets', 13)   # scales up vs FT_EMOJI 10 to match visual weight
 
 ICON_REFRESH = '\uE72C'   # Segoe MDL2 Refresh glyph
 
@@ -1801,16 +1801,16 @@ class Widget:
         # icon set chosen.
         items = [
             (ICON_REFRESH,         FT_MDL2_MENU, t('menu_refresh'),        self.refresh),
-            ('\u21F5\uFE0E',       FT_EMOJI_11,  mode_label,               self._toggle_essential),
+            ('\u21F5\uFE0E',       FT_EMOJI,     mode_label,               self._toggle_essential),
             None,
-            ('\u23F3\uFE0E',       FT_EMOJI_11, interval_label,            self._show_interval_dialog),
-            ('\U0001F5DD\uFE0E',   FT_EMOJI_11, t('menu_renew'),           self._renew_session),
-            ('\u2197\uFE0E',       FT_EMOJI_11, t('menu_open_claude'),     self._open_claude_usage),
-            ('{ }',                FT_EMOJI_11, t('menu_open_config'),     self._open_config),
-            ('\U0001F30D\uFE0E',   FT_EMOJI_11, lang_label,                self._show_language_menu),
+            ('\u23F3\uFE0E',       FT_EMOJI,     interval_label,           self._show_interval_dialog),
+            ('\U0001F5DD\uFE0E',   FT_EMOJI,     t('menu_renew'),          self._renew_session),
+            ('\u2197\uFE0E',       FT_EMOJI,     t('menu_open_claude'),    self._open_claude_usage),
+            ('{ }',                FT_EMOJI,     t('menu_open_config'),    self._open_config),
+            ('\U0001F30D\uFE0E',   FT_EMOJI,     lang_label,               self._show_language_menu),
             None,
-            ('\u2B06\uFE0E',       FT_EMOJI_11, t('menu_check_updates'),   self._check_updates_manual),
-            ('\u2715',             FT_EMOJI_11, t('menu_quit'),            self._quit),
+            ('\u2B06\uFE0E',       FT_EMOJI,     t('menu_check_updates'),  self._check_updates_manual),
+            ('\u2715',             FT_EMOJI,     t('menu_quit'),           self._quit),
             None,
             (None, None, f'v{APP_VERSION}', None),
         ]
