@@ -95,7 +95,7 @@ PCT_FG   = '#ffffff'
 MENU_BG  = '#2c2c2a'
 
 # ─── App ────────────────────────────────────────────
-APP_VERSION = '2.8.26'
+APP_VERSION = '2.8.27'
 
 # ─── Auto-update ────────────────────────────────────
 UPDATE_REPO = 'niccolo-sabato/claude-usage-widget'
@@ -140,7 +140,7 @@ FT_EMOJI_11  = ('Segoe UI Emoji', 11)      # Emoji icons in dialogs/menus
 # so the three occurrences are pixel-identical; the rest of the menu keeps
 # the original emoji+arrow icon set.
 FT_MDL2_TB   = ('Segoe MDL2 Assets', 9)    # tight title bar / essential-mode size
-FT_MDL2_MENU = ('Segoe MDL2 Assets', 13)   # scales up vs FT_EMOJI 10 to match visual weight
+FT_MDL2_MENU = ('Segoe MDL2 Assets', 10)   # same point size as FT_EMOJI for the menu row
 
 ICON_REFRESH = '\uE72C'   # Segoe MDL2 Refresh glyph
 
@@ -1124,7 +1124,7 @@ class Widget:
         title.bind('<ButtonRelease-1>', self._save_geometry)
 
         # Close (rightmost)
-        self.btn_x = tk.Label(self.tb, text=' \u2715 ', font=('Segoe UI', 10),
+        self.btn_x = tk.Label(self.tb, text=' \u2715 ', font=FT_EMOJI,
                               fg=DIM, bg=BG_TITLE, cursor='hand2')
         self.btn_x.pack(side='right', padx=(0, 2))
         self.btn_x.bind('<Button-1>', lambda e: self._quit())
@@ -1207,7 +1207,7 @@ class Widget:
         # Essential mode controls — dynamic stack, right-aligned
         # Visual order left to right: ✕ ↻ HH:MM [resize dot]
         self.ess_bar = tk.Frame(self.main, bg=BG)
-        self.ess_close = tk.Label(self.ess_bar, text='\u2715', font=('Segoe UI', 9),
+        self.ess_close = tk.Label(self.ess_bar, text='\u2715', font=FT_EMOJI,
                                   fg=DIM, bg=BG, cursor='hand2',
                                   bd=0, highlightthickness=0, padx=4, pady=0)
         self.ess_close.pack(side='left')
@@ -1801,7 +1801,10 @@ class Widget:
         # icon set chosen.
         items = [
             (ICON_REFRESH,         FT_MDL2_MENU, t('menu_refresh'),        self.refresh),
-            ('\u21F5\uFE0E',       FT_EMOJI,     mode_label,               self._toggle_essential),
+            # ↕ is a BMP text glyph; at the same point size as the SMP color
+            # emojis below it renders thinner. Bumping to FT_EMOJI_11 makes
+            # it visually match the key/globe weight.
+            ('\u21F5\uFE0E',       FT_EMOJI_11,  mode_label,               self._toggle_essential),
             None,
             ('\u23F3\uFE0E',       FT_EMOJI,     interval_label,           self._show_interval_dialog),
             ('\U0001F5DD\uFE0E',   FT_EMOJI,     t('menu_renew'),          self._renew_session),
