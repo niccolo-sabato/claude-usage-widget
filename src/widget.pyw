@@ -93,7 +93,7 @@ PCT_FG   = '#ffffff'
 MENU_BG  = '#2c2c2a'
 
 # ─── App ────────────────────────────────────────────
-APP_VERSION = '2.8.0'
+APP_VERSION = '2.8.1'
 
 # ─── Auto-update ────────────────────────────────────
 UPDATE_REPO = 'niccolo-sabato/claude-usage-widget'
@@ -206,16 +206,21 @@ LANG = {
         'update_check_failed': 'Could not reach GitHub. Try again later.',
         'update_check_no_asset': 'New version available but no installer asset was found.',
         # Dialog
-        'dlg_renew_title': 'Renew Session',
-        'dlg_setup_title': 'Setup',
-        'dlg_howto': 'How to get the Session Key:',
-        'dlg_open_guide': ' \U0001F4D6  Open guide in browser ',
-        'dlg_paste_here': 'Paste your Session Key here:',
-        'dlg_paste_empty': 'Paste the sessionKey in the field above',
+        'dlg_renew_title': 'Renew session',
+        'dlg_setup_title': 'Welcome',
+        'dlg_welcome_hint': 'Connect the widget to your Claude.ai account.',
+        'dlg_step_guide': 'Where do I find my session key?',
+        'dlg_step_paste': 'Paste your session key below',
+        'dlg_open_guide': 'Open guide in browser',
+        'dlg_paste_empty': 'Paste the session key in the field above.',
         'dlg_invalid_prefix': 'The value must start with sk-ant-',
-        'dlg_verifying': 'Verifying...',
+        'dlg_verifying': 'Verifying\u2026',
         'dlg_error_prefix': 'Error',
-        'dlg_connect': ' Connect ',
+        'dlg_connect': 'Connect',
+        'dlg_cancel': 'Cancel',
+        # Kept for legacy references — consolidated into dlg_step_* above
+        'dlg_howto': 'Where do I find my session key?',
+        'dlg_paste_here': 'Paste your session key below',
     },
     'it': {
         'current_session': 'Sessione Corrente',
@@ -267,16 +272,20 @@ LANG = {
         'update_check_uptodate': 'Versione gi\u00e0 aggiornata (v{version}).',
         'update_check_failed': 'Impossibile contattare GitHub. Riprova pi\u00f9 tardi.',
         'update_check_no_asset': 'Nuova versione disponibile ma non trovo l\u2019installer.',
-        'dlg_renew_title': 'Rinnova Sessione',
-        'dlg_setup_title': 'Configurazione',
-        'dlg_howto': 'Come ottenere il Session Key:',
-        'dlg_open_guide': ' \U0001F4D6  Apri guida nel browser ',
-        'dlg_paste_here': 'Incolla qui il Session Key:',
-        'dlg_paste_empty': 'Incolla il sessionKey nel campo sopra',
+        'dlg_renew_title': 'Rinnova sessione',
+        'dlg_setup_title': 'Benvenuto',
+        'dlg_welcome_hint': 'Collega il widget al tuo account Claude.ai.',
+        'dlg_step_guide': 'Dove trovo la session key?',
+        'dlg_step_paste': 'Incolla la session key qui sotto',
+        'dlg_open_guide': 'Apri guida nel browser',
+        'dlg_paste_empty': 'Incolla la session key nel campo sopra.',
         'dlg_invalid_prefix': 'Il valore deve iniziare con sk-ant-',
-        'dlg_verifying': 'Verifica in corso...',
+        'dlg_verifying': 'Verifica in corso\u2026',
         'dlg_error_prefix': 'Errore',
-        'dlg_connect': ' Connetti ',
+        'dlg_connect': 'Connetti',
+        'dlg_cancel': 'Annulla',
+        'dlg_howto': 'Dove trovo la session key?',
+        'dlg_paste_here': 'Incolla la session key qui sotto',
     },
     'ja': {
         'current_session': '\u73fe\u5728\u306e\u30bb\u30c3\u30b7\u30e7\u30f3',
@@ -329,15 +338,19 @@ LANG = {
         'update_check_failed': 'GitHub \u306b\u63a5\u7d9a\u3067\u304d\u307e\u305b\u3093\u3002\u5f8c\u3067\u518d\u8a66\u884c\u3057\u3066\u304f\u3060\u3055\u3044\u3002',
         'update_check_no_asset': '\u65b0\u3057\u3044\u30d0\u30fc\u30b8\u30e7\u30f3\u306f\u3042\u308a\u307e\u3059\u304c\u3001\u30a4\u30f3\u30b9\u30c8\u30fc\u30e9\u30fc\u304c\u898b\u3064\u304b\u308a\u307e\u305b\u3093\u3002',
         'dlg_renew_title': '\u30bb\u30c3\u30b7\u30e7\u30f3\u66f4\u65b0',
-        'dlg_setup_title': '\u30bb\u30c3\u30c8\u30a2\u30c3\u30d7',
-        'dlg_howto': 'Session Key\u306e\u53d6\u5f97\u65b9\u6cd5:',
-        'dlg_open_guide': ' \U0001F4D6  \u30d6\u30e9\u30a6\u30b6\u3067\u30ac\u30a4\u30c9\u3092\u958b\u304f ',
-        'dlg_paste_here': 'Session Key\u3092\u3053\u3053\u306b\u8cbc\u308a\u4ed8\u3051:',
-        'dlg_paste_empty': '\u4e0a\u306e\u30d5\u30a3\u30fc\u30eb\u30c9\u306bsessionKey\u3092\u8cbc\u308a\u4ed8\u3051\u3066\u304f\u3060\u3055\u3044',
-        'dlg_invalid_prefix': '\u5024\u306fsk-ant-\u3067\u59cb\u307e\u308b\u5fc5\u8981\u304c\u3042\u308a\u307e\u3059',
-        'dlg_verifying': '\u78ba\u8a8d\u4e2d...',
+        'dlg_setup_title': '\u3088\u3046\u3053\u305d',
+        'dlg_welcome_hint': 'Claude.ai \u30a2\u30ab\u30a6\u30f3\u30c8\u3068\u30a6\u30a3\u30b8\u30a7\u30c3\u30c8\u3092\u63a5\u7d9a\u3057\u307e\u3059\u3002',
+        'dlg_step_guide': '\u30bb\u30c3\u30b7\u30e7\u30f3\u30ad\u30fc\u306e\u53d6\u5f97\u65b9\u6cd5',
+        'dlg_step_paste': '\u30bb\u30c3\u30b7\u30e7\u30f3\u30ad\u30fc\u3092\u4e0b\u306b\u8cbc\u308a\u4ed8\u3051\u307e\u3059',
+        'dlg_open_guide': '\u30d6\u30e9\u30a6\u30b6\u3067\u30ac\u30a4\u30c9\u3092\u958b\u304f',
+        'dlg_paste_empty': '\u4e0a\u306e\u30d5\u30a3\u30fc\u30eb\u30c9\u306b\u30bb\u30c3\u30b7\u30e7\u30f3\u30ad\u30fc\u3092\u8cbc\u308a\u4ed8\u3051\u3066\u304f\u3060\u3055\u3044\u3002',
+        'dlg_invalid_prefix': '\u5024\u306f sk-ant- \u3067\u59cb\u307e\u308b\u5fc5\u8981\u304c\u3042\u308a\u307e\u3059',
+        'dlg_verifying': '\u78ba\u8a8d\u4e2d\u2026',
         'dlg_error_prefix': '\u30a8\u30e9\u30fc',
-        'dlg_connect': ' \u63a5\u7d9a ',
+        'dlg_connect': '\u63a5\u7d9a',
+        'dlg_cancel': '\u30ad\u30e3\u30f3\u30bb\u30eb',
+        'dlg_howto': '\u30bb\u30c3\u30b7\u30e7\u30f3\u30ad\u30fc\u306e\u53d6\u5f97\u65b9\u6cd5',
+        'dlg_paste_here': '\u30bb\u30c3\u30b7\u30e7\u30f3\u30ad\u30fc\u3092\u4e0b\u306b\u8cbc\u308a\u4ed8\u3051\u307e\u3059',
     },
 }
 
@@ -419,6 +432,56 @@ def pill(cv, x, y, w, h, color):
     cv.create_oval(x + w - h, y, x + w, y + h, fill=color, outline=color, width=1)
     if w > h:
         cv.create_rectangle(x + r, y, x + w - r, y + h, fill=color, outline=color, width=0)
+
+
+def make_pill_button(parent, *, text, font, fg, bg, hover_bg, cmd,
+                     icon=None, icon_font=None, padx=16, pady=8, parent_bg=None):
+    """Canvas-based pill button with optional emoji icon on the left.
+
+    Auto-sizes to content. Returns the Canvas so it can be .pack()/.place()'d.
+    `parent_bg` lets the caller override the canvas background (otherwise
+    it's inherited from the parent's bg so the button blends in).
+    """
+    parent.update_idletasks()
+    m = tk.Label(parent, text=text, font=font)
+    m.update_idletasks()
+    text_w, text_h = m.winfo_reqwidth(), m.winfo_reqheight()
+    m.destroy()
+
+    icon_w = 0
+    icon_h = 0
+    if icon:
+        mi = tk.Label(parent, text=icon, font=icon_font or font)
+        mi.update_idletasks()
+        icon_w, icon_h = mi.winfo_reqwidth(), mi.winfo_reqheight()
+        mi.destroy()
+
+    gap = 8 if icon else 0
+    content_h = max(text_h, icon_h)
+    btn_w = text_w + icon_w + gap + padx * 2
+    btn_h = content_h + pady * 2
+
+    canvas_bg = parent_bg if parent_bg is not None else parent.cget('bg')
+    cv = tk.Canvas(parent, width=btn_w, height=btn_h,
+                   bg=canvas_bg, highlightthickness=0, bd=0, cursor='hand2')
+    state = {'bg': bg}
+
+    def redraw():
+        cv.delete('all')
+        pill(cv, 0, 0, btn_w, btn_h, state['bg'])
+        x = padx
+        cy = btn_h / 2
+        if icon:
+            cv.create_text(x, cy - 1, text=icon, fill=fg,
+                           font=icon_font or font, anchor='w')
+            x += icon_w + gap
+        cv.create_text(x, cy, text=text, fill=fg, font=font, anchor='w')
+
+    redraw()
+    cv.bind('<Enter>', lambda e: (state.update(bg=hover_bg), redraw()))
+    cv.bind('<Leave>', lambda e: (state.update(bg=bg), redraw()))
+    cv.bind('<Button-1>', lambda e: cmd())
+    return cv
 
 
 def dwm_round(win, shadow=True):
@@ -1856,6 +1919,16 @@ class Widget:
     # ── Session key dialog (shared by setup + renew) ──
 
     def _session_key_dialog(self, title, is_setup=False):
+        FT_TITLE = ('Segoe UI Semibold', 10)
+        FT_H     = ('Segoe UI', 11, 'bold')      # section headers
+        FT_BODY  = ('Segoe UI', 10)              # body text / entry
+        FT_HINT  = ('Segoe UI', 9)               # hint / status
+        FT_BTN_L = ('Segoe UI', 10)              # pill button text
+        EMOJI_11 = ('Segoe UI Emoji', 11)
+        FOCUS    = '#C8652E'                     # focused entry outline (darker Claude)
+        SOFT     = '#2e2e2c'                     # card / subtle surface
+        SOFT_HV  = '#343432'
+
         dlg = tk.Toplevel(self.root)
         dlg.title(title)
         dlg.configure(bg=BG)
@@ -1863,58 +1936,114 @@ class Widget:
         dlg.attributes('-topmost', True)
         dlg.resizable(False, False)
 
-        dlg.update_idletasks()
-        dw, dh = 400, 220
+        dw, dh = 460, 320
         wx = self.root.winfo_x() + (self.root.winfo_width() - dw) // 2
         wy = self.root.winfo_y() - dh - 10
+        # Clamp to screen — a widget near the top of the screen should get the dialog below.
         if wy < 0:
             wy = self.root.winfo_y() + self.root.winfo_height() + 10
+        sw = self.root.winfo_screenwidth()
+        wx = max(8, min(wx, sw - dw - 8))
         dlg.geometry(f'{dw}x{dh}+{wx}+{wy}')
-        dlg.after(10, lambda: dwm_round(dlg))
+        dlg.update_idletasks()
+        dlg.after(50, lambda: dwm_round(dlg))
 
-        tb = tk.Frame(dlg, bg=BG_TITLE, height=30)
+        # ── Title bar ────────────────────────────────────────
+        tb = tk.Frame(dlg, bg=BG_TITLE, height=34)
         tb.pack(fill='x')
         tb.pack_propagate(False)
-        tk.Label(tb, text=f'  {title}', font=FT_B, fg=FG,
-                 bg=BG_TITLE).pack(side='left', padx=4)
-        close_btn = tk.Label(tb, text=' \u2715 ', font=('Segoe UI', 10),
-                             fg=DIM, bg=BG_TITLE, cursor='hand2')
-        close_btn.pack(side='right', padx=2)
+        tk.Label(tb, text=title, font=FT_TITLE, fg=FG, bg=BG_TITLE,
+                 padx=12).pack(side='left')
+        close_btn = tk.Label(tb, text='\u2715', font=('Segoe UI', 10),
+                             fg=DIM, bg=BG_TITLE, cursor='hand2', padx=10, pady=4)
+        close_btn.pack(side='right')
         close_btn.bind('<Button-1>', lambda e: dlg.destroy())
+        close_btn.bind('<Enter>', lambda e: close_btn.config(fg=FG, bg='#3a1818'))
+        close_btn.bind('<Leave>', lambda e: close_btn.config(fg=DIM, bg=BG_TITLE))
 
         def drag_s(e): dlg._dx, dlg._dy = e.x, e.y
         def drag_m(e): dlg.geometry(
             f'+{dlg.winfo_x()+e.x-dlg._dx}+{dlg.winfo_y()+e.y-dlg._dy}')
         tb.bind('<Button-1>', drag_s)
         tb.bind('<B1-Motion>', drag_m)
+        for w in tb.winfo_children():
+            if w is not close_btn:
+                w.bind('<Button-1>', drag_s)
+                w.bind('<B1-Motion>', drag_m)
 
+        # ── Body ─────────────────────────────────────────────
         body = tk.Frame(dlg, bg=BG)
-        body.pack(fill='both', expand=True, padx=PAD, pady=(10, PAD))
+        body.pack(fill='both', expand=True, padx=20, pady=(18, 16))
 
-        # ── Guide button ──
-        tk.Label(body, text=t('dlg_howto'), font=FT_B,
-                 fg=CLAUDE, bg=BG, anchor='w').pack(fill='x')
-        guide_btn = tk.Label(body, text=t('dlg_open_guide'), font=FT,
-                             fg=BG, bg=BLUE, cursor='hand2', padx=8, pady=3)
-        guide_btn.pack(anchor='w', pady=(6, 10))
-        guide_btn.bind('<Button-1>', lambda e: self._open_guide())
-        guide_btn.bind('<Enter>', lambda e: guide_btn.config(bg='#6BC8D8'))
-        guide_btn.bind('<Leave>', lambda e: guide_btn.config(bg=BLUE))
+        if is_setup:
+            tk.Label(body, text=t('dlg_welcome_hint'), font=FT_BODY, fg=DIM,
+                     bg=BG, anchor='w', justify='left',
+                     wraplength=dw - 40).pack(fill='x', pady=(0, 14))
 
-        # ── Entry ──
-        tk.Label(body, text=t('dlg_paste_here'), font=FT, fg=FG, bg=BG,
+        # Step 1 — guide
+        tk.Label(body, text=t('dlg_step_guide'), font=FT_H, fg=FG, bg=BG,
                  anchor='w').pack(fill='x')
-        entry = tk.Entry(body, font=FT_S, bg=BAR_BG, fg=FG,
-                         insertbackground=FG, bd=0, highlightthickness=1,
-                         highlightcolor=CLAUDE, highlightbackground=DIM)
-        entry.pack(fill='x', ipady=4, pady=(4, 0))
+        guide_btn = make_pill_button(
+            body, text=t('dlg_open_guide'), font=FT_BTN_L,
+            fg=FG, bg=SOFT, hover_bg=SOFT_HV,
+            cmd=self._open_guide,
+            icon='\U0001F4D6', icon_font=EMOJI_11,
+            padx=14, pady=7)
+        guide_btn.pack(anchor='w', pady=(8, 16))
+
+        # Step 2 — paste
+        tk.Label(body, text=t('dlg_step_paste'), font=FT_H, fg=FG, bg=BG,
+                 anchor='w').pack(fill='x')
+
+        entry_wrap = tk.Frame(body, bg=DIM, padx=1, pady=1)
+        entry_wrap.pack(fill='x', pady=(8, 0))
+        entry = tk.Entry(entry_wrap, font=FT_BODY, bg=BAR_BG, fg=FG,
+                         insertbackground=FG, bd=0,
+                         highlightthickness=0, relief='flat')
+        entry.pack(fill='x', ipady=7, ipadx=10)
+        entry_wrap.configure(bg=BAR_BG)  # idle: no visible border ring
+
+        def on_focus_in(_e):  entry_wrap.configure(bg=FOCUS)
+        def on_focus_out(_e): entry_wrap.configure(bg=BAR_BG)
+        entry.bind('<FocusIn>', on_focus_in)
+        entry.bind('<FocusOut>', on_focus_out)
+
         if self.cfg.get('session_key'):
             entry.insert(0, self.cfg['session_key'])
         entry.focus_set()
 
-        # ── Status ──
-        status_lbl = tk.Label(body, text='', font=FT_S, fg=DIM, bg=BG)
-        status_lbl.pack(fill='x', pady=(4, 0))
+        # Inline status line (error / verifying)
+        status_lbl = tk.Label(body, text='', font=FT_HINT, fg=DIM, bg=BG,
+                              anchor='w', justify='left', wraplength=dw - 40)
+        status_lbl.pack(fill='x', pady=(8, 0))
+
+        # ── Actions ──────────────────────────────────────────
+        btn_frame = tk.Frame(body, bg=BG)
+        btn_frame.pack(fill='x', side='bottom', pady=(12, 0))
+
+        # Dynamic connect button — redrawn on state change.
+        connect_state = {'btn': None}
+
+        def build_connect(enabled=True):
+            if connect_state['btn'] is not None:
+                connect_state['btn'].destroy()
+            color_bg = CLAUDE if enabled else BAR_BG
+            color_hv = '#E08060' if enabled else BAR_BG
+            color_fg = '#FFFFFF' if enabled else DIM
+            cmd = save_key if enabled else (lambda: None)
+            b = make_pill_button(
+                btn_frame, text=t('dlg_connect'), font=FT_H,
+                fg=color_fg, bg=color_bg, hover_bg=color_hv,
+                cmd=cmd, padx=22, pady=8)
+            b.pack(side='right')
+            connect_state['btn'] = b
+            return b
+
+        cancel_btn = make_pill_button(
+            btn_frame, text=t('dlg_cancel'), font=FT_BTN_L,
+            fg=FG, bg=SOFT, hover_bg=SOFT_HV,
+            cmd=dlg.destroy, padx=18, pady=8)
+        cancel_btn.pack(side='right', padx=(0, 8))
 
         def save_key():
             key = entry.get().strip().strip('"').strip("'")
@@ -1924,8 +2053,7 @@ class Widget:
             if not key.startswith('sk-ant-'):
                 status_lbl.config(text=t('dlg_invalid_prefix'), fg=RED)
                 return
-            save_btn.config(bg=DIM)
-            save_btn.unbind('<Button-1>')
+            build_connect(enabled=False)
             status_lbl.config(text=t('dlg_verifying'), fg=BLUE)
             dlg.update_idletasks()
             def detect():
@@ -1945,19 +2073,12 @@ class Widget:
                 self.refresh()
             def on_err(msg):
                 status_lbl.config(text=f"{t('dlg_error_prefix')}: {msg}", fg=RED)
-                save_btn.config(bg=CLAUDE)
-                save_btn.bind('<Button-1>', lambda e: save_key())
+                build_connect(enabled=True)
             threading.Thread(target=detect, daemon=True).start()
 
-        btn_frame = tk.Frame(body, bg=BG)
-        btn_frame.pack(fill='x', pady=(6, 0))
-        save_btn = tk.Label(btn_frame, text=t('dlg_connect'), font=FT_B,
-                            fg=BG, bg=CLAUDE, cursor='hand2', padx=12, pady=2)
-        save_btn.pack(side='right')
-        save_btn.bind('<Button-1>', lambda e: save_key())
-        save_btn.bind('<Enter>', lambda e: save_btn.config(bg='#E08060'))
-        save_btn.bind('<Leave>', lambda e: save_btn.config(bg=CLAUDE))
+        build_connect(enabled=True)
         entry.bind('<Return>', lambda e: save_key())
+        dlg.bind('<Escape>', lambda e: dlg.destroy())
 
     def _setup_dialog(self):
         self._session_key_dialog(t('dlg_setup_title'), is_setup=True)

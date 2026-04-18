@@ -12,6 +12,27 @@ For a more detailed narrative of early development phases, see
 
 ## [Unreleased]
 
+## [2.8.1] - 2026-04-18
+
+### Changed
+- **Session key dialog redesigned in Material W11 style.** Title bar has proper
+  padding, body uses a two-step layout (*Step 1: Where do I find it?* -> open
+  guide, *Step 2: Paste here* -> input + Connect) with clear typography. Setup
+  mode shows a welcome hint up top.
+- **Guide button is now a pill-shaped Canvas button** with the book emoji
+  rendered at Segoe UI Emoji 11 instead of a flat rectangular label.
+- **Connect button** also restyled as a pill, sized for prominence; disabled
+  state while verifying no longer swaps colors abruptly.
+- **New Cancel button** beside Connect plus Esc key binding for consistent
+  exit options.
+- **Entry field** got bigger padding (ipady 7, ipadx 10), thinner focus ring
+  (1 px via a wrapper frame), and a darker focus color tuned to the Claude
+  palette.
+- Dialog size 460x320 (was 400x220) with screen-edge clamping so it never
+  opens off-screen on small or narrow layouts.
+- Copy tightened: single ellipsis instead of "...", clearer section headings
+  in all three locales.
+
 ## [2.8.0] - 2026-04-18
 
 ### Added
