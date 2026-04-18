@@ -95,7 +95,7 @@ PCT_FG   = '#ffffff'
 MENU_BG  = '#2c2c2a'
 
 # ─── App ────────────────────────────────────────────
-APP_VERSION = '2.8.15'
+APP_VERSION = '2.8.16'
 
 # ─── Auto-update ────────────────────────────────────
 UPDATE_REPO = 'niccolo-sabato/claude-usage-widget'
@@ -1114,6 +1114,12 @@ class Widget:
         self.btn_menu.bind('<Enter>', lambda e: self.btn_menu.config(fg=FG))
         self.btn_menu.bind('<Leave>', lambda e: self.btn_menu.config(fg=DIM))
 
+        # Right-click anywhere inside the widget opens the menu. Binding lives
+        # on the root because every child's bindtag chain passes through it,
+        # so this catches clicks on the canvas bar and on header labels too —
+        # places per-widget bindings used to miss in essential mode.
+        self.root.bind('<Button-3>', self._show_menu)
+
         # Refresh button
         self.btn_r = tk.Label(self.tb, text=' \u21bb ', font=FT_BTN,
                               fg=DIM, bg=BG_TITLE, cursor='hand2')
@@ -1343,16 +1349,18 @@ class Widget:
         self._update_minsize()
 
     def _bind_drag(self, w):
+        # Drag handlers only. The menu binding lives on root (_build) so
+        # right-click opens it no matter where in the widget the user clicks
+        # — including over the Canvas bar, where per-widget Button-3 bindings
+        # previously didn't fire because Canvas is skipped in the drag bind.
         w.bind('<Button-1>', self._drag_start)
         w.bind('<B1-Motion>', self._drag_move)
         w.bind('<ButtonRelease-1>', self._save_geometry)
-        w.bind('<Button-3>', self._show_menu)
 
     def _unbind_drag(self, w):
         w.unbind('<Button-1>')
         w.unbind('<B1-Motion>')
         w.unbind('<ButtonRelease-1>')
-        w.unbind('<Button-3>')
 
     def _update_minsize(self):
         """Update minimum width to avoid clipping sub-label + controls."""
