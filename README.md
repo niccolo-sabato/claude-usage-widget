@@ -72,6 +72,19 @@ Your `sessionKey` is a cookie Claude.ai uses to authenticate you. The widget rea
 
 ---
 
+## Recommended placement
+
+The widget is designed to sit **on top of the Windows taskbar**. This is the recommended placement:
+
+- Drag the widget to the bottom of the screen so its lower edge touches the taskbar
+- Enable **Essential mode** (double-click the orange dot) for a compact view that fits above taskbar icons
+- The widget stays above the taskbar even when switching virtual desktops (forced topmost every 500ms)
+- Expand/collapse actions always grow **upward**, so the bottom edge stays locked in place
+
+You can also place it anywhere else on screen (corner, secondary monitor, etc.) - position and size are remembered across restarts.
+
+---
+
 ## Controls
 
 ### Title bar (standard mode)
