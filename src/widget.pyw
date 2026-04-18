@@ -93,7 +93,7 @@ PCT_FG   = '#ffffff'
 MENU_BG  = '#2c2c2a'
 
 # ─── App ────────────────────────────────────────────
-APP_VERSION = '2.8.1'
+APP_VERSION = '2.8.2'
 
 # ─── Auto-update ────────────────────────────────────
 UPDATE_REPO = 'niccolo-sabato/claude-usage-widget'
@@ -122,6 +122,38 @@ FT_BTN   = ('Segoe UI', 11)
 FT_EMOJI = ('Segoe UI Emoji', 10)
 FT_DOT   = ('Segoe UI', 10)
 FT_BAR   = ('Segoe UI', 9, 'bold')
+
+# ─── Dialog / menu design system ─────────────────────
+FT_DLG_TITLE = ('Segoe UI Semibold', 10)   # Dialog title bars
+FT_DLG_H     = ('Segoe UI', 11, 'bold')    # Section headers inside dialogs
+FT_DLG_BODY  = ('Segoe UI', 10)            # Body text, entries
+FT_DLG_HINT  = ('Segoe UI', 9)             # Hints / status lines
+FT_DLG_BTN   = ('Segoe UI', 10)            # Secondary pill button text
+FT_DLG_BTN_B = ('Segoe UI', 10, 'bold')    # Primary pill button text
+FT_MENU      = ('Segoe UI', 10)            # Menu row text
+FT_EMOJI_11  = ('Segoe UI Emoji', 11)      # Emoji icons in dialogs/menus
+
+# Surface / state colors used by dialogs and menus (complement the theme)
+SOFT_BG    = '#2e2e2c'   # secondary pill button / card surface
+SOFT_BG_HV = '#363634'   # secondary pill hover
+PRIMARY_HV = '#E08060'   # primary pill hover
+FOCUS_RING = '#C8652E'   # darker Claude for focused entry outline
+CLOSE_HV   = '#3a1818'   # title bar close button hover tint
+
+# Pill button padding presets — every dialog/menu button uses these so sizes
+# stay visually consistent across the app.
+PILL_PAD_PRIMARY_X   = 22
+PILL_PAD_PRIMARY_Y   = 8
+PILL_PAD_SECONDARY_X = 18
+PILL_PAD_SECONDARY_Y = 8
+
+# Dialog chrome constants
+DLG_TB_HEIGHT = 34
+DLG_PAD_X     = 20
+DLG_PAD_TOP   = 18
+DLG_PAD_BTM   = 16
+SCREEN_MARGIN = 8        # minimum gap from screen edge
+TASKBAR_GAP   = 50       # keep dialogs clear of the taskbar
 
 # ─── Logging ────────────────────────────────────────
 LOG_FILE = os.path.join(DIR, 'widget.log')
@@ -182,7 +214,7 @@ LANG = {
         'dlg_interval_title': 'Refresh interval',
         'dlg_interval_label': 'Interval in seconds (minimum 10):',
         'dlg_interval_invalid': 'Enter a number between 10 and 3600',
-        'dlg_save': ' Save ',
+        'dlg_save': 'Save',
         'menu_quit': 'Quit',
         'menu_language': 'Language',
         'menu_check_updates': 'Check for updates\u2026',
@@ -250,7 +282,7 @@ LANG = {
         'dlg_interval_title': 'Intervallo aggiornamento',
         'dlg_interval_label': 'Intervallo in secondi (minimo 10):',
         'dlg_interval_invalid': 'Inserisci un numero tra 10 e 3600',
-        'dlg_save': ' Salva ',
+        'dlg_save': 'Salva',
         'menu_quit': 'Chiudi',
         'menu_language': 'Lingua',
         'menu_check_updates': 'Controlla aggiornamenti\u2026',
@@ -315,7 +347,7 @@ LANG = {
         'dlg_interval_title': '\u66f4\u65b0\u9593\u9694',
         'dlg_interval_label': '\u79d2\u5358\u4f4d\u306e\u9593\u9694 (\u6700\u4f4e10):',
         'dlg_interval_invalid': '10\u304b\u30893600\u306e\u6570\u5024\u3092\u5165\u529b',
-        'dlg_save': ' \u4fdd\u5b58 ',
+        'dlg_save': '\u4fdd\u5b58',
         'menu_quit': '\u7d42\u4e86',
         'menu_language': '\u8a00\u8a9e',
         'menu_check_updates': '\u66f4\u65b0\u3092\u78ba\u8a8d\u2026',
@@ -1369,6 +1401,116 @@ class Widget:
         except Exception as ex:
             wlog(f'SAVE   save_geometry error: {ex}')
 
+    # ── Shared dialog / popup helpers ───────────────
+
+    def _place_popup(self, dw, dh, prefer='above'):
+        """Compute (x, y) for a popup relative to the widget.
+
+        Tries to open above (prefer='above') or below (prefer='below') the
+        widget, then falls back to the opposite side if there isn't enough
+        space. Always clamped inside the visible screen with a taskbar gap.
+        Used by every dialog + every submenu so placements stay consistent.
+        """
+        wx = self.root.winfo_x() + (self.root.winfo_width() - dw) // 2
+        sw = self.root.winfo_screenwidth()
+        sh = self.root.winfo_screenheight()
+        widget_top = self.root.winfo_y()
+        widget_bottom = widget_top + self.root.winfo_height()
+        if prefer == 'above':
+            wy = widget_top - dh - SCREEN_MARGIN
+            if wy < SCREEN_MARGIN:
+                wy = widget_bottom + SCREEN_MARGIN
+        else:
+            wy = widget_bottom + SCREEN_MARGIN
+            if wy + dh > sh - TASKBAR_GAP:
+                wy = widget_top - dh - SCREEN_MARGIN
+        wx = max(SCREEN_MARGIN, min(wx, sw - dw - SCREEN_MARGIN))
+        wy = max(SCREEN_MARGIN, min(wy, sh - dh - TASKBAR_GAP))
+        return wx, wy
+
+    def _place_submenu(self, dw, dh):
+        """Position a right-aligned submenu (hamburger / language / etc.)."""
+        sw = self.root.winfo_screenwidth()
+        sh = self.root.winfo_screenheight()
+        wx = self.root.winfo_rootx() + self.root.winfo_width() - dw
+        widget_bottom = self.root.winfo_rooty() + self.root.winfo_height()
+        if widget_bottom + dh > sh - TASKBAR_GAP:
+            wy = self.root.winfo_rooty() - dh - 2
+        else:
+            wy = self.root.winfo_rooty() + TITLE_H + 2
+        wx = max(SCREEN_MARGIN, min(wx, sw - dw - SCREEN_MARGIN))
+        wy = max(SCREEN_MARGIN, min(wy, sh - dh - TASKBAR_GAP))
+        return wx, wy
+
+    def _build_titlebar(self, dlg, title):
+        """Standard draggable title bar with close button. Same look everywhere."""
+        tb = tk.Frame(dlg, bg=BG_TITLE, height=DLG_TB_HEIGHT)
+        tb.pack(fill='x')
+        tb.pack_propagate(False)
+        title_lbl = tk.Label(tb, text=title, font=FT_DLG_TITLE, fg=FG,
+                             bg=BG_TITLE, padx=12)
+        title_lbl.pack(side='left')
+        close_btn = tk.Label(tb, text='\u2715', font=('Segoe UI', 10),
+                             fg=DIM, bg=BG_TITLE, cursor='hand2', padx=12, pady=4)
+        close_btn.pack(side='right')
+        close_btn.bind('<Button-1>', lambda e: dlg.destroy())
+        close_btn.bind('<Enter>', lambda e: close_btn.config(fg=FG, bg=CLOSE_HV))
+        close_btn.bind('<Leave>', lambda e: close_btn.config(fg=DIM, bg=BG_TITLE))
+
+        def drag_s(e): dlg._dx, dlg._dy = e.x, e.y
+        def drag_m(e): dlg.geometry(
+            f'+{dlg.winfo_x()+e.x-dlg._dx}+{dlg.winfo_y()+e.y-dlg._dy}')
+        for w in (tb, title_lbl):
+            w.bind('<Button-1>', drag_s)
+            w.bind('<B1-Motion>', drag_m)
+        return tb
+
+    def _primary_pill(self, parent, text, cmd, enabled=True):
+        """Primary pill button (Claude orange). Fixed size across all dialogs."""
+        if enabled:
+            return make_pill_button(
+                parent, text=text, font=FT_DLG_BTN_B,
+                fg='#FFFFFF', bg=CLAUDE, hover_bg=PRIMARY_HV, cmd=cmd,
+                padx=PILL_PAD_PRIMARY_X, pady=PILL_PAD_PRIMARY_Y)
+        return make_pill_button(
+            parent, text=text, font=FT_DLG_BTN_B,
+            fg=DIM, bg=BAR_BG, hover_bg=BAR_BG, cmd=lambda: None,
+            padx=PILL_PAD_PRIMARY_X, pady=PILL_PAD_PRIMARY_Y)
+
+    def _secondary_pill(self, parent, text, cmd, icon=None):
+        """Secondary pill button (soft surface). Fixed size across all dialogs."""
+        return make_pill_button(
+            parent, text=text, font=FT_DLG_BTN,
+            fg=FG, bg=SOFT_BG, hover_bg=SOFT_BG_HV, cmd=cmd,
+            icon=icon, icon_font=FT_EMOJI_11 if icon else None,
+            padx=PILL_PAD_SECONDARY_X, pady=PILL_PAD_SECONDARY_Y)
+
+    def _build_dialog_frame(self, title, dw, dh):
+        """Create a Toplevel with the standard chrome. Returns (dlg, body).
+
+        All dialogs use this: same title bar, same padding, same rounded
+        corners, same screen-clamped positioning.
+        """
+        dlg = tk.Toplevel(self.root)
+        dlg.title(title)
+        dlg.configure(bg=BG)
+        dlg.overrideredirect(True)
+        dlg.attributes('-topmost', True)
+        dlg.resizable(False, False)
+
+        wx, wy = self._place_popup(dw, dh)
+        dlg.geometry(f'{dw}x{dh}+{wx}+{wy}')
+        dlg.update_idletasks()
+        dlg.after(50, lambda: dwm_round(dlg))
+
+        self._build_titlebar(dlg, title)
+
+        body = tk.Frame(dlg, bg=BG)
+        body.pack(fill='both', expand=True,
+                  padx=DLG_PAD_X, pady=(DLG_PAD_TOP, DLG_PAD_BTM))
+        dlg.bind('<Escape>', lambda e: dlg.destroy())
+        return dlg, body
+
     # ── W11 Styled Menu ─────────────────────────────
 
     def _show_menu(self, e=None):
@@ -1383,48 +1525,52 @@ class Widget:
         m.attributes('-topmost', True)
         m.configure(bg=MENU_BG)
 
-        FT_MENU = ('Segoe UI', 10)
         mode_label = t('menu_mode_normal') if self._essential else t('menu_mode_essential')
-        # Language submenu label with current
         lang_names = {'en': 'English', 'it': 'Italiano', 'ja': '\u65e5\u672c\u8a9e'}
         cur_lang = lang_names.get(_current_lang, 'English')
         lang_label = f"{t('menu_language')}: {cur_lang}"
-        # Current refresh interval label
         cur_secs = self.cfg.get('refresh_ms', REFRESH) // 1000
         interval_label = f"{t('menu_refresh_interval')} ({cur_secs}s)"
         items = [
-            ('\u21bb', FT_BTN, t('menu_refresh'), self.refresh),
-            ('\u21F5', FT_EMOJI, mode_label, self._toggle_essential),
+            ('\u21bb',        FT_BTN,      t('menu_refresh'),         self.refresh),
+            ('\u21F5',        FT_EMOJI_11, mode_label,                self._toggle_essential),
             None,
-            ('\u23F3', FT_EMOJI, interval_label, self._show_interval_dialog),
-            ('\U0001F5DD', FT_EMOJI, t('menu_renew'), self._renew_session),
-            ('\u2197\uFE0F', FT_EMOJI, t('menu_open_claude'), self._open_claude_usage),
-            ('{ }', FT_EMOJI, t('menu_open_config'), self._open_config),
-            ('\U0001F30D', FT_EMOJI, lang_label, self._show_language_menu),
+            ('\u23F3',        FT_EMOJI_11, interval_label,            self._show_interval_dialog),
+            ('\U0001F5DD',    FT_EMOJI_11, t('menu_renew'),           self._renew_session),
+            ('\u2197\uFE0F',  FT_EMOJI_11, t('menu_open_claude'),     self._open_claude_usage),
+            ('{ }',           FT_EMOJI_11, t('menu_open_config'),     self._open_config),
+            ('\U0001F30D',    FT_EMOJI_11, lang_label,                self._show_language_menu),
             None,
-            ('\u2B06', FT_EMOJI, t('menu_check_updates'), self._check_updates_manual),
-            ('\u2715', FT, t('menu_quit'), self._quit),
+            ('\u2B06',        FT_EMOJI_11, t('menu_check_updates'),   self._check_updates_manual),
+            ('\u2715',        FT,          t('menu_quit'),            self._quit),
             None,
             (None, None, f'v{APP_VERSION}', None),
         ]
 
+        # Consistent row geometry — every item shares padding/heights so the menu
+        # reads as a single coherent surface.
+        ROW_PADY = 6
+        ROW_PADX_TEXT = 2
+        ROW_ICON_W = 3
         for item in items:
             if item is None:
-                tk.Frame(m, bg=BAR_BG, height=1).pack(fill='x', padx=10, pady=3)
+                tk.Frame(m, bg=BAR_BG, height=1).pack(fill='x', padx=12, pady=4)
                 continue
             icon, icon_ft, text, cmd = item
             if cmd is None:
-                tk.Label(m, text=f'  {text}', font=FT_S, fg=DIM, bg=MENU_BG,
-                         anchor='w', padx=6, pady=2).pack(fill='x')
+                tk.Label(m, text=text, font=FT_DLG_HINT, fg=DIM, bg=MENU_BG,
+                         anchor='w', padx=14, pady=4).pack(fill='x')
                 continue
             row = tk.Frame(m, bg=MENU_BG, cursor='hand2')
             row.pack(fill='x')
             ico_lbl = tk.Label(row, text=icon, font=icon_ft, fg=FG, bg=MENU_BG,
-                               padx=6, pady=2, width=2)
+                               padx=8, pady=ROW_PADY, width=ROW_ICON_W)
             ico_lbl.pack(side='left')
             txt_lbl = tk.Label(row, text=text, font=FT_MENU, fg=FG, bg=MENU_BG,
-                               anchor='w', pady=4)
+                               anchor='w', padx=ROW_PADX_TEXT, pady=ROW_PADY)
             txt_lbl.pack(side='left', fill='x', expand=True)
+            # Right padding stub to keep spacing symmetrical with the left icon column
+            tk.Label(row, text='', bg=MENU_BG, padx=10).pack(side='right')
             for w in (row, ico_lbl, txt_lbl):
                 w.bind('<Enter>', lambda e, r=row, i=ico_lbl, t=txt_lbl: (
                     r.config(bg=HOVER_BG), i.config(bg=HOVER_BG), t.config(bg=HOVER_BG)))
@@ -1433,20 +1579,12 @@ class Widget:
                 w.bind('<Button-1>', lambda e, c=cmd: (c(), self._close_menu()))
 
         m.update_idletasks()
-        mw, mh = m.winfo_reqwidth(), m.winfo_reqheight()
-        # Position: align right edge with widget, open below or above
-        bx = self.root.winfo_rootx() + self.root.winfo_width() - mw
-        widget_bottom = self.root.winfo_rooty() + self.root.winfo_height()
-        screen_h = self.root.winfo_screenheight()
-        if widget_bottom + mh > screen_h - 50:
-            # Open above the widget
-            by = self.root.winfo_rooty() - mh - 2
-        else:
-            # Open below the title bar
-            by = self.root.winfo_rooty() + TITLE_H + 2
-        m.geometry(f'+{bx}+{by}')
+        mw = max(m.winfo_reqwidth(), 220)
+        mh = m.winfo_reqheight() + 4  # small bottom breathing room
+        m.geometry(f'{mw}x{mh}')
+        bx, by = self._place_submenu(mw, mh)
+        m.geometry(f'{mw}x{mh}+{bx}+{by}')
         m.after(10, lambda: dwm_round(m))
-        # Force menu above main window via Win32
         m.after(20, lambda: self._lift_menu(m))
         m.bind('<Escape>', lambda e: self._close_menu())
         m.bind('<FocusOut>', lambda e: self.root.after(100, self._close_menu))
@@ -1484,26 +1622,42 @@ class Widget:
         m.overrideredirect(True)
         m.attributes('-topmost', True)
         m.configure(bg=MENU_BG)
+
+        # Header so the submenu reads as a single purpose, not a floating list
+        header = tk.Label(m, text=t('menu_language'), font=FT_DLG_HINT, fg=DIM,
+                          bg=MENU_BG, anchor='w', padx=14, pady=6)
+        header.pack(fill='x')
+        tk.Frame(m, bg=BAR_BG, height=1).pack(fill='x', padx=10, pady=(0, 4))
+
         langs = [('en', 'English'), ('it', 'Italiano'), ('ja', '\u65e5\u672c\u8a9e')]
         for code, name in langs:
-            marker = '\u25cf ' if code == _current_lang else '  '
-            lbl = tk.Label(m, text=f'  {marker}{name}', font=('Segoe UI', 10),
-                           fg=FG, bg=MENU_BG, anchor='w', cursor='hand2',
-                           padx=10, pady=6)
-            lbl.pack(fill='x')
-            lbl.bind('<Enter>', lambda e, l=lbl: l.config(bg=HOVER_BG))
-            lbl.bind('<Leave>', lambda e, l=lbl: l.config(bg=MENU_BG))
-            lbl.bind('<Button-1>', lambda e, c=code: self._set_language(c))
+            is_current = (code == _current_lang)
+            row = tk.Frame(m, bg=MENU_BG, cursor='hand2')
+            row.pack(fill='x')
+            # Checkmark slot — reserves space so every row aligns
+            marker = tk.Label(row, text=('\u2713' if is_current else ''),
+                              font=FT_MENU, fg=CLAUDE, bg=MENU_BG,
+                              width=2, padx=4, pady=6)
+            marker.pack(side='left')
+            txt = tk.Label(row, text=name,
+                           font=(FT_MENU[0], FT_MENU[1], 'bold') if is_current else FT_MENU,
+                           fg=FG, bg=MENU_BG, anchor='w', padx=2, pady=6)
+            txt.pack(side='left', fill='x', expand=True)
+            for w in (row, marker, txt):
+                w.bind('<Enter>', lambda e, r=row, mk=marker, tx=txt: (
+                    r.config(bg=HOVER_BG), mk.config(bg=HOVER_BG), tx.config(bg=HOVER_BG)))
+                w.bind('<Leave>', lambda e, r=row, mk=marker, tx=txt: (
+                    r.config(bg=MENU_BG), mk.config(bg=MENU_BG), tx.config(bg=MENU_BG)))
+                w.bind('<Button-1>', lambda e, c=code: self._set_language(c))
+
+        # Force a minimum width so the submenu never feels cramped
         m.update_idletasks()
-        mw, mh = m.winfo_reqwidth(), m.winfo_reqheight()
-        bx = self.root.winfo_rootx() + self.root.winfo_width() - mw
-        widget_bottom = self.root.winfo_rooty() + self.root.winfo_height()
-        screen_h = self.root.winfo_screenheight()
-        if widget_bottom + mh > screen_h - 50:
-            by = self.root.winfo_rooty() - mh - 2
-        else:
-            by = self.root.winfo_rooty() + TITLE_H + 2
-        m.geometry(f'+{bx}+{by}')
+        mw = max(m.winfo_reqwidth(), 200)
+        mh = m.winfo_reqheight() + 6  # small bottom padding
+        # Pad width visually by resizing the toplevel; children still fill correctly.
+        m.geometry(f'{mw}x{mh}')
+        bx, by = self._place_submenu(mw, mh)
+        m.geometry(f'{mw}x{mh}+{bx}+{by}')
         m.after(10, lambda: dwm_round(m))
         m.after(20, lambda: self._lift_menu(m))
         m.bind('<Escape>', lambda e: self._close_menu())
@@ -1531,54 +1685,28 @@ class Widget:
         self.root.after(10, self._show_interval_dialog_now)
 
     def _show_interval_dialog_now(self):
-        dlg = tk.Toplevel(self.root)
-        dlg.title(t('dlg_interval_title'))
-        dlg.configure(bg=BG)
-        dlg.overrideredirect(True)
-        dlg.attributes('-topmost', True)
-        dlg.resizable(False, False)
+        dlg, body = self._build_dialog_frame(t('dlg_interval_title'), 460, 260)
 
-        dlg.update_idletasks()
-        dw, dh = 320, 150
-        wx = self.root.winfo_x() + (self.root.winfo_width() - dw) // 2
-        wy = self.root.winfo_y() - dh - 10
-        if wy < 0:
-            wy = self.root.winfo_y() + self.root.winfo_height() + 10
-        dlg.geometry(f'{dw}x{dh}+{wx}+{wy}')
-        dlg.after(50, lambda: dwm_round(dlg))
+        tk.Label(body, text=t('dlg_interval_label'), font=FT_DLG_H, fg=FG,
+                 bg=BG, anchor='w').pack(fill='x')
 
-        tb = tk.Frame(dlg, bg=BG_TITLE, height=30)
-        tb.pack(fill='x')
-        tb.pack_propagate(False)
-        tk.Label(tb, text=f"  {t('dlg_interval_title')}", font=FT_B, fg=FG,
-                 bg=BG_TITLE).pack(side='left', padx=4)
-        close_btn = tk.Label(tb, text=' \u2715 ', font=('Segoe UI', 10),
-                             fg=DIM, bg=BG_TITLE, cursor='hand2')
-        close_btn.pack(side='right', padx=2)
-        close_btn.bind('<Button-1>', lambda e: dlg.destroy())
+        entry_wrap = tk.Frame(body, bg=BAR_BG, padx=1, pady=1)
+        entry_wrap.pack(fill='x', pady=(10, 0))
+        entry = tk.Entry(entry_wrap, font=FT_DLG_BODY, bg=BAR_BG, fg=FG,
+                         insertbackground=FG, bd=0,
+                         highlightthickness=0, relief='flat')
+        entry.pack(fill='x', ipady=7, ipadx=10)
+        entry.bind('<FocusIn>', lambda e: entry_wrap.configure(bg=FOCUS_RING))
+        entry.bind('<FocusOut>', lambda e: entry_wrap.configure(bg=BAR_BG))
 
-        def drag_s(e): dlg._dx, dlg._dy = e.x, e.y
-        def drag_m(e): dlg.geometry(
-            f'+{dlg.winfo_x()+e.x-dlg._dx}+{dlg.winfo_y()+e.y-dlg._dy}')
-        tb.bind('<Button-1>', drag_s)
-        tb.bind('<B1-Motion>', drag_m)
-
-        body = tk.Frame(dlg, bg=BG)
-        body.pack(fill='both', expand=True, padx=PAD, pady=(10, PAD))
-
-        tk.Label(body, text=t('dlg_interval_label'), font=FT, fg=FG, bg=BG,
-                 anchor='w').pack(fill='x')
-        entry = tk.Entry(body, font=FT, bg=BAR_BG, fg=FG,
-                         insertbackground=FG, bd=0, highlightthickness=1,
-                         highlightcolor=CLAUDE, highlightbackground=DIM)
-        entry.pack(fill='x', ipady=4, pady=(4, 0))
         current_secs = self.cfg.get('refresh_ms', REFRESH) // 1000
         entry.insert(0, str(current_secs))
         entry.select_range(0, 'end')
         entry.focus_set()
 
-        status_lbl = tk.Label(body, text='', font=FT_S, fg=RED, bg=BG)
-        status_lbl.pack(fill='x', pady=(4, 0))
+        status_lbl = tk.Label(body, text='', font=FT_DLG_HINT, fg=RED, bg=BG,
+                              anchor='w', wraplength=460 - 40)
+        status_lbl.pack(fill='x', pady=(8, 0))
 
         def save_interval():
             try:
@@ -1591,25 +1719,20 @@ class Widget:
                 return
             self.cfg['refresh_ms'] = secs * 1000
             save_cfg(self.cfg)
-            # Restart countdown with new interval
             if self._countdown_job:
                 self.root.after_cancel(self._countdown_job)
             self._countdown_secs = secs
             self._tick_countdown()
-            # Reschedule auto-refresh
             if self._job:
                 self.root.after_cancel(self._job)
             self._schedule()
             dlg.destroy()
 
         btn_frame = tk.Frame(body, bg=BG)
-        btn_frame.pack(fill='x', pady=(8, 0))
-        save_btn = tk.Label(btn_frame, text=t('dlg_save'), font=FT_B,
-                            fg=BG, bg=CLAUDE, cursor='hand2', padx=12, pady=2)
-        save_btn.pack(side='right')
-        save_btn.bind('<Button-1>', lambda e: save_interval())
-        save_btn.bind('<Enter>', lambda e: save_btn.config(bg='#E08060'))
-        save_btn.bind('<Leave>', lambda e: save_btn.config(bg=CLAUDE))
+        btn_frame.pack(fill='x', side='bottom', pady=(12, 0))
+        self._primary_pill(btn_frame, t('dlg_save'), save_interval).pack(side='right')
+        self._secondary_pill(btn_frame, t('dlg_cancel'), dlg.destroy).pack(
+            side='right', padx=(0, 8))
         entry.bind('<Return>', lambda e: save_interval())
 
     # ── Auto-update ──────────────────────────────────
@@ -1708,17 +1831,17 @@ class Widget:
         self._dismiss_update_banner()
 
     def _show_info_toast(self, message):
-        """Quick transient feedback anchored to the widget (used by manual check results)."""
+        """Transient feedback toast aligned to the widget — used for manual checks."""
         dlg = tk.Toplevel(self.root)
         dlg.overrideredirect(True)
         dlg.attributes('-topmost', True)
         dlg.configure(bg=MENU_BG)
-        tk.Label(dlg, text=message, font=FT, fg=FG, bg=MENU_BG,
-                 padx=12, pady=8, wraplength=320, justify='left').pack()
+        tk.Label(dlg, text=message, font=FT_DLG_BODY, fg=FG, bg=MENU_BG,
+                 padx=16, pady=10, wraplength=340, justify='left').pack()
         dlg.update_idletasks()
         dw, dh = dlg.winfo_reqwidth(), dlg.winfo_reqheight()
-        wx = self.root.winfo_x() + (self.root.winfo_width() - dw) // 2
-        wy = self.root.winfo_y() + self.root.winfo_height() + 6
+        # Prefer below the widget, fall back above — same rule as dialogs.
+        wx, wy = self._place_popup(dw, dh, prefer='below')
         dlg.geometry(f'{dw}x{dh}+{wx}+{wy}')
         dlg.after(50, lambda: dwm_round(dlg))
         dlg.after(3500, dlg.destroy)
@@ -1726,47 +1849,16 @@ class Widget:
     def _show_update_dialog(self, info):
         """Full update dialog: shows changelog + download button + progress."""
         self._dismiss_update_banner()
-        dlg = tk.Toplevel(self.root)
-        dlg.title(t('update_dlg_title'))
-        dlg.configure(bg=BG)
-        dlg.overrideredirect(True)
-        dlg.attributes('-topmost', True)
-        dlg.resizable(False, False)
-
-        dw, dh = 460, 340
-        wx = self.root.winfo_x() + (self.root.winfo_width() - dw) // 2
-        wy = self.root.winfo_y() - dh - 10
-        if wy < 0:
-            wy = max(10, self.root.winfo_y() + self.root.winfo_height() + 10)
-        dlg.geometry(f'{dw}x{dh}+{wx}+{wy}')
-        dlg.after(50, lambda: dwm_round(dlg))
-
-        tb = tk.Frame(dlg, bg=BG_TITLE, height=30)
-        tb.pack(fill='x')
-        tb.pack_propagate(False)
-        tk.Label(tb, text=f"  {t('update_dlg_title')}", font=FT_B, fg=FG,
-                 bg=BG_TITLE).pack(side='left', padx=4)
-        close_btn = tk.Label(tb, text=' \u2715 ', font=('Segoe UI', 10),
-                             fg=DIM, bg=BG_TITLE, cursor='hand2')
-        close_btn.pack(side='right', padx=2)
-        close_btn.bind('<Button-1>', lambda e: dlg.destroy())
-
-        def drag_s(e): dlg._dx, dlg._dy = e.x, e.y
-        def drag_m(e): dlg.geometry(
-            f'+{dlg.winfo_x()+e.x-dlg._dx}+{dlg.winfo_y()+e.y-dlg._dy}')
-        tb.bind('<Button-1>', drag_s)
-        tb.bind('<B1-Motion>', drag_m)
-
-        body = tk.Frame(dlg, bg=BG)
-        body.pack(fill='both', expand=True, padx=PAD, pady=(10, PAD))
+        dw, dh = 500, 380
+        dlg, body = self._build_dialog_frame(t('update_dlg_title'), dw, dh)
 
         subtitle = t('update_dlg_subtitle').format(
             version=info['version'], current=APP_VERSION)
-        tk.Label(body, text=subtitle, font=FT_B, fg=CLAUDE, bg=BG,
+        tk.Label(body, text=subtitle, font=FT_DLG_H, fg=CLAUDE, bg=BG,
                  anchor='w').pack(fill='x')
 
-        tk.Label(body, text=t('update_dlg_changelog'), font=FT, fg=FG, bg=BG,
-                 anchor='w').pack(fill='x', pady=(8, 2))
+        tk.Label(body, text=t('update_dlg_changelog'), font=FT_DLG_BODY, fg=FG,
+                 bg=BG, anchor='w').pack(fill='x', pady=(10, 4))
 
         changelog = info.get('body') or t('update_dlg_no_changelog')
         if len(changelog) > UPDATE_CHANGELOG_MAX_CHARS:
@@ -1774,40 +1866,25 @@ class Widget:
 
         txt_frame = tk.Frame(body, bg=BAR_BG, bd=0, highlightthickness=0)
         txt_frame.pack(fill='both', expand=True)
-        txt = tk.Text(txt_frame, font=FT_S, fg=DIM, bg=BAR_BG, bd=0,
-                      highlightthickness=0, wrap='word', padx=8, pady=6, height=7,
-                      relief='flat')
+        txt = tk.Text(txt_frame, font=FT_DLG_HINT, fg=DIM, bg=BAR_BG, bd=0,
+                      highlightthickness=0, wrap='word',
+                      padx=10, pady=8, height=7, relief='flat')
         txt.insert('1.0', changelog)
         txt.config(state='disabled')
         txt.pack(fill='both', expand=True)
 
-        status_lbl = tk.Label(body, text='', font=FT_S, fg=DIM, bg=BG, anchor='w')
-        status_lbl.pack(fill='x', pady=(6, 0))
+        status_lbl = tk.Label(body, text='', font=FT_DLG_HINT, fg=DIM, bg=BG,
+                              anchor='w', wraplength=dw - 40)
+        status_lbl.pack(fill='x', pady=(10, 0))
 
         progress_cv = tk.Canvas(body, height=6, bg=BG, bd=0, highlightthickness=0)
-        progress_cv.pack(fill='x', pady=(2, 0))
+        progress_cv.pack(fill='x', pady=(4, 0))
         progress_cv.pack_forget()
 
         btn_frame = tk.Frame(body, bg=BG)
-        btn_frame.pack(fill='x', pady=(8, 0))
+        btn_frame.pack(fill='x', side='bottom', pady=(12, 0))
 
-        cancel_btn = tk.Label(btn_frame, text=f" {t('update_dlg_cancel')} ",
-                              font=FT, fg=FG, bg=BAR_BG, cursor='hand2', padx=10, pady=2)
-        cancel_btn.pack(side='right')
-        cancel_btn.bind('<Button-1>', lambda e: dlg.destroy())
-        cancel_btn.bind('<Enter>', lambda e: cancel_btn.config(bg=HOVER_BG))
-        cancel_btn.bind('<Leave>', lambda e: cancel_btn.config(bg=BAR_BG))
-
-        open_btn = tk.Label(btn_frame, text=f" {t('update_dlg_open_page')} ",
-                            font=FT, fg=BLUE, bg=BG, cursor='hand2', padx=8, pady=2)
-        open_btn.pack(side='left')
-        open_btn.bind('<Button-1>', lambda e: webbrowser.open(info['html_url']))
-
-        install_btn = tk.Label(btn_frame, text=f" {t('update_dlg_install')} ",
-                               font=FT_B, fg=BG, bg=CLAUDE, cursor='hand2', padx=12, pady=2)
-        install_btn.pack(side='right', padx=(0, 6))
-        install_btn.bind('<Enter>', lambda e: install_btn.config(bg='#E08060'))
-        install_btn.bind('<Leave>', lambda e: install_btn.config(bg=CLAUDE))
+        install_state = {'btn': None, 'enabled': True}
 
         def fmt_size(n):
             for unit in ('B', 'KB', 'MB'):
@@ -1828,7 +1905,8 @@ class Widget:
             pct = int(done * 100 / total) if total else 0
             status_lbl.config(
                 text=t('update_dlg_downloading').format(
-                    percent=pct, done=fmt_size(done), total=fmt_size(total) if total else '?'),
+                    percent=pct, done=fmt_size(done),
+                    total=fmt_size(total) if total else '?'),
                 fg=DIM)
             draw_progress(pct)
 
@@ -1837,13 +1915,14 @@ class Widget:
                 webbrowser.open(info['html_url'])
                 dlg.destroy()
                 return
-            install_btn.unbind('<Button-1>')
-            install_btn.config(bg=DIM, cursor='arrow')
-            progress_cv.pack(fill='x', pady=(2, 0))
+            build_install_btn(enabled=False)
+            progress_cv.pack(fill='x', pady=(4, 0))
             status_lbl.config(text=t('update_dlg_downloading').format(
-                percent=0, done='0', total=fmt_size(info.get('asset_size') or 0)), fg=DIM)
+                percent=0, done='0',
+                total=fmt_size(info.get('asset_size') or 0)), fg=DIM)
             dest = os.path.join(tempfile.gettempdir(),
                                 f'ClaudeUsage-Setup-{info["version"]}.exe')
+
             def worker():
                 try:
                     download_installer(
@@ -1856,13 +1935,26 @@ class Widget:
                     wlog(f'UPDATE  download failed: {e}')
                     dlg.after(0, lambda: status_lbl.config(
                         text=t('update_dlg_failed').format(error=str(e)), fg=RED))
-                    dlg.after(0, lambda: install_btn.config(
-                        bg=CLAUDE, cursor='hand2'))
-                    dlg.after(0, lambda: install_btn.bind(
-                        '<Button-1>', lambda e: start_download()))
+                    dlg.after(0, lambda: build_install_btn(enabled=True))
+
             threading.Thread(target=worker, daemon=True).start()
 
-        install_btn.bind('<Button-1>', lambda e: start_download())
+        def build_install_btn(enabled=True):
+            if install_state['btn'] is not None:
+                install_state['btn'].destroy()
+            b = self._primary_pill(btn_frame, t('update_dlg_install'),
+                                   start_download if enabled else (lambda: None),
+                                   enabled=enabled)
+            b.pack(side='right')
+            install_state['btn'] = b
+
+        # Secondary actions (left-aligned on the left, right-aligned next to primary)
+        self._secondary_pill(btn_frame, t('update_dlg_open_page'),
+                             lambda: webbrowser.open(info['html_url'])).pack(
+            side='left')
+        self._secondary_pill(btn_frame, t('update_dlg_cancel'),
+                             dlg.destroy).pack(side='right', padx=(0, 8))
+        build_install_btn(enabled=True)
 
     def _launch_installer(self, path):
         """Spawn the downloaded installer and exit so it can replace files in place."""
@@ -1919,131 +2011,56 @@ class Widget:
     # ── Session key dialog (shared by setup + renew) ──
 
     def _session_key_dialog(self, title, is_setup=False):
-        FT_TITLE = ('Segoe UI Semibold', 10)
-        FT_H     = ('Segoe UI', 11, 'bold')      # section headers
-        FT_BODY  = ('Segoe UI', 10)              # body text / entry
-        FT_HINT  = ('Segoe UI', 9)               # hint / status
-        FT_BTN_L = ('Segoe UI', 10)              # pill button text
-        EMOJI_11 = ('Segoe UI Emoji', 11)
-        FOCUS    = '#C8652E'                     # focused entry outline (darker Claude)
-        SOFT     = '#2e2e2c'                     # card / subtle surface
-        SOFT_HV  = '#343432'
-
-        dlg = tk.Toplevel(self.root)
-        dlg.title(title)
-        dlg.configure(bg=BG)
-        dlg.overrideredirect(True)
-        dlg.attributes('-topmost', True)
-        dlg.resizable(False, False)
-
         dw, dh = 460, 320
-        wx = self.root.winfo_x() + (self.root.winfo_width() - dw) // 2
-        wy = self.root.winfo_y() - dh - 10
-        # Clamp to screen — a widget near the top of the screen should get the dialog below.
-        if wy < 0:
-            wy = self.root.winfo_y() + self.root.winfo_height() + 10
-        sw = self.root.winfo_screenwidth()
-        wx = max(8, min(wx, sw - dw - 8))
-        dlg.geometry(f'{dw}x{dh}+{wx}+{wy}')
-        dlg.update_idletasks()
-        dlg.after(50, lambda: dwm_round(dlg))
-
-        # ── Title bar ────────────────────────────────────────
-        tb = tk.Frame(dlg, bg=BG_TITLE, height=34)
-        tb.pack(fill='x')
-        tb.pack_propagate(False)
-        tk.Label(tb, text=title, font=FT_TITLE, fg=FG, bg=BG_TITLE,
-                 padx=12).pack(side='left')
-        close_btn = tk.Label(tb, text='\u2715', font=('Segoe UI', 10),
-                             fg=DIM, bg=BG_TITLE, cursor='hand2', padx=10, pady=4)
-        close_btn.pack(side='right')
-        close_btn.bind('<Button-1>', lambda e: dlg.destroy())
-        close_btn.bind('<Enter>', lambda e: close_btn.config(fg=FG, bg='#3a1818'))
-        close_btn.bind('<Leave>', lambda e: close_btn.config(fg=DIM, bg=BG_TITLE))
-
-        def drag_s(e): dlg._dx, dlg._dy = e.x, e.y
-        def drag_m(e): dlg.geometry(
-            f'+{dlg.winfo_x()+e.x-dlg._dx}+{dlg.winfo_y()+e.y-dlg._dy}')
-        tb.bind('<Button-1>', drag_s)
-        tb.bind('<B1-Motion>', drag_m)
-        for w in tb.winfo_children():
-            if w is not close_btn:
-                w.bind('<Button-1>', drag_s)
-                w.bind('<B1-Motion>', drag_m)
-
-        # ── Body ─────────────────────────────────────────────
-        body = tk.Frame(dlg, bg=BG)
-        body.pack(fill='both', expand=True, padx=20, pady=(18, 16))
+        dlg, body = self._build_dialog_frame(title, dw, dh)
 
         if is_setup:
-            tk.Label(body, text=t('dlg_welcome_hint'), font=FT_BODY, fg=DIM,
+            tk.Label(body, text=t('dlg_welcome_hint'), font=FT_DLG_BODY, fg=DIM,
                      bg=BG, anchor='w', justify='left',
                      wraplength=dw - 40).pack(fill='x', pady=(0, 14))
 
         # Step 1 — guide
-        tk.Label(body, text=t('dlg_step_guide'), font=FT_H, fg=FG, bg=BG,
+        tk.Label(body, text=t('dlg_step_guide'), font=FT_DLG_H, fg=FG, bg=BG,
                  anchor='w').pack(fill='x')
-        guide_btn = make_pill_button(
-            body, text=t('dlg_open_guide'), font=FT_BTN_L,
-            fg=FG, bg=SOFT, hover_bg=SOFT_HV,
-            cmd=self._open_guide,
-            icon='\U0001F4D6', icon_font=EMOJI_11,
-            padx=14, pady=7)
-        guide_btn.pack(anchor='w', pady=(8, 16))
+        self._secondary_pill(body, t('dlg_open_guide'), self._open_guide,
+                             icon='\U0001F4D6').pack(anchor='w', pady=(8, 16))
 
         # Step 2 — paste
-        tk.Label(body, text=t('dlg_step_paste'), font=FT_H, fg=FG, bg=BG,
+        tk.Label(body, text=t('dlg_step_paste'), font=FT_DLG_H, fg=FG, bg=BG,
                  anchor='w').pack(fill='x')
 
-        entry_wrap = tk.Frame(body, bg=DIM, padx=1, pady=1)
+        entry_wrap = tk.Frame(body, bg=BAR_BG, padx=1, pady=1)
         entry_wrap.pack(fill='x', pady=(8, 0))
-        entry = tk.Entry(entry_wrap, font=FT_BODY, bg=BAR_BG, fg=FG,
+        entry = tk.Entry(entry_wrap, font=FT_DLG_BODY, bg=BAR_BG, fg=FG,
                          insertbackground=FG, bd=0,
                          highlightthickness=0, relief='flat')
         entry.pack(fill='x', ipady=7, ipadx=10)
-        entry_wrap.configure(bg=BAR_BG)  # idle: no visible border ring
-
-        def on_focus_in(_e):  entry_wrap.configure(bg=FOCUS)
-        def on_focus_out(_e): entry_wrap.configure(bg=BAR_BG)
-        entry.bind('<FocusIn>', on_focus_in)
-        entry.bind('<FocusOut>', on_focus_out)
+        entry.bind('<FocusIn>',  lambda e: entry_wrap.configure(bg=FOCUS_RING))
+        entry.bind('<FocusOut>', lambda e: entry_wrap.configure(bg=BAR_BG))
 
         if self.cfg.get('session_key'):
             entry.insert(0, self.cfg['session_key'])
         entry.focus_set()
 
-        # Inline status line (error / verifying)
-        status_lbl = tk.Label(body, text='', font=FT_HINT, fg=DIM, bg=BG,
+        status_lbl = tk.Label(body, text='', font=FT_DLG_HINT, fg=DIM, bg=BG,
                               anchor='w', justify='left', wraplength=dw - 40)
         status_lbl.pack(fill='x', pady=(8, 0))
 
-        # ── Actions ──────────────────────────────────────────
         btn_frame = tk.Frame(body, bg=BG)
         btn_frame.pack(fill='x', side='bottom', pady=(12, 0))
-
-        # Dynamic connect button — redrawn on state change.
         connect_state = {'btn': None}
 
         def build_connect(enabled=True):
             if connect_state['btn'] is not None:
                 connect_state['btn'].destroy()
-            color_bg = CLAUDE if enabled else BAR_BG
-            color_hv = '#E08060' if enabled else BAR_BG
-            color_fg = '#FFFFFF' if enabled else DIM
-            cmd = save_key if enabled else (lambda: None)
-            b = make_pill_button(
-                btn_frame, text=t('dlg_connect'), font=FT_H,
-                fg=color_fg, bg=color_bg, hover_bg=color_hv,
-                cmd=cmd, padx=22, pady=8)
+            b = self._primary_pill(btn_frame, t('dlg_connect'),
+                                   save_key if enabled else (lambda: None),
+                                   enabled=enabled)
             b.pack(side='right')
             connect_state['btn'] = b
-            return b
 
-        cancel_btn = make_pill_button(
-            btn_frame, text=t('dlg_cancel'), font=FT_BTN_L,
-            fg=FG, bg=SOFT, hover_bg=SOFT_HV,
-            cmd=dlg.destroy, padx=18, pady=8)
-        cancel_btn.pack(side='right', padx=(0, 8))
+        self._secondary_pill(btn_frame, t('dlg_cancel'), dlg.destroy).pack(
+            side='right', padx=(0, 8))
 
         def save_key():
             key = entry.get().strip().strip('"').strip("'")
@@ -2078,7 +2095,6 @@ class Widget:
 
         build_connect(enabled=True)
         entry.bind('<Return>', lambda e: save_key())
-        dlg.bind('<Escape>', lambda e: dlg.destroy())
 
     def _setup_dialog(self):
         self._session_key_dialog(t('dlg_setup_title'), is_setup=True)

@@ -12,6 +12,42 @@ For a more detailed narrative of early development phases, see
 
 ## [Unreleased]
 
+## [2.8.2] - 2026-04-18
+
+### Changed
+- **Unified design system across all dialogs and menus.** One set of module-level
+  fonts (`FT_DLG_TITLE`, `FT_DLG_H`, `FT_DLG_BODY`, `FT_DLG_HINT`,
+  `FT_DLG_BTN_B`, `FT_DLG_BTN`, `FT_EMOJI_11`), one set of colors
+  (`SOFT_BG`/`SOFT_BG_HV`, `PRIMARY_HV`, `FOCUS_RING`, `CLOSE_HV`), and one set
+  of pill padding constants — every dialog now consumes them via
+  `_primary_pill()`, `_secondary_pill()`, `_build_dialog_frame()`, so Connect,
+  Save, Install, Cancel, Open guide, etc. are all visually identical.
+- **Consistent positioning** via `_place_popup()` (dialogs) and
+  `_place_submenu()` (hamburger / language menus). Each popup tries its
+  preferred side first, falls back to the opposite edge, and is clamped to the
+  visible screen with a taskbar margin — no more surprises on multi-monitor or
+  near-edge layouts.
+- **Refresh-interval dialog redesigned** to match the session-key dialog: same
+  title bar (34 px), same 20 px body padding, same focus ring on the entry,
+  pill Save (primary) + pill Cancel (secondary), bigger default size 460x260.
+- **Update dialog redesigned** with the shared chrome: bigger 500x380 footprint,
+  proper section headers, pill Install / Cancel / Open release page, progress
+  bar tucked under the changelog.
+- **Language submenu rebuilt** with a header line, checkmark column for the
+  current language, generous row padding, minimum width 200 px.
+- **Main menu** now aligns icon column widths (width=3), uses consistent
+  vertical padding (6 px per row), adds a symmetric right margin, and uses the
+  shared submenu positioning.
+- **Session-key dialog** consolidated to the shared helpers; no more
+  duplicated chrome code inside the method.
+- **Info toast** now uses `_place_popup(prefer='below')` so its placement is
+  predictable and screen-aware.
+
+### Removed
+- Per-dialog inline constants, duplicated title-bar builders, duplicated
+  drag handlers, and duplicated positioning math. The whole dialog/menu
+  surface is now smaller and easier to evolve.
+
 ## [2.8.1] - 2026-04-18
 
 ### Changed
