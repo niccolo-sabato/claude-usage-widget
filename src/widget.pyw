@@ -90,7 +90,7 @@ PCT_FG   = '#ffffff'
 MENU_BG  = '#2c2c2a'
 
 # ─── App ────────────────────────────────────────────
-APP_VERSION = '2.7.2'
+APP_VERSION = '2.7.3'
 
 # ─── Layout ──────────────────────────────────────────
 DEF_W    = 280
@@ -107,6 +107,7 @@ FT       = ('Segoe UI', 9)
 FT_B     = ('Segoe UI', 9, 'bold')
 FT_S     = ('Segoe UI', 8)
 FT_BTN   = ('Segoe UI', 11)
+FT_EMOJI = ('Segoe UI Emoji', 11)
 FT_DOT   = ('Segoe UI', 10)
 FT_BAR   = ('Segoe UI', 9, 'bold')
 
@@ -1098,13 +1099,13 @@ class Widget:
         interval_label = f"{t('menu_refresh_interval')} ({cur_secs}s)"
         items = [
             ('\u21bb', FT_BTN, t('menu_refresh'), self.refresh),
-            ('\u21c5', FT_BTN, mode_label, self._toggle_essential),
+            ('\u21F5', FT_EMOJI, mode_label, self._toggle_essential),
             None,
-            ('\u29d7', FT, interval_label, self._show_interval_dialog),
-            ('\u2692', FT, t('menu_renew'), self._renew_session),
+            ('\u23F3', FT_EMOJI, interval_label, self._show_interval_dialog),
+            ('\U0001F5DD', FT_EMOJI, t('menu_renew'), self._renew_session),
             ('\u2197', FT, t('menu_open_claude'), self._open_claude_usage),
-            ('\u2699', FT, t('menu_open_config'), self._open_config),
-            ('\u6587', FT, lang_label, self._show_language_menu),
+            ('{}', FT_EMOJI, t('menu_open_config'), self._open_config),
+            ('\U0001F30D', FT_EMOJI, lang_label, self._show_language_menu),
             None,
             ('\u2715', FT, t('menu_quit'), self._quit),
             None,
