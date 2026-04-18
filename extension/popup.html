@@ -61,12 +61,14 @@
   .btn-copy { background: #6BC275; color: #1e1e1c; display: none; }
   .btn-copy:hover { background: #7ED48A; }
   .btn-copy.copied { background: #3a3a38; color: #6BC275; }
+  .btn[hidden] { display: none; }
   .hint {
     font-size: 11px;
     color: #7a7a78;
     margin-top: 10px;
     text-align: center;
   }
+  .hint + .hint { margin-top: 6px; }
   .hint a { color: #5BA8C8; text-decoration: none; }
   .hint a:hover { text-decoration: underline; }
 </style>
@@ -75,10 +77,10 @@
   <h1><img src="icon48.png" alt=""> Claude Session Key</h1>
   <div id="status" class="status loading">Searching for session key...</div>
   <div id="keyBox" class="key-box"></div>
-  <button id="btnFetch" class="btn btn-primary" style="display:none;">Retry</button>
+  <button id="btnFetch" class="btn btn-primary" hidden>Retry</button>
   <button id="btnCopy" class="btn btn-copy">Copy to Clipboard</button>
   <div class="hint">Paste this key in the Claude Usage widget setup</div>
-  <div class="hint" style="margin-top:6px;">
+  <div class="hint">
     Don't have the widget yet?
     <a href="https://github.com/niccolo-sabato/claude-usage-widget" target="_blank" rel="noopener">Get it here</a>
   </div>

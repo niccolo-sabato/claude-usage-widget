@@ -1,71 +1,121 @@
-const status = document.getElementById('status');
-const keyBox = document.getElementById('keyBox');
-const btnFetch = document.getElementById('btnFetch');
-const btnCopy = document.getElementById('btnCopy');
+'use strict';
+
+const EL = {
+  status: document.getElementById('status'),
+  keyBox: document.getElementById('keyBox'),
+  btnFetch: document.getElementById('btnFetch'),
+  btnCopy: document.getElementById('btnCopy'),
+};
+
+const COPIED_TIMEOUT_MS = 2000;
+const CLAUDE_URL = 'https://claude.ai';
+const COOKIE_NAME = 'sessionKey';
+const SK_PREFIX = 'sk-ant-';
 
 let sessionKey = '';
+let copyTimer = null;
 
-async function fetchKey() {
-  status.className = 'status loading';
-  status.textContent = 'Searching for session key...';
-  btnFetch.style.display = 'none';
-  btnCopy.style.display = 'none';
-  keyBox.style.display = 'none';
+function show(el, display = 'block') { el.style.display = display; }
+function hide(el) { el.style.display = 'none'; }
 
-  try {
-    const cookie = await chrome.cookies.get({
-      url: 'https://claude.ai',
-      name: 'sessionKey'
-    });
-
-    if (cookie && cookie.value) {
-      sessionKey = cookie.value;
-      status.className = 'status success';
-      status.textContent = 'Session key found!';
-      keyBox.textContent = sessionKey;
-      keyBox.style.display = 'block';
-      btnCopy.style.display = 'block';
-    } else {
-      status.className = 'status error';
-      status.innerHTML = 'Session key not found.<br>Make sure you are logged in to <a href="https://claude.ai" target="_blank" style="color:#DA7756">claude.ai</a>';
-      btnFetch.style.display = 'block';
-      btnFetch.textContent = 'Retry';
-    }
-  } catch (err) {
-    status.className = 'status error';
-    status.textContent = 'Error: ' + err.message;
-    btnFetch.style.display = 'block';
-    btnFetch.textContent = 'Retry';
+function setStatus(type, html) {
+  EL.status.className = `status ${type}`;
+  EL.status.replaceChildren();
+  if (typeof html === 'string') {
+    EL.status.textContent = html;
+  } else {
+    EL.status.append(...html);
   }
 }
 
-btnCopy.addEventListener('click', async () => {
+function loginLink(label) {
+  const a = document.createElement('a');
+  a.href = CLAUDE_URL;
+  a.target = '_blank';
+  a.rel = 'noopener';
+  a.textContent = label;
+  return a;
+}
+
+async function fetchKey() {
+  setStatus('loading', 'Searching for session key...');
+  hide(EL.btnFetch);
+  hide(EL.btnCopy);
+  hide(EL.keyBox);
+
+  let cookie;
   try {
-    await navigator.clipboard.writeText(sessionKey);
-    btnCopy.textContent = 'Copied!';
-    btnCopy.classList.add('copied');
-    setTimeout(() => {
-      btnCopy.textContent = 'Copy to Clipboard';
-      btnCopy.classList.remove('copied');
-    }, 2000);
-  } catch {
-    // Fallback
-    const ta = document.createElement('textarea');
-    ta.value = sessionKey;
-    document.body.appendChild(ta);
-    ta.select();
-    document.execCommand('copy');
-    ta.remove();
-    btnCopy.textContent = 'Copied!';
-    btnCopy.classList.add('copied');
-    setTimeout(() => {
-      btnCopy.textContent = 'Copy to Clipboard';
-      btnCopy.classList.remove('copied');
-    }, 2000);
+    cookie = await chrome.cookies.get({ url: CLAUDE_URL, name: COOKIE_NAME });
+  } catch (err) {
+    setStatus('error', `Error: ${err?.message ?? 'unknown'}`);
+    EL.btnFetch.textContent = 'Retry';
+    show(EL.btnFetch);
+    return;
   }
+
+  if (!cookie?.value) {
+    setStatus('error', [
+      document.createTextNode('Session key not found.'),
+      document.createElement('br'),
+      document.createTextNode('Make sure you are logged in to '),
+      loginLink('claude.ai'),
+    ]);
+    EL.btnFetch.textContent = 'Retry';
+    show(EL.btnFetch);
+    return;
+  }
+
+  if (!cookie.value.startsWith(SK_PREFIX)) {
+    setStatus('error', `Unexpected cookie format. Expected prefix "${SK_PREFIX}".`);
+    EL.btnFetch.textContent = 'Retry';
+    show(EL.btnFetch);
+    return;
+  }
+
+  sessionKey = cookie.value;
+  setStatus('success', 'Session key found!');
+  EL.keyBox.textContent = sessionKey;
+  show(EL.keyBox);
+  show(EL.btnCopy);
+}
+
+async function copyToClipboard(text) {
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch { /* fall through */ }
+  }
+  // Fallback for restricted contexts
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.setAttribute('readonly', '');
+  ta.style.position = 'absolute';
+  ta.style.left = '-9999px';
+  document.body.appendChild(ta);
+  ta.select();
+  const ok = document.execCommand('copy');
+  ta.remove();
+  return ok;
+}
+
+function flashCopied() {
+  clearTimeout(copyTimer);
+  EL.btnCopy.textContent = 'Copied!';
+  EL.btnCopy.classList.add('copied');
+  copyTimer = setTimeout(() => {
+    EL.btnCopy.textContent = 'Copy to Clipboard';
+    EL.btnCopy.classList.remove('copied');
+  }, COPIED_TIMEOUT_MS);
+}
+
+EL.btnCopy.addEventListener('click', async () => {
+  if (!sessionKey) return;
+  const ok = await copyToClipboard(sessionKey);
+  if (ok) flashCopied();
+  else setStatus('error', 'Copy failed. Select the key manually and press Ctrl+C.');
 });
 
-btnFetch.addEventListener('click', fetchKey);
+EL.btnFetch.addEventListener('click', fetchKey);
 
-// Auto-fetch on popup open
 fetchKey();
