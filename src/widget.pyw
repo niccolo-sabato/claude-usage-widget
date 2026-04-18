@@ -95,7 +95,7 @@ PCT_FG   = '#ffffff'
 MENU_BG  = '#2c2c2a'
 
 # ─── App ────────────────────────────────────────────
-APP_VERSION = '2.8.18'
+APP_VERSION = '2.8.19'
 
 # ─── Auto-update ────────────────────────────────────
 UPDATE_REPO = 'niccolo-sabato/claude-usage-widget'
@@ -1063,6 +1063,12 @@ class Widget:
         self._update_banner = None
         self._schedule_update_check()
 
+        # Pre-warm the slow paths that the first menu open would trigger on
+        # a cold start: a Toplevel creation + Segoe UI Emoji font lookup.
+        # Without this, the first right-click takes 3-5s while Tk and
+        # Windows lazily initialize both; subsequent opens are instant.
+        self.root.after(200, self._prewarm_menu)
+
         self.root.protocol('WM_DELETE_WINDOW', self._quit)
 
         # Protect against external termination (PowerToys, Task Manager, etc.)
@@ -1726,6 +1732,26 @@ class Widget:
 
     # ── W11 Styled Menu ─────────────────────────────
 
+    def _prewarm_menu(self):
+        """Create and discard a dummy Toplevel + emoji Label off-screen.
+
+        Tk Toplevel creation is slow the first time (OS-level window class
+        init) and Segoe UI Emoji glyph loading is similarly lazy. Doing both
+        once at startup means the real first menu open is snappy instead
+        of stalling for several seconds.
+        """
+        try:
+            dummy = tk.Toplevel(self.root)
+            dummy.overrideredirect(True)
+            dummy.geometry('1x1+-20000+-20000')
+            # Touch the emoji font so Windows caches the glyph metrics.
+            lbl = tk.Label(dummy, text='\U0001F30D', font=FT_EMOJI)
+            lbl.pack()
+            dummy.update_idletasks()
+            dummy.destroy()
+        except Exception as e:
+            wlog(f'PREWARM  failed: {e}')
+
     def _show_menu(self, e=None):
         wlog('MENU   _show_menu called')
         if self._menu_win and self._menu_win.winfo_exists():
@@ -1753,18 +1779,22 @@ class Widget:
         lang_label = f"{t('menu_language')}: {cur_lang}"
         cur_secs = self.cfg.get('refresh_ms', REFRESH) // 1000
         interval_label = f"{t('menu_refresh_interval')} ({cur_secs}s)"
+        # All icons share the same Segoe UI Emoji font & size for visual
+        # consistency. U+FE0E forces monochrome/text presentation on BMP
+        # glyphs that Windows would otherwise render as color emoji at a
+        # different visual weight than the neighboring icons.
         items = [
-            ('\u21bb',        FT_BTN,   t('menu_refresh'),         self.refresh),
-            ('\u21F5',        FT_EMOJI, mode_label,                self._toggle_essential),
+            ('\u21bb\uFE0E',       FT_EMOJI, t('menu_refresh'),         self.refresh),
+            ('\u21F5\uFE0E',       FT_EMOJI, mode_label,                self._toggle_essential),
             None,
-            ('\u23F3',        FT_EMOJI, interval_label,            self._show_interval_dialog),
-            ('\U0001F5DD',    FT_EMOJI, t('menu_renew'),           self._renew_session),
-            ('\u2197\uFE0F',  FT_EMOJI, t('menu_open_claude'),     self._open_claude_usage),
-            ('{ }',           FT_EMOJI, t('menu_open_config'),     self._open_config),
-            ('\U0001F30D',    FT_EMOJI, lang_label,                self._show_language_menu),
+            ('\u23F3\uFE0E',       FT_EMOJI, interval_label,            self._show_interval_dialog),
+            ('\U0001F5DD\uFE0E',   FT_EMOJI, t('menu_renew'),           self._renew_session),
+            ('\u2197\uFE0E',       FT_EMOJI, t('menu_open_claude'),     self._open_claude_usage),
+            ('{ }',                FT_EMOJI, t('menu_open_config'),     self._open_config),
+            ('\U0001F30D\uFE0E',   FT_EMOJI, lang_label,                self._show_language_menu),
             None,
-            ('\u2B06',        FT_EMOJI, t('menu_check_updates'),   self._check_updates_manual),
-            ('\u2715',        FT,       t('menu_quit'),            self._quit),
+            ('\u2B06\uFE0E',       FT_EMOJI, t('menu_check_updates'),   self._check_updates_manual),
+            ('\u2715',             FT_EMOJI, t('menu_quit'),            self._quit),
             None,
             (None, None, f'v{APP_VERSION}', None),
         ]
