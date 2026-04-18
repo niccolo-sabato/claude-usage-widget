@@ -26,6 +26,7 @@ import os
 import re
 import json
 import ssl
+import time
 import ctypes
 import signal
 import atexit
@@ -94,7 +95,7 @@ PCT_FG   = '#ffffff'
 MENU_BG  = '#2c2c2a'
 
 # ─── App ────────────────────────────────────────────
-APP_VERSION = '2.8.7'
+APP_VERSION = '2.8.8'
 
 # ─── Auto-update ────────────────────────────────────
 UPDATE_REPO = 'niccolo-sabato/claude-usage-widget'
@@ -892,13 +893,19 @@ class Widget:
         w = self.cfg.get('width', DEF_W)
         x = self.cfg.get('x', 100)
         y = self.cfg.get('y', 100)
-        # Use virtual screen size for multi-monitor support
-        vw = self.root.winfo_vrootwidth()
-        vh = self.root.winfo_vrootheight()
-        # Allow negative coords (multi-monitor left/above), but keep at least 50px visible
-        if x < -w + 50 or x > vw - 50:
+        # Validate the saved position against the FULL virtual desktop —
+        # winfo_vroot* can start at negative coordinates when secondary
+        # monitors extend to the left or above the primary. The previous
+        # check was `x < -w + 50` which resets any legitimate position on a
+        # left-side secondary display back to (100, 100).
+        vrx = self.root.winfo_vrootx()
+        vry = self.root.winfo_vrooty()
+        vrw = self.root.winfo_vrootwidth()
+        vrh = self.root.winfo_vrootheight()
+        # Require at least 50px of the widget to be inside the virtual desktop.
+        if x + w < vrx + 50 or x > vrx + vrw - 50:
             x = 100
-        if y < -20 or y > vh - 50:
+        if y + 20 < vry or y > vry + vrh - 50:
             y = 100
         self.root.geometry(f'+{x}+{y}')
         self.root.update_idletasks()
@@ -1631,8 +1638,25 @@ class Widget:
         m.after(10, lambda: dwm_round(m))
         m.after(20, lambda: self._lift_menu(m))
         m.bind('<Escape>', lambda e: self._close_menu())
-        m.bind('<FocusOut>', lambda e: self.root.after(100, self._close_menu))
+        self._bind_menu_autoclose(m)
         m.focus_set()
+
+    def _bind_menu_autoclose(self, m):
+        """Attach FocusOut-to-close with a 400ms grace period.
+
+        Without the grace period, when a sibling topmost window (e.g. the
+        update banner) steals focus the instant the menu is raised, the
+        FocusOut handler fires and the menu is destroyed before the user can
+        see it. The delay gives the OS time to settle focus on the menu first.
+        """
+        m._opened_at = time.monotonic()
+
+        def on_focus_out(_e):
+            if time.monotonic() - m._opened_at < 0.4:
+                return
+            self.root.after(100, self._close_menu)
+
+        m.bind('<FocusOut>', on_focus_out)
 
     def _lift_menu(self, m):
         """Force menu Toplevel above everything including the main widget."""
@@ -1705,7 +1729,7 @@ class Widget:
         m.after(10, lambda: dwm_round(m))
         m.after(20, lambda: self._lift_menu(m))
         m.bind('<Escape>', lambda e: self._close_menu())
-        m.bind('<FocusOut>', lambda e: self.root.after(100, self._close_menu))
+        self._bind_menu_autoclose(m)
         m.focus_set()
 
     def _set_language(self, code):
@@ -1840,11 +1864,11 @@ class Widget:
         self.root.after(0, self._show_update_dialog, info)
 
     def _show_update_banner(self, info):
-        """Floating notification above the widget with Update/Later/Skip actions.
+        """Compact two-row notification floating above the widget.
 
-        Independent Toplevel so it can size itself freely and stays visible even
-        in essential mode where the widget is just a strip. Follows the widget
-        when it's moved or resized.
+        Top row: icon + short message. Bottom row: Update / Later / Skip pills.
+        This layout keeps the banner narrow (~340px) so it never looks huge
+        next to a small widget. Placement follows the widget via <Configure>.
         """
         self._dismiss_update_banner()
         bar = tk.Toplevel(self.root)
@@ -1856,58 +1880,62 @@ class Widget:
         wrap = tk.Frame(bar, bg=ORANGE, padx=14, pady=10)
         wrap.pack()
 
-        tk.Label(wrap, text='\u2B06', font=FT_EMOJI_11,
+        top = tk.Frame(wrap, bg=ORANGE)
+        top.pack(fill='x')
+        tk.Label(top, text='\u2B06', font=FT_EMOJI_11,
                  fg='#1e1e1c', bg=ORANGE).pack(side='left', padx=(0, 8))
-
         msg = t('update_banner_available').format(version=info['version'])
-        tk.Label(wrap, text=msg, font=FT_DLG_H, fg='#1e1e1c',
-                 bg=ORANGE).pack(side='left', padx=(0, 14))
+        tk.Label(top, text=msg, font=FT_DLG_H, fg='#1e1e1c',
+                 bg=ORANGE, anchor='w').pack(side='left')
 
-        def banner_pill(text, cmd, primary=False):
+        actions = tk.Frame(wrap, bg=ORANGE)
+        actions.pack(fill='x', pady=(10, 0))
+
+        def banner_pill(parent, text, cmd, primary=False):
             if primary:
                 return make_pill_button(
-                    wrap, text=text, font=FT_DLG_BTN_B,
+                    parent, text=text, font=FT_DLG_BTN_B,
                     fg='#FFFFFF', bg='#2c2c2a', hover_bg='#3c3c3a',
                     cmd=cmd, padx=14, pady=6, parent_bg=ORANGE)
             return make_pill_button(
-                wrap, text=text, font=FT_DLG_BTN,
+                parent, text=text, font=FT_DLG_BTN,
                 fg='#1e1e1c', bg='#D89018', hover_bg='#C88008',
                 cmd=cmd, padx=12, pady=6, parent_bg=ORANGE)
 
-        banner_pill(t('update_banner_update'),
+        banner_pill(actions, t('update_banner_update'),
                     lambda: self._show_update_dialog(info),
-                    primary=True).pack(side='left', padx=(0, 6))
-        banner_pill(t('update_banner_later'),
-                    self._dismiss_update_banner).pack(side='left', padx=(0, 6))
-        banner_pill(t('update_banner_skip'),
-                    lambda: self._skip_update(info)).pack(side='left')
+                    primary=True).pack(side='left')
+        banner_pill(actions, t('update_banner_later'),
+                    self._dismiss_update_banner).pack(side='left', padx=(6, 0))
+        banner_pill(actions, t('update_banner_skip'),
+                    lambda: self._skip_update(info)).pack(side='left', padx=(6, 0))
 
         bar.update_idletasks()
-        bw = max(bar.winfo_reqwidth(), 380)
+        bw = max(bar.winfo_reqwidth(), 320)
         bh = bar.winfo_reqheight()
+        self._banner_size = (bw, bh)
         self._reposition_banner(bw, bh)
         bar.after(50, lambda: dwm_round(bar))
         bar.bind('<Escape>', lambda e: self._dismiss_update_banner())
 
-        # Follow the widget while it's moved/resized.
-        self._banner_size = (bw, bh)
         self._banner_follow_id = self.root.bind(
             '<Configure>',
             lambda e: self.root.after_idle(self._on_banner_follow),
             add='+')
 
     def _reposition_banner(self, bw, bh):
+        """Recompute banner position, clamped to the virtual desktop so it
+        stays on the same monitor as the widget."""
         bar = getattr(self, '_update_banner', None)
         if not bar or not bar.winfo_exists():
             return
+        vx, vy, vw, vh = self._virtual_bounds()
         wx = self.root.winfo_x() + (self.root.winfo_width() - bw) // 2
         wy = self.root.winfo_y() - bh - 8
-        if wy < SCREEN_MARGIN:
+        if wy < vy + SCREEN_MARGIN:
             wy = self.root.winfo_y() + self.root.winfo_height() + 8
-        sw = self.root.winfo_screenwidth()
-        sh = self.root.winfo_screenheight()
-        wx = max(SCREEN_MARGIN, min(wx, sw - bw - SCREEN_MARGIN))
-        wy = max(SCREEN_MARGIN, min(wy, sh - bh - TASKBAR_GAP))
+        wx = max(vx + SCREEN_MARGIN, min(wx, vx + vw - bw - SCREEN_MARGIN))
+        wy = max(vy + SCREEN_MARGIN, min(wy, vy + vh - bh - TASKBAR_GAP))
         bar.geometry(f'{bw}x{bh}+{wx}+{wy}')
 
     def _on_banner_follow(self):
