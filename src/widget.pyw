@@ -95,7 +95,7 @@ PCT_FG   = '#ffffff'
 MENU_BG  = '#2c2c2a'
 
 # ─── App ────────────────────────────────────────────
-APP_VERSION = '2.8.24'
+APP_VERSION = '2.8.25'
 
 # ─── Auto-update ────────────────────────────────────
 UPDATE_REPO = 'niccolo-sabato/claude-usage-widget'
@@ -136,20 +136,13 @@ FT_MENU      = ('Segoe UI', 10)            # Menu row text
 FT_EMOJI_11  = ('Segoe UI Emoji', 11)      # Emoji icons in dialogs/menus
 # Segoe MDL2 Assets ships with Windows 10/11 and exposes a curated set of
 # monochrome icons at a uniform visual weight via private-use codepoints.
-# Using a single font for every menu row guarantees consistent size — mixing
-# BMP text glyphs (thin) with SMP emojis (chunky) never quite looks uniform.
-FT_MDL2      = ('Segoe MDL2 Assets', 12)
+# We use it only for the refresh icon (title bar, menu row, essential mode)
+# so the three occurrences are pixel-identical; the rest of the menu keeps
+# the original emoji+arrow icon set.
+FT_MDL2_TB   = ('Segoe MDL2 Assets', 10)   # smaller title bar / essential-mode size
+FT_MDL2_MENU = ('Segoe MDL2 Assets', 11)   # matches FT_EMOJI_11 menu-row height
 
-# Icon codepoints used for the widget's menu and refresh controls.
-ICON_REFRESH  = '\uE72C'   # Refresh
-ICON_MODE     = '\uE8CB'   # TwoPage (mode toggle)
-ICON_TIMER    = '\uE916'   # Stopwatch
-ICON_KEY      = '\uE8D7'   # Permissions
-ICON_EXTLINK  = '\uE8A7'   # OpenInNewWindow
-ICON_BRACES   = '\uE943'   # Code
-ICON_GLOBE    = '\uE774'   # Globe
-ICON_UPDATE   = '\uE74A'   # Upload (up arrow)
-ICON_CLOSE    = '\uE711'   # Cancel
+ICON_REFRESH = '\uE72C'   # Segoe MDL2 Refresh glyph
 
 # Surface / state colors used by dialogs and menus (complement the theme)
 SOFT_BG    = '#2e2e2c'   # secondary pill button / card surface
@@ -1152,8 +1145,9 @@ class Widget:
         # places per-widget bindings used to miss in essential mode.
         self.root.bind('<Button-3>', self._show_menu)
 
-        # Refresh button
-        self.btn_r = tk.Label(self.tb, text=' \u21bb ', font=FT_BTN,
+        # Refresh button — Segoe MDL2 refresh glyph at a compact size so it
+        # matches the original ↻ footprint without the thin-arrow look.
+        self.btn_r = tk.Label(self.tb, text=f' {ICON_REFRESH} ', font=FT_MDL2_TB,
                               fg=DIM, bg=BG_TITLE, cursor='hand2')
         self.btn_r.pack(side='right')
         self.btn_r.bind('<Button-1>', lambda e: self.refresh())
@@ -1220,7 +1214,7 @@ class Widget:
         self.ess_close.bind('<Button-1>', lambda e: self._quit())
         self.ess_close.bind('<Enter>', lambda e: self.ess_close.config(fg=RED))
         self.ess_close.bind('<Leave>', lambda e: self.ess_close.config(fg=DIM))
-        self.ess_refresh = tk.Label(self.ess_bar, text='\u21bb', font=FT_BTN,
+        self.ess_refresh = tk.Label(self.ess_bar, text=ICON_REFRESH, font=FT_MDL2_TB,
                                     fg=DIM, bg=BG, cursor='hand2',
                                     bd=0, highlightthickness=0, padx=2, pady=0)
         self.ess_refresh.pack(side='left')
@@ -1806,8 +1800,8 @@ class Widget:
         # monochrome. Not pixel-perfect uniform size but this is the
         # icon set chosen.
         items = [
-            ('\u21bb\uFE0E',       FT_EMOJI_11, t('menu_refresh'),         self.refresh),
-            ('\u21F5\uFE0E',       FT_EMOJI_11, mode_label,                self._toggle_essential),
+            (ICON_REFRESH,         FT_MDL2_MENU, t('menu_refresh'),        self.refresh),
+            ('\u21F5\uFE0E',       FT_EMOJI_11,  mode_label,               self._toggle_essential),
             None,
             ('\u23F3\uFE0E',       FT_EMOJI_11, interval_label,            self._show_interval_dialog),
             ('\U0001F5DD\uFE0E',   FT_EMOJI_11, t('menu_renew'),           self._renew_session),
