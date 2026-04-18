@@ -90,7 +90,7 @@ PCT_FG   = '#ffffff'
 MENU_BG  = '#2c2c2a'
 
 # ─── App ────────────────────────────────────────────
-APP_VERSION = '2.7.0'
+APP_VERSION = '2.7.2'
 
 # ─── Layout ──────────────────────────────────────────
 DEF_W    = 280
@@ -160,8 +160,9 @@ LANG = {
         'menu_refresh': 'Refresh',
         'menu_mode_normal': 'Normal mode',
         'menu_mode_essential': 'Essential mode',
-        'menu_renew': 'Renew session\u2026',
+        'menu_renew': 'Session key\u2026',
         'menu_open_config': 'Open config.json',
+        'menu_open_claude': 'Go to Claude Usage',
         'menu_refresh_interval': 'Refresh interval\u2026',
         'dlg_interval_title': 'Refresh interval',
         'dlg_interval_label': 'Interval in seconds (minimum 10):',
@@ -200,8 +201,9 @@ LANG = {
         'menu_refresh': 'Aggiorna',
         'menu_mode_normal': 'Modalit\u00e0 normale',
         'menu_mode_essential': 'Modalit\u00e0 essential',
-        'menu_renew': 'Rinnova sessione\u2026',
+        'menu_renew': 'Session key\u2026',
         'menu_open_config': 'Apri config.json',
+        'menu_open_claude': 'Vai a Claude Usage',
         'menu_refresh_interval': 'Intervallo aggiornamento\u2026',
         'dlg_interval_title': 'Intervallo aggiornamento',
         'dlg_interval_label': 'Intervallo in secondi (minimo 10):',
@@ -239,8 +241,9 @@ LANG = {
         'menu_refresh': '\u66f4\u65b0',
         'menu_mode_normal': '\u901a\u5e38\u30e2\u30fc\u30c9',
         'menu_mode_essential': '\u30b7\u30f3\u30d7\u30eb\u30e2\u30fc\u30c9',
-        'menu_renew': '\u30bb\u30c3\u30b7\u30e7\u30f3\u66f4\u65b0\u2026',
+        'menu_renew': '\u30bb\u30c3\u30b7\u30e7\u30f3\u30ad\u30fc\u2026',
         'menu_open_config': 'config.json\u3092\u958b\u304f',
+        'menu_open_claude': 'Claude Usage\u306b\u79fb\u52d5',
         'menu_refresh_interval': '\u66f4\u65b0\u9593\u9694\u2026',
         'dlg_interval_title': '\u66f4\u65b0\u9593\u9694',
         'dlg_interval_label': '\u79d2\u5358\u4f4d\u306e\u9593\u9694 (\u6700\u4f4e10):',
@@ -1097,10 +1100,11 @@ class Widget:
             ('\u21bb', FT_BTN, t('menu_refresh'), self.refresh),
             ('\u21c5', FT_BTN, mode_label, self._toggle_essential),
             None,
-            ('\u23f1', FT, interval_label, self._show_interval_dialog),
+            ('\u29d7', FT, interval_label, self._show_interval_dialog),
             ('\u2692', FT, t('menu_renew'), self._renew_session),
+            ('\u2197', FT, t('menu_open_claude'), self._open_claude_usage),
             ('\u2699', FT, t('menu_open_config'), self._open_config),
-            ('\U0001F310', FT, lang_label, self._show_language_menu),
+            ('\u6587', FT, lang_label, self._show_language_menu),
             None,
             ('\u2715', FT, t('menu_quit'), self._quit),
             None,
@@ -1237,13 +1241,14 @@ class Widget:
         dlg.attributes('-topmost', True)
         dlg.resizable(False, False)
 
+        dlg.update_idletasks()
         dw, dh = 320, 150
         wx = self.root.winfo_x() + (self.root.winfo_width() - dw) // 2
         wy = self.root.winfo_y() - dh - 10
         if wy < 0:
             wy = self.root.winfo_y() + self.root.winfo_height() + 10
         dlg.geometry(f'{dw}x{dh}+{wx}+{wy}')
-        dlg.after(10, lambda: dwm_round(dlg))
+        dlg.after(50, lambda: dwm_round(dlg))
 
         tb = tk.Frame(dlg, bg=BG_TITLE, height=30)
         tb.pack(fill='x')
@@ -1320,6 +1325,12 @@ class Widget:
                 os.startfile(CFG)
             except Exception:
                 pass
+
+    # ── Open Claude Usage page ────────────────────────
+
+    def _open_claude_usage(self):
+        """Open the Claude.ai usage settings page in the default browser."""
+        webbrowser.open('https://claude.ai/settings/usage')
 
     # ── Session renewal ──────────────────────────────
 
