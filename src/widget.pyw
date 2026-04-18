@@ -90,7 +90,7 @@ PCT_FG   = '#ffffff'
 MENU_BG  = '#2c2c2a'
 
 # ─── App ────────────────────────────────────────────
-APP_VERSION = '2.7.4'
+APP_VERSION = '2.7.5'
 
 # ─── Layout ──────────────────────────────────────────
 DEF_W    = 280
@@ -1104,7 +1104,7 @@ class Widget:
             ('\u23F3', FT_EMOJI, interval_label, self._show_interval_dialog),
             ('\U0001F5DD', FT_EMOJI, t('menu_renew'), self._renew_session),
             ('\u2197\uFE0F', FT_EMOJI, t('menu_open_claude'), self._open_claude_usage),
-            ('{}', FT_EMOJI, t('menu_open_config'), self._open_config),
+            ('{ }', FT_EMOJI, t('menu_open_config'), self._open_config),
             ('\U0001F30D', FT_EMOJI, lang_label, self._show_language_menu),
             None,
             ('\u2715', FT, t('menu_quit'), self._quit),
