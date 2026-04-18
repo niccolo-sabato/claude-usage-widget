@@ -95,7 +95,7 @@ PCT_FG   = '#ffffff'
 MENU_BG  = '#2c2c2a'
 
 # ─── App ────────────────────────────────────────────
-APP_VERSION = '2.8.17'
+APP_VERSION = '2.8.18'
 
 # ─── Auto-update ────────────────────────────────────
 UPDATE_REPO = 'niccolo-sabato/claude-usage-widget'
@@ -974,6 +974,15 @@ class Widget:
         # Load language from config, default English
         set_lang(self.cfg.get('language', 'en'))
         self.root = tk.Tk()
+        # Surface callback-level exceptions in the log. Tkinter normally
+        # prints these to stderr, which is invisible for a pythonw/exe app,
+        # so a typo inside an event handler (e.g. a bad screen distance)
+        # would silently break the widget that was supposed to open.
+        def _tk_cb_exc(exc, val, tb):
+            import traceback
+            wlog('TKERR  ' + ''.join(
+                traceback.format_exception(exc, val, tb)).strip())
+        self.root.report_callback_exception = _tk_cb_exc
         self._job = None
         self._countdown_job = None
         self._topmost_job = None
@@ -1363,12 +1372,29 @@ class Widget:
         w.unbind('<ButtonRelease-1>')
 
     def _update_minsize(self):
-        """Update minimum width to avoid clipping sub-label + controls."""
+        """Single minimum width for both modes, tuned to essential-mode content.
+
+        Both essential and normal mode use the same floor (whichever is wider
+        between the essential content and the normal title bar). This keeps
+        the essential-mode controls (close / refresh / time on the right)
+        from clipping when the user switches modes, and the standard-mode
+        title bar from clipping either.
+        """
         self.root.update_idletasks()
-        sub_w = self.s_session.lbl_sub.winfo_reqwidth() + PAD + 6
-        ess_w = self.ess_bar.winfo_reqwidth() + 20 if self._essential else 20
-        needed = max(MIN_W, sub_w + ess_w)
+        sub_w = self.s_session.lbl_sub.winfo_reqwidth() + 4
+        ess_w = self.ess_bar.winfo_reqwidth() + 8
+        tb_w = self.tb.winfo_reqwidth() + 4
+        needed = max(MIN_W, sub_w + ess_w, tb_w)
         self.root.minsize(needed, 0)
+        # Force the widget to expand up to the minimum if it was previously
+        # smaller (for overrideredirect windows `minsize` alone doesn't
+        # resize the current window).
+        cur_w = self.root.winfo_width()
+        if cur_w > 1 and cur_w < needed:
+            x = self.root.winfo_x()
+            y = self.root.winfo_y()
+            h = self.root.winfo_reqheight()
+            self.root.geometry(f'{needed}x{h}+{x}+{y}')
 
     def _auto_height(self):
         self.root.update_idletasks()
@@ -1386,7 +1412,11 @@ class Widget:
         self._rs_h = self.root.winfo_height()
 
     def _resize_move(self, e):
-        w = max(MIN_W, self._rs_w + (e.x_root - self._rs_x))
+        # Honor the dynamic minimum from _update_minsize (which covers both
+        # mode's content widths) so dragging the widget narrow doesn't clip
+        # the title bar in normal mode or the controls in essential mode.
+        min_w = self.root.wm_minsize()[0] or MIN_W
+        w = max(min_w, self._rs_w + (e.x_root - self._rs_x))
         x, y = self.root.winfo_x(), self.root.winfo_y()
         self.root.update_idletasks()
         h = self.root.winfo_reqheight()
@@ -1712,6 +1742,9 @@ class Widget:
         m.overrideredirect(True)
         m.attributes('-topmost', True)
         m.configure(bg=MENU_BG)
+        # Move the Toplevel off-screen before populating so it doesn't flash
+        # at the default (0, 0) corner while we compute its final position.
+        m.geometry('+10000+10000')
         wlog('MENU   toplevel created')
 
         mode_label = t('menu_mode_normal') if self._essential else t('menu_mode_essential')
@@ -1753,8 +1786,12 @@ class Widget:
                                padx=6, pady=ROW_PADY, width=ROW_ICON_W)
             ico_lbl.pack(side='left')
             txt_lbl = tk.Label(row, text=text, font=FT_MENU, fg=FG, bg=MENU_BG,
-                               anchor='w', padx=(0, 14), pady=ROW_PADY)
-            txt_lbl.pack(side='left', fill='x', expand=True)
+                               anchor='w', pady=ROW_PADY)
+            # Tuple padx is valid on pack() but NOT on the Label constructor
+            # — the latter throws TclError("bad screen distance") which tk
+            # swallows, leaving the Toplevel empty (the bug that broke the
+            # menu across many releases).
+            txt_lbl.pack(side='left', fill='x', expand=True, padx=(0, 14))
             for w in (row, ico_lbl, txt_lbl):
                 w.bind('<Enter>', lambda e, r=row, i=ico_lbl, t=txt_lbl: (
                     r.config(bg=HOVER_BG), i.config(bg=HOVER_BG), t.config(bg=HOVER_BG)))
@@ -1765,8 +1802,10 @@ class Widget:
         m.update_idletasks()
         mw = max(m.winfo_reqwidth(), 220)
         mh = m.winfo_reqheight() + 4  # small bottom breathing room
-        m.geometry(f'{mw}x{mh}')
         bx, by = self._place_submenu(mw, mh)
+        wlog(f'MENU   size={mw}x{mh} pos=({bx},{by})')
+        # Single geometry call — both size and position applied atomically so
+        # the window never renders with a stale size at its off-screen slot.
         m.geometry(f'{mw}x{mh}+{bx}+{by}')
         m.after(10, lambda: dwm_round(m))
         m.after(20, lambda: self._lift_menu(m))
@@ -1826,6 +1865,7 @@ class Widget:
         m.overrideredirect(True)
         m.attributes('-topmost', True)
         m.configure(bg=MENU_BG)
+        m.geometry('+10000+10000')  # off-screen during setup
 
         # Header so the submenu reads as a single purpose, not a floating list
         header = tk.Label(m, text=t('menu_language'), font=FT_DLG_HINT, fg=DIM,
@@ -1858,8 +1898,6 @@ class Widget:
         m.update_idletasks()
         mw = max(m.winfo_reqwidth(), 200)
         mh = m.winfo_reqheight() + 6  # small bottom padding
-        # Pad width visually by resizing the toplevel; children still fill correctly.
-        m.geometry(f'{mw}x{mh}')
         bx, by = self._place_submenu(mw, mh)
         m.geometry(f'{mw}x{mh}+{bx}+{by}')
         m.after(10, lambda: dwm_round(m))
@@ -2014,6 +2052,7 @@ class Widget:
         bar.overrideredirect(True)
         bar.attributes('-topmost', True)
         bar.configure(bg=ORANGE)
+        bar.geometry('+10000+10000')  # off-screen until final placement
 
         # Tight wrap — just enough padding to keep text off the rounded edges.
         wrap = tk.Frame(bar, bg=ORANGE, padx=10, pady=8)
@@ -2113,11 +2152,11 @@ class Widget:
         dlg.overrideredirect(True)
         dlg.attributes('-topmost', True)
         dlg.configure(bg=MENU_BG)
+        dlg.geometry('+10000+10000')  # off-screen until positioned
         tk.Label(dlg, text=message, font=FT_DLG_BODY, fg=FG, bg=MENU_BG,
                  padx=16, pady=10, wraplength=340, justify='left').pack()
         dlg.update_idletasks()
         dw, dh = dlg.winfo_reqwidth(), dlg.winfo_reqheight()
-        # Prefer below the widget, fall back above — same rule as dialogs.
         wx, wy = self._place_popup(dw, dh, prefer='below')
         dlg.geometry(f'{dw}x{dh}+{wx}+{wy}')
         dlg.after(50, lambda: dwm_round(dlg))
@@ -2417,9 +2456,15 @@ class Widget:
     # ── Keep topmost (above taskbar) ────────────────
 
     def _force_topmost(self):
-        """Force topmost via Win32 SetWindowPos — paused while menu is open."""
-        if self._menu_win and self._menu_win.winfo_exists():
-            return  # Don't re-assert while menu is open — it would go behind
+        """Re-assert topmost for the widget (and for any open menu).
+
+        Earlier versions skipped this step while a menu was open so the menu
+        wouldn't be pushed under the widget. That was brittle: if the menu
+        was never closed (user didn't click or press Escape), the widget
+        stopped being re-raised and would eventually slip behind the taskbar.
+        Now we raise the widget first and then the menu on top of it — both
+        stay topmost and the menu keeps visual priority.
+        """
         try:
             hwnd = getattr(self, '_hwnd', None)
             if not hwnd:
@@ -2430,6 +2475,14 @@ class Widget:
             ctypes.windll.user32.SetWindowPos(
                 hwnd, -1, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010)
             self.root.attributes('-topmost', True)
+            # Keep the menu above the widget when it's open.
+            m = self._menu_win
+            if m and m.winfo_exists():
+                menu_hwnd = ctypes.windll.user32.GetParent(m.winfo_id())
+                if not menu_hwnd:
+                    menu_hwnd = m.winfo_id()
+                ctypes.windll.user32.SetWindowPos(
+                    menu_hwnd, -1, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010)
         except Exception:
             pass
 
