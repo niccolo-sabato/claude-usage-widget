@@ -94,7 +94,7 @@ PCT_FG   = '#ffffff'
 MENU_BG  = '#2c2c2a'
 
 # ─── App ────────────────────────────────────────────
-APP_VERSION = '2.8.6'
+APP_VERSION = '2.8.7'
 
 # ─── Auto-update ────────────────────────────────────
 UPDATE_REPO = 'niccolo-sabato/claude-usage-widget'
@@ -2064,20 +2064,26 @@ class Widget:
         build_install_btn(enabled=True)
 
     def _launch_installer(self, path):
-        """Spawn the downloaded installer and exit so it can replace files in place."""
+        """Run the downloaded installer silently and exit so it can replace files.
+
+        /VERYSILENT hides the wizard entirely (no language picker, no Next/Finish);
+        /SUPPRESSMSGBOXES swallows info prompts; /NORESTART prevents the rare
+        reboot request. The ISS [Run] section auto-relaunches the widget after
+        install, so the whole cycle is: click Install -> UAC prompt -> brief
+        pause while files are swapped -> new version is up.
+        """
         try:
-            # /SILENT would run without UI but the user is better served seeing the wizard
-            # for consent. Inno Setup's CloseApplications=force will close us anyway.
             subprocess.Popen(
-                [path],
+                [path, '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART'],
                 creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP,
                 close_fds=True)
         except Exception as e:
             wlog(f'UPDATE  launch failed: {e}')
             return
-        wlog('UPDATE  installer launched, exiting widget')
+        wlog('UPDATE  installer launched (/VERYSILENT), exiting widget')
         self._save_geometry()
-        # Give the OS a beat to start the installer before we vanish.
+        # Give the OS a beat to start the installer before we vanish — the
+        # UAC prompt needs to appear while our process still has focus.
         self.root.after(400, self._quit)
 
     # ── Open config ──────────────────────────────────

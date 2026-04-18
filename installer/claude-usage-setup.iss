@@ -2,7 +2,7 @@
 ; Run from the installer/ folder. All Source paths are relative to this script.
 
 #define MyAppName "Claude Usage"
-#define MyAppVersion "2.8.6"
+#define MyAppVersion "2.8.7"
 #define MyAppPublisher "Niccolo Sabato"
 #define MyAppExeName "Claude Usage.exe"
 #define MyAppIcon "claude.ico"
@@ -61,8 +61,10 @@ Name: "{group}\Uninstall {#MyAppName}"; Filename: "{uninstallexe}"
 [Run]
 ; Flush Windows icon cache after install
 Filename: "ie4uinit.exe"; Parameters: "-show"; Flags: runhidden nowait
-; Option to launch after install
-Filename: "{app}\{#MyAppExeName}"; Description: "Launch Claude Usage"; Flags: nowait postinstall skipifsilent
+; Always relaunch after install (both interactive wizard and /VERYSILENT updates).
+; For silent runs triggered by the widget auto-update, this is what makes the
+; new version come back up without any user interaction.
+Filename: "{app}\{#MyAppExeName}"; Description: "Launch Claude Usage"; Flags: nowait postinstall
 
 [UninstallDelete]
 ; Clean up AppData config/log on uninstall
