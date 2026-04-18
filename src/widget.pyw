@@ -95,7 +95,7 @@ PCT_FG   = '#ffffff'
 MENU_BG  = '#2c2c2a'
 
 # ─── App ────────────────────────────────────────────
-APP_VERSION = '2.8.11'
+APP_VERSION = '2.8.12'
 
 # ─── Auto-update ────────────────────────────────────
 UPDATE_REPO = 'niccolo-sabato/claude-usage-widget'
@@ -1969,11 +1969,12 @@ class Widget:
         self.root.after(0, self._show_update_dialog, info)
 
     def _show_update_banner(self, info):
-        """Compact two-row notification floating above the widget.
+        """Two-row notification floating above the widget.
 
-        Top row: icon + short message. Bottom row: Update / Later / Skip pills.
-        This layout keeps the banner narrow (~340px) so it never looks huge
-        next to a small widget. Placement follows the widget via <Configure>.
+        Row 1: icon + message centered.  Row 2: action pills centered.
+        The banner has a fixed width so both rows truly sit in the middle —
+        without it, pack(side='left') clusters everything to the left and
+        the layout looks lopsided.
         """
         self._dismiss_update_banner()
         bar = tk.Toplevel(self.root)
@@ -1982,42 +1983,52 @@ class Widget:
         bar.attributes('-topmost', True)
         bar.configure(bg=ORANGE)
 
-        wrap = tk.Frame(bar, bg=ORANGE, padx=14, pady=10)
-        wrap.pack()
+        # Outer padding is on the wrap frame; wrap itself fills the bar so
+        # inner frames packed with default anchor=center land in the middle.
+        wrap = tk.Frame(bar, bg=ORANGE, padx=20, pady=14)
+        wrap.pack(fill='both', expand=True)
 
+        # Row 1 — icon + message, centered.
         top = tk.Frame(wrap, bg=ORANGE)
-        top.pack(fill='x')
+        top.pack()
         tk.Label(top, text='\u2B06', font=FT_EMOJI_11,
-                 fg='#1e1e1c', bg=ORANGE).pack(side='left', padx=(0, 8))
+                 fg='#1e1e1c', bg=ORANGE).pack(side='left', padx=(0, 10))
         msg = t('update_banner_available').format(version=info['version'])
-        tk.Label(top, text=msg, font=FT_DLG_H, fg='#1e1e1c',
-                 bg=ORANGE, anchor='w').pack(side='left')
+        tk.Label(top, text=msg, font=FT_DLG_H,
+                 fg='#1e1e1c', bg=ORANGE).pack(side='left')
 
+        # Row 2 — pill actions, centered. Identical pill geometry across all
+        # three buttons so the row reads as a single coherent group.
         actions = tk.Frame(wrap, bg=ORANGE)
-        actions.pack(fill='x', pady=(10, 0))
+        actions.pack(pady=(12, 0))
 
         def banner_pill(parent, text, cmd, primary=False):
             if primary:
                 return make_pill_button(
                     parent, text=text, font=FT_DLG_BTN_B,
                     fg='#FFFFFF', bg='#2c2c2a', hover_bg='#3c3c3a',
-                    cmd=cmd, padx=14, pady=6, parent_bg=ORANGE)
+                    cmd=cmd, padx=16, pady=7, parent_bg=ORANGE)
             return make_pill_button(
                 parent, text=text, font=FT_DLG_BTN,
                 fg='#1e1e1c', bg='#D89018', hover_bg='#C88008',
-                cmd=cmd, padx=12, pady=6, parent_bg=ORANGE)
+                cmd=cmd, padx=14, pady=7, parent_bg=ORANGE)
 
         banner_pill(actions, t('update_banner_update'),
                     lambda: self._show_update_dialog(info),
-                    primary=True).pack(side='left')
+                    primary=True).pack(side='left', padx=4)
         banner_pill(actions, t('update_banner_later'),
-                    self._dismiss_update_banner).pack(side='left', padx=(6, 0))
+                    self._dismiss_update_banner).pack(side='left', padx=4)
         banner_pill(actions, t('update_banner_skip'),
-                    lambda: self._skip_update(info)).pack(side='left', padx=(6, 0))
+                    lambda: self._skip_update(info)).pack(side='left', padx=4)
 
+        # Give the content breathing room: take the wider of the two rows,
+        # then add generous side padding so the centered group isn't flush
+        # with the rounded edges.
         bar.update_idletasks()
-        bw = max(bar.winfo_reqwidth(), 320)
-        bh = bar.winfo_reqheight()
+        natural_w = bar.winfo_reqwidth()
+        natural_h = bar.winfo_reqheight()
+        bw = max(natural_w + 60, 420)
+        bh = natural_h
         self._banner_size = (bw, bh)
         self._reposition_banner(bw, bh)
         bar.after(50, lambda: dwm_round(bar))
