@@ -95,7 +95,7 @@ PCT_FG   = '#ffffff'
 MENU_BG  = '#2c2c2a'
 
 # ─── App ────────────────────────────────────────────
-APP_VERSION = '2.8.10'
+APP_VERSION = '2.8.11'
 
 # ─── Auto-update ────────────────────────────────────
 UPDATE_REPO = 'niccolo-sabato/claude-usage-widget'
@@ -104,7 +104,7 @@ UPDATE_RELEASES_URL = f'https://github.com/{UPDATE_REPO}/releases'
 UPDATE_ASSET_NAME = 'ClaudeUsage-Setup.exe'
 UPDATE_CHECK_INTERVAL_S = 24 * 3600       # default throttle between auto-checks
 UPDATE_STARTUP_DELAY_MS = 10_000          # check 10s after widget ready
-UPDATE_CHANGELOG_MAX_CHARS = 900          # truncate release body shown in dialog
+UPDATE_CHANGELOG_MAX_CHARS = 1400         # truncate release body shown in dialog
 
 # ─── Layout ──────────────────────────────────────────
 DEF_W    = 280
@@ -466,6 +466,85 @@ def pill(cv, x, y, w, h, color):
     cv.create_oval(x + w - h, y, x + w, y + h, fill=color, outline=color, width=1)
     if w > h:
         cv.create_rectangle(x + r, y, x + w - r, y + h, fill=color, outline=color, width=0)
+
+
+_MD_INLINE_RE = re.compile(r'(\*\*[^*\n]+?\*\*|`[^`\n]+?`|~~[^~\n]+?~~)')
+_MD_HEADER_RE = re.compile(r'^\s*(#{1,6})\s+(.+?)\s*$')
+_MD_BULLET_RE = re.compile(r'^\s*[-*]\s+(.+?)\s*$')
+
+
+def _md_insert_inline(text_widget, line, base_tag=None):
+    """Insert a line splitting on **bold**, `code`, and ~~strike~~ tokens."""
+    parts = _MD_INLINE_RE.split(line)
+    for part in parts:
+        if not part:
+            continue
+        if part.startswith('**') and part.endswith('**'):
+            tags = ('md_bold',) if not base_tag else (base_tag, 'md_bold')
+            text_widget.insert('end', part[2:-2], tags)
+        elif part.startswith('`') and part.endswith('`'):
+            tags = ('md_code',) if not base_tag else (base_tag, 'md_code')
+            text_widget.insert('end', part[1:-1], tags)
+        elif part.startswith('~~') and part.endswith('~~'):
+            tags = ('md_strike',) if not base_tag else (base_tag, 'md_strike')
+            text_widget.insert('end', part[2:-2], tags)
+        else:
+            tags = (base_tag,) if base_tag else ()
+            text_widget.insert('end', part, tags)
+
+
+def render_markdown_into(text_widget, markdown_str, *, base_font, fg, header_fg):
+    """Render a subset of Markdown (headers, bullets, bold, code, strike)
+    into a pre-configured tk.Text widget using styled tags.
+
+    Not a full parser — covers the patterns that appear in GitHub release
+    notes we write (## Title, ### Install, `ClaudeUsage-Setup.exe`, **bold**,
+    `- list items`). Everything else renders as plain text.
+    """
+    fam, size = base_font[0], base_font[1]
+
+    # Tag styles — registered each render so the widget can be reused.
+    text_widget.tag_configure('md_h',
+                              font=(fam, size + 2, 'bold'),
+                              foreground=header_fg,
+                              spacing1=8, spacing3=2)
+    text_widget.tag_configure('md_bold',
+                              font=(fam, size, 'bold'),
+                              foreground=header_fg)
+    text_widget.tag_configure('md_code',
+                              font=('Consolas', max(size - 1, 8)),
+                              background='#1e1e1c',
+                              foreground=header_fg)
+    text_widget.tag_configure('md_strike',
+                              overstrike=1, foreground=fg)
+    text_widget.tag_configure('md_bullet',
+                              lmargin1=10, lmargin2=26, spacing1=2)
+    text_widget.tag_configure('md_para', spacing1=4)
+
+    text_widget.config(state='normal')
+    text_widget.delete('1.0', 'end')
+
+    for raw in markdown_str.splitlines():
+        line = raw.rstrip()
+        if not line:
+            # Blank line becomes a small vertical gap.
+            text_widget.insert('end', '\n')
+            continue
+        h = _MD_HEADER_RE.match(line)
+        if h:
+            _md_insert_inline(text_widget, h.group(2), 'md_h')
+            text_widget.insert('end', '\n')
+            continue
+        b = _MD_BULLET_RE.match(line)
+        if b:
+            text_widget.insert('end', '\u2022  ', 'md_bullet')
+            _md_insert_inline(text_widget, b.group(1), 'md_bullet')
+            text_widget.insert('end', '\n')
+            continue
+        _md_insert_inline(text_widget, line, 'md_para')
+        text_widget.insert('end', '\n')
+
+    text_widget.config(state='disabled')
 
 
 _PILL_IMAGE_CACHE = {}
@@ -2010,7 +2089,7 @@ class Widget:
     def _show_update_dialog(self, info):
         """Full update dialog: shows changelog + download button + progress."""
         self._dismiss_update_banner()
-        dw, dh = 500, 380
+        dw, dh = 520, 440
         dlg, body = self._build_dialog_frame(t('update_dlg_title'), dw, dh)
 
         subtitle = t('update_dlg_subtitle').format(
@@ -2027,11 +2106,12 @@ class Widget:
 
         txt_frame = tk.Frame(body, bg=BAR_BG, bd=0, highlightthickness=0)
         txt_frame.pack(fill='both', expand=True)
-        txt = tk.Text(txt_frame, font=FT_DLG_HINT, fg=DIM, bg=BAR_BG, bd=0,
+        txt = tk.Text(txt_frame, font=FT_DLG_BODY, fg=DIM, bg=BAR_BG, bd=0,
                       highlightthickness=0, wrap='word',
-                      padx=10, pady=8, height=7, relief='flat')
-        txt.insert('1.0', changelog)
-        txt.config(state='disabled')
+                      padx=12, pady=10, height=9, relief='flat',
+                      cursor='arrow', spacing1=2, spacing3=2)
+        render_markdown_into(txt, changelog,
+                             base_font=FT_DLG_BODY, fg=DIM, header_fg=FG)
         txt.pack(fill='both', expand=True)
 
         status_lbl = tk.Label(body, text='', font=FT_DLG_HINT, fg=DIM, bg=BG,
