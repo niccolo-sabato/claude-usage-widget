@@ -2,7 +2,7 @@
 ; Run from the installer/ folder. All Source paths are relative to this script.
 
 #define MyAppName "Claude Usage"
-#define MyAppVersion "2.8.20"
+#define MyAppVersion "2.8.21"
 #define MyAppPublisher "Niccolo Sabato"
 #define MyAppExeName "Claude Usage.exe"
 #define MyAppIcon "claude.ico"
@@ -61,10 +61,11 @@ Name: "{group}\Uninstall {#MyAppName}"; Filename: "{uninstallexe}"
 [Run]
 ; Flush Windows icon cache after install
 Filename: "ie4uinit.exe"; Parameters: "-show"; Flags: runhidden nowait
-; Always relaunch after install (both interactive wizard and /VERYSILENT updates).
-; For silent runs triggered by the widget auto-update, this is what makes the
-; new version come back up without any user interaction.
-Filename: "{app}\{#MyAppExeName}"; Description: "Launch Claude Usage"; Flags: nowait postinstall
+; Relaunch unconditionally after install. "postinstall" was adding a check box
+; on the Finished wizard page, which simply doesn't exist under /VERYSILENT
+; (our auto-update flow), so the widget never came back up. Dropping the flag
+; runs the exe in every mode.
+Filename: "{app}\{#MyAppExeName}"; Flags: nowait
 
 [UninstallDelete]
 ; Clean up AppData config/log on uninstall

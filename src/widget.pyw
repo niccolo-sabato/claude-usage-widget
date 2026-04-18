@@ -95,7 +95,7 @@ PCT_FG   = '#ffffff'
 MENU_BG  = '#2c2c2a'
 
 # ─── App ────────────────────────────────────────────
-APP_VERSION = '2.8.20'
+APP_VERSION = '2.8.21'
 
 # ─── Auto-update ────────────────────────────────────
 UPDATE_REPO = 'niccolo-sabato/claude-usage-widget'
@@ -1388,9 +1388,12 @@ class Widget:
         title bar from clipping either.
         """
         self.root.update_idletasks()
-        sub_w = self.s_session.lbl_sub.winfo_reqwidth() + 4
-        ess_w = self.ess_bar.winfo_reqwidth() + 8
-        tb_w = self.tb.winfo_reqwidth() + 4
+        sub_w = self.s_session.lbl_sub.winfo_reqwidth() + 8
+        # Reserve a little extra right-side padding so the subtitle text
+        # never slides under the essential-mode controls (close / refresh /
+        # time) which are placed on top of the widget via place().
+        ess_w = self.ess_bar.winfo_reqwidth() + 18
+        tb_w = self.tb.winfo_reqwidth() + 8
         needed = max(MIN_W, sub_w + ess_w, tb_w)
         self.root.minsize(needed, 0)
         # Force the widget to expand up to the minimum if it was previously
