@@ -95,7 +95,7 @@ PCT_FG   = '#ffffff'
 MENU_BG  = '#2c2c2a'
 
 # ─── App ────────────────────────────────────────────
-APP_VERSION = '2.8.22'
+APP_VERSION = '2.8.23'
 
 # ─── Auto-update ────────────────────────────────────
 UPDATE_REPO = 'niccolo-sabato/claude-usage-widget'
@@ -134,6 +134,22 @@ FT_DLG_BTN   = ('Segoe UI', 10)            # Secondary pill button text
 FT_DLG_BTN_B = ('Segoe UI', 10, 'bold')    # Primary pill button text
 FT_MENU      = ('Segoe UI', 10)            # Menu row text
 FT_EMOJI_11  = ('Segoe UI Emoji', 11)      # Emoji icons in dialogs/menus
+# Segoe MDL2 Assets ships with Windows 10/11 and exposes a curated set of
+# monochrome icons at a uniform visual weight via private-use codepoints.
+# Using a single font for every menu row guarantees consistent size — mixing
+# BMP text glyphs (thin) with SMP emojis (chunky) never quite looks uniform.
+FT_MDL2      = ('Segoe MDL2 Assets', 12)
+
+# Icon codepoints used for the widget's menu and refresh controls.
+ICON_REFRESH  = '\uE72C'   # Refresh
+ICON_MODE     = '\uE8CB'   # TwoPage (mode toggle)
+ICON_TIMER    = '\uE916'   # Stopwatch
+ICON_KEY      = '\uE8D7'   # Permissions
+ICON_EXTLINK  = '\uE8A7'   # OpenInNewWindow
+ICON_BRACES   = '\uE943'   # Code
+ICON_GLOBE    = '\uE774'   # Globe
+ICON_UPDATE   = '\uE74A'   # Upload (up arrow)
+ICON_CLOSE    = '\uE711'   # Cancel
 
 # Surface / state colors used by dialogs and menus (complement the theme)
 SOFT_BG    = '#2e2e2c'   # secondary pill button / card surface
@@ -1136,9 +1152,9 @@ class Widget:
         # places per-widget bindings used to miss in essential mode.
         self.root.bind('<Button-3>', self._show_menu)
 
-        # Refresh button — same font + glyph + FE0E presentation as the
-        # Refresh row in the settings menu so the two icons look identical.
-        self.btn_r = tk.Label(self.tb, text=' \u21bb\uFE0E ', font=FT_EMOJI_11,
+        # Refresh button — same glyph + font + size as the Refresh row in
+        # the settings menu so the two icons look identical.
+        self.btn_r = tk.Label(self.tb, text=f' {ICON_REFRESH} ', font=FT_MDL2,
                               fg=DIM, bg=BG_TITLE, cursor='hand2')
         self.btn_r.pack(side='right')
         self.btn_r.bind('<Button-1>', lambda e: self.refresh())
@@ -1205,7 +1221,7 @@ class Widget:
         self.ess_close.bind('<Button-1>', lambda e: self._quit())
         self.ess_close.bind('<Enter>', lambda e: self.ess_close.config(fg=RED))
         self.ess_close.bind('<Leave>', lambda e: self.ess_close.config(fg=DIM))
-        self.ess_refresh = tk.Label(self.ess_bar, text='\u21bb\uFE0E', font=FT_EMOJI_11,
+        self.ess_refresh = tk.Label(self.ess_bar, text=ICON_REFRESH, font=FT_MDL2,
                                     fg=DIM, bg=BG, cursor='hand2',
                                     bd=0, highlightthickness=0, padx=2, pady=0)
         self.ess_refresh.pack(side='left')
@@ -1784,24 +1800,22 @@ class Widget:
         lang_label = f"{t('menu_language')}: {cur_lang}"
         cur_secs = self.cfg.get('refresh_ms', REFRESH) // 1000
         interval_label = f"{t('menu_refresh_interval')} ({cur_secs}s)"
-        # Single font + size for every icon so the menu reads as a coherent
-        # column. Segoe UI Emoji at size 11 matches the title-bar refresh
-        # icon (same font+size below), so the two refresh glyphs look
-        # identical. U+FE0E forces text-style (monochrome) presentation on
-        # BMP glyphs that would otherwise render as color emoji at a
-        # different visual weight than the arrow icons next to them.
+        # Every icon is a Segoe MDL2 Assets glyph — one font, one size, one
+        # visual weight. Previous approaches (mixed FT_BTN + FT_EMOJI or
+        # forced FE0E on Segoe UI Emoji) never gave consistent sizes because
+        # BMP arrow glyphs and SMP emojis sit on different visual grids.
         items = [
-            ('\u21bb\uFE0E',       FT_EMOJI_11, t('menu_refresh'),         self.refresh),
-            ('\u21F5\uFE0E',       FT_EMOJI_11, mode_label,                self._toggle_essential),
+            (ICON_REFRESH,  FT_MDL2, t('menu_refresh'),         self.refresh),
+            (ICON_MODE,     FT_MDL2, mode_label,                self._toggle_essential),
             None,
-            ('\u23F3\uFE0E',       FT_EMOJI_11, interval_label,            self._show_interval_dialog),
-            ('\U0001F5DD\uFE0E',   FT_EMOJI_11, t('menu_renew'),           self._renew_session),
-            ('\u2197\uFE0E',       FT_EMOJI_11, t('menu_open_claude'),     self._open_claude_usage),
-            ('{ }',                FT_EMOJI_11, t('menu_open_config'),     self._open_config),
-            ('\U0001F30D\uFE0E',   FT_EMOJI_11, lang_label,                self._show_language_menu),
+            (ICON_TIMER,    FT_MDL2, interval_label,            self._show_interval_dialog),
+            (ICON_KEY,      FT_MDL2, t('menu_renew'),           self._renew_session),
+            (ICON_EXTLINK,  FT_MDL2, t('menu_open_claude'),     self._open_claude_usage),
+            (ICON_BRACES,   FT_MDL2, t('menu_open_config'),     self._open_config),
+            (ICON_GLOBE,    FT_MDL2, lang_label,                self._show_language_menu),
             None,
-            ('\u2B06\uFE0E',       FT_EMOJI_11, t('menu_check_updates'),   self._check_updates_manual),
-            ('\u2715',             FT_EMOJI_11, t('menu_quit'),            self._quit),
+            (ICON_UPDATE,   FT_MDL2, t('menu_check_updates'),   self._check_updates_manual),
+            (ICON_CLOSE,    FT_MDL2, t('menu_quit'),            self._quit),
             None,
             (None, None, f'v{APP_VERSION}', None),
         ]
