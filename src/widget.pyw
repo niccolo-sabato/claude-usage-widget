@@ -37,6 +37,7 @@ import urllib.request
 import urllib.error
 import tkinter as tk
 from datetime import datetime, timezone
+from PIL import Image, ImageDraw, ImageTk
 
 # ─── DPI awareness ──────────────────────────────────
 try:
@@ -93,7 +94,7 @@ PCT_FG   = '#ffffff'
 MENU_BG  = '#2c2c2a'
 
 # ─── App ────────────────────────────────────────────
-APP_VERSION = '2.8.3'
+APP_VERSION = '2.8.4'
 
 # ─── Auto-update ────────────────────────────────────
 UPDATE_REPO = 'niccolo-sabato/claude-usage-widget'
@@ -466,13 +467,50 @@ def pill(cv, x, y, w, h, color):
         cv.create_rectangle(x + r, y, x + w - r, y + h, fill=color, outline=color, width=0)
 
 
+_PILL_IMAGE_CACHE = {}
+
+
+def _hex_to_rgb(color):
+    h = color.lstrip('#')
+    return tuple(int(h[i:i+2], 16) for i in (0, 2, 4))
+
+
+def _render_pill_image(w, h, color, radius=None):
+    """Render an anti-aliased pill as a PhotoImage.
+
+    Supersamples at 4x then downscales with LANCZOS so the curves are smooth
+    instead of the aliased staircase that tkinter's native oval produces.
+    Cached by (w, h, color, radius) because buttons rarely change dimensions.
+    """
+    if radius is None:
+        radius = h // 2
+    key = (w, h, color, radius)
+    cached = _PILL_IMAGE_CACHE.get(key)
+    if cached is not None:
+        return cached
+    scale = 4
+    img = Image.new('RGBA', (w * scale, h * scale), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(img)
+    draw.rounded_rectangle(
+        (0, 0, w * scale - 1, h * scale - 1),
+        radius=radius * scale,
+        fill=_hex_to_rgb(color) + (255,),
+    )
+    img = img.resize((w, h), Image.LANCZOS)
+    photo = ImageTk.PhotoImage(img)
+    _PILL_IMAGE_CACHE[key] = photo
+    return photo
+
+
 def make_pill_button(parent, *, text, font, fg, bg, hover_bg, cmd,
                      icon=None, icon_font=None, padx=16, pady=8, parent_bg=None):
-    """Canvas-based pill button with optional emoji icon on the left.
+    """Pill-shaped button with smooth (anti-aliased) curves.
 
-    Auto-sizes to content. Returns the Canvas so it can be .pack()/.place()'d.
-    `parent_bg` lets the caller override the canvas background (otherwise
-    it's inherited from the parent's bg so the button blends in).
+    The pill background is a PIL image rendered at 4x and downscaled with
+    LANCZOS so the rounded edges are clean on any display. Text and optional
+    emoji icon are drawn on the Canvas above the image. `parent_bg` overrides
+    the Canvas background so the pill blends with non-standard surfaces
+    (e.g. the orange update banner).
     """
     parent.update_idletasks()
     m = tk.Label(parent, text=text, font=font)
@@ -496,22 +534,24 @@ def make_pill_button(parent, *, text, font, fg, bg, hover_bg, cmd,
     canvas_bg = parent_bg if parent_bg is not None else parent.cget('bg')
     cv = tk.Canvas(parent, width=btn_w, height=btn_h,
                    bg=canvas_bg, highlightthickness=0, bd=0, cursor='hand2')
-    state = {'bg': bg}
 
-    def redraw():
-        cv.delete('all')
-        pill(cv, 0, 0, btn_w, btn_h, state['bg'])
-        x = padx
-        cy = btn_h / 2
-        if icon:
-            cv.create_text(x, cy - 1, text=icon, fill=fg,
-                           font=icon_font or font, anchor='w')
-            x += icon_w + gap
-        cv.create_text(x, cy, text=text, fill=fg, font=font, anchor='w')
+    img_normal = _render_pill_image(btn_w, btn_h, bg)
+    img_hover  = _render_pill_image(btn_w, btn_h, hover_bg)
+    # Keep refs on the widget so Python GC doesn't reap the PhotoImages.
+    cv._pill_normal = img_normal
+    cv._pill_hover  = img_hover
+    bg_item = cv.create_image(0, 0, image=img_normal, anchor='nw')
 
-    redraw()
-    cv.bind('<Enter>', lambda e: (state.update(bg=hover_bg), redraw()))
-    cv.bind('<Leave>', lambda e: (state.update(bg=bg), redraw()))
+    x = padx
+    cy = btn_h / 2
+    if icon:
+        cv.create_text(x, cy - 1, text=icon, fill=fg,
+                       font=icon_font or font, anchor='w')
+        x += icon_w + gap
+    cv.create_text(x, cy, text=text, fill=fg, font=font, anchor='w')
+
+    cv.bind('<Enter>', lambda e: cv.itemconfigure(bg_item, image=img_hover))
+    cv.bind('<Leave>', lambda e: cv.itemconfigure(bg_item, image=img_normal))
     cv.bind('<Button-1>', lambda e: cmd())
     return cv
 
@@ -1403,43 +1443,52 @@ class Widget:
 
     # ── Shared dialog / popup helpers ───────────────
 
-    def _place_popup(self, dw, dh, prefer='above'):
-        """Compute (x, y) for a popup relative to the widget.
+    def _virtual_bounds(self):
+        """Return (x, y, w, h) of the full virtual desktop (all monitors).
 
-        Tries to open above (prefer='above') or below (prefer='below') the
-        widget, then falls back to the opposite side if there isn't enough
-        space. Always clamped inside the visible screen with a taskbar gap.
-        Used by every dialog + every submenu so placements stay consistent.
+        winfo_screenwidth() only reports the primary monitor; a widget on a
+        secondary display would otherwise be clamped back to primary. vroot*
+        gives the full multi-monitor bounding box so popups stay with the
+        widget.
         """
+        return (
+            self.root.winfo_vrootx(),
+            self.root.winfo_vrooty(),
+            self.root.winfo_vrootwidth(),
+            self.root.winfo_vrootheight(),
+        )
+
+    def _place_popup(self, dw, dh, prefer='above'):
+        """Position a popup near the widget, preferring above/below, clamped
+        to the virtual desktop so it lands on the same monitor as the widget.
+        """
+        vx, vy, vw, vh = self._virtual_bounds()
         wx = self.root.winfo_x() + (self.root.winfo_width() - dw) // 2
-        sw = self.root.winfo_screenwidth()
-        sh = self.root.winfo_screenheight()
         widget_top = self.root.winfo_y()
         widget_bottom = widget_top + self.root.winfo_height()
         if prefer == 'above':
             wy = widget_top - dh - SCREEN_MARGIN
-            if wy < SCREEN_MARGIN:
+            if wy < vy + SCREEN_MARGIN:
                 wy = widget_bottom + SCREEN_MARGIN
         else:
             wy = widget_bottom + SCREEN_MARGIN
-            if wy + dh > sh - TASKBAR_GAP:
+            if wy + dh > vy + vh - TASKBAR_GAP:
                 wy = widget_top - dh - SCREEN_MARGIN
-        wx = max(SCREEN_MARGIN, min(wx, sw - dw - SCREEN_MARGIN))
-        wy = max(SCREEN_MARGIN, min(wy, sh - dh - TASKBAR_GAP))
+        wx = max(vx + SCREEN_MARGIN, min(wx, vx + vw - dw - SCREEN_MARGIN))
+        wy = max(vy + SCREEN_MARGIN, min(wy, vy + vh - dh - TASKBAR_GAP))
         return wx, wy
 
     def _place_submenu(self, dw, dh):
-        """Position a right-aligned submenu (hamburger / language / etc.)."""
-        sw = self.root.winfo_screenwidth()
-        sh = self.root.winfo_screenheight()
+        """Right-aligned submenu anchored to the widget, virtual-desktop safe."""
+        vx, vy, vw, vh = self._virtual_bounds()
         wx = self.root.winfo_rootx() + self.root.winfo_width() - dw
         widget_bottom = self.root.winfo_rooty() + self.root.winfo_height()
-        if widget_bottom + dh > sh - TASKBAR_GAP:
+        if widget_bottom + dh > vy + vh - TASKBAR_GAP:
             wy = self.root.winfo_rooty() - dh - 2
         else:
             wy = self.root.winfo_rooty() + TITLE_H + 2
-        wx = max(SCREEN_MARGIN, min(wx, sw - dw - SCREEN_MARGIN))
-        wy = max(SCREEN_MARGIN, min(wy, sh - dh - TASKBAR_GAP))
+        wx = max(vx + SCREEN_MARGIN, min(wx, vx + vw - dw - SCREEN_MARGIN))
+        wy = max(vy + SCREEN_MARGIN, min(wy, vy + vh - dh - TASKBAR_GAP))
         return wx, wy
 
     def _build_titlebar(self, dlg, title):
@@ -1532,25 +1581,22 @@ class Widget:
         cur_secs = self.cfg.get('refresh_ms', REFRESH) // 1000
         interval_label = f"{t('menu_refresh_interval')} ({cur_secs}s)"
         items = [
-            ('\u21bb',        FT_BTN,      t('menu_refresh'),         self.refresh),
-            ('\u21F5',        FT_EMOJI_11, mode_label,                self._toggle_essential),
+            ('\u21bb',        FT_BTN,   t('menu_refresh'),         self.refresh),
+            ('\u21F5',        FT_EMOJI, mode_label,                self._toggle_essential),
             None,
-            ('\u23F3',        FT_EMOJI_11, interval_label,            self._show_interval_dialog),
-            ('\U0001F5DD',    FT_EMOJI_11, t('menu_renew'),           self._renew_session),
-            ('\u2197\uFE0F',  FT_EMOJI_11, t('menu_open_claude'),     self._open_claude_usage),
-            ('{ }',           FT_EMOJI_11, t('menu_open_config'),     self._open_config),
-            ('\U0001F30D',    FT_EMOJI_11, lang_label,                self._show_language_menu),
+            ('\u23F3',        FT_EMOJI, interval_label,            self._show_interval_dialog),
+            ('\U0001F5DD',    FT_EMOJI, t('menu_renew'),           self._renew_session),
+            ('\u2197\uFE0F',  FT_EMOJI, t('menu_open_claude'),     self._open_claude_usage),
+            ('{ }',           FT_EMOJI, t('menu_open_config'),     self._open_config),
+            ('\U0001F30D',    FT_EMOJI, lang_label,                self._show_language_menu),
             None,
-            ('\u2B06',        FT_EMOJI_11, t('menu_check_updates'),   self._check_updates_manual),
-            ('\u2715',        FT,          t('menu_quit'),            self._quit),
+            ('\u2B06',        FT_EMOJI, t('menu_check_updates'),   self._check_updates_manual),
+            ('\u2715',        FT,       t('menu_quit'),            self._quit),
             None,
             (None, None, f'v{APP_VERSION}', None),
         ]
 
-        # Consistent row geometry — every item shares padding/heights so the menu
-        # reads as a single coherent surface.
-        ROW_PADY = 6
-        ROW_PADX_TEXT = 2
+        ROW_PADY = 5
         ROW_ICON_W = 3
         for item in items:
             if item is None:
@@ -1564,13 +1610,11 @@ class Widget:
             row = tk.Frame(m, bg=MENU_BG, cursor='hand2')
             row.pack(fill='x')
             ico_lbl = tk.Label(row, text=icon, font=icon_ft, fg=FG, bg=MENU_BG,
-                               padx=8, pady=ROW_PADY, width=ROW_ICON_W)
+                               padx=6, pady=ROW_PADY, width=ROW_ICON_W)
             ico_lbl.pack(side='left')
             txt_lbl = tk.Label(row, text=text, font=FT_MENU, fg=FG, bg=MENU_BG,
-                               anchor='w', padx=ROW_PADX_TEXT, pady=ROW_PADY)
+                               anchor='w', padx=(0, 14), pady=ROW_PADY)
             txt_lbl.pack(side='left', fill='x', expand=True)
-            # Right padding stub to keep spacing symmetrical with the left icon column
-            tk.Label(row, text='', bg=MENU_BG, padx=10).pack(side='right')
             for w in (row, ico_lbl, txt_lbl):
                 w.bind('<Enter>', lambda e, r=row, i=ico_lbl, t=txt_lbl: (
                     r.config(bg=HOVER_BG), i.config(bg=HOVER_BG), t.config(bg=HOVER_BG)))
