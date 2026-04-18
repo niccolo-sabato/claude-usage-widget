@@ -95,7 +95,7 @@ PCT_FG   = '#ffffff'
 MENU_BG  = '#2c2c2a'
 
 # ─── App ────────────────────────────────────────────
-APP_VERSION = '2.8.21'
+APP_VERSION = '2.8.22'
 
 # ─── Auto-update ────────────────────────────────────
 UPDATE_REPO = 'niccolo-sabato/claude-usage-widget'
@@ -544,9 +544,10 @@ def render_markdown_into(text_widget, markdown_str, *, base_font, fg, header_fg)
     text_widget.tag_configure('md_bold',
                               font=(fam, size, 'bold'),
                               foreground=header_fg)
+    # Code spans: monospace + subtle accent color — no background tint.
+    # The darker highlight read as random noise next to regular sentences.
     text_widget.tag_configure('md_code',
                               font=('Consolas', max(size - 1, 8)),
-                              background='#1e1e1c',
                               foreground=header_fg)
     text_widget.tag_configure('md_strike',
                               overstrike=1, foreground=fg)
