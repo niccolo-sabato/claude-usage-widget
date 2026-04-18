@@ -95,7 +95,7 @@ PCT_FG   = '#ffffff'
 MENU_BG  = '#2c2c2a'
 
 # ─── App ────────────────────────────────────────────
-APP_VERSION = '2.8.8'
+APP_VERSION = '2.8.9'
 
 # ─── Auto-update ────────────────────────────────────
 UPDATE_REPO = 'niccolo-sabato/claude-usage-widget'
@@ -1570,9 +1570,10 @@ class Widget:
     # ── W11 Styled Menu ─────────────────────────────
 
     def _show_menu(self, e=None):
+        wlog('MENU   _show_menu called')
         if self._menu_win and self._menu_win.winfo_exists():
-            self._menu_win.destroy()
-            self._menu_win = None
+            wlog('MENU   toggle: closing existing menu')
+            self._close_menu()
             return
 
         m = tk.Toplevel(self.root)
@@ -1580,6 +1581,7 @@ class Widget:
         m.overrideredirect(True)
         m.attributes('-topmost', True)
         m.configure(bg=MENU_BG)
+        wlog('MENU   toplevel created')
 
         mode_label = t('menu_mode_normal') if self._essential else t('menu_mode_essential')
         lang_names = {'en': 'English', 'it': 'Italiano', 'ja': '\u65e5\u672c\u8a9e'}
@@ -1642,21 +1644,33 @@ class Widget:
         m.focus_set()
 
     def _bind_menu_autoclose(self, m):
-        """Attach FocusOut-to-close with a 400ms grace period.
+        """Close the menu when the user clicks anywhere on the widget body.
 
-        Without the grace period, when a sibling topmost window (e.g. the
-        update banner) steals focus the instant the menu is raised, the
-        FocusOut handler fires and the menu is destroyed before the user can
-        see it. The delay gives the OS time to settle focus on the menu first.
+        FocusOut is not usable while the update banner is visible: the banner
+        is always-on-top and keeps reclaiming focus, which would destroy the
+        menu before the user could interact with it. We instead bind a
+        Button-1 on the root widget so clicking outside the menu (i.e. on
+        the widget itself) closes it — the same intuition as a native
+        dropdown. Binding is deferred via after_idle so the click that just
+        opened the menu doesn't bubble up and immediately close it.
         """
-        m._opened_at = time.monotonic()
+        def on_root_click(_e):
+            self._close_menu()
 
-        def on_focus_out(_e):
-            if time.monotonic() - m._opened_at < 0.4:
+        def attach():
+            if not m.winfo_exists():
                 return
-            self.root.after(100, self._close_menu)
+            binding_id = self.root.bind('<Button-1>', on_root_click, add='+')
 
-        m.bind('<FocusOut>', on_focus_out)
+            def cleanup():
+                try:
+                    self.root.unbind('<Button-1>', binding_id)
+                except Exception:
+                    pass
+
+            m._autoclose_cleanup = cleanup
+
+        self.root.after_idle(attach)
 
     def _lift_menu(self, m):
         """Force menu Toplevel above everything including the main widget."""
@@ -1671,8 +1685,13 @@ class Widget:
             pass
 
     def _close_menu(self):
-        if self._menu_win and self._menu_win.winfo_exists():
-            self._menu_win.destroy()
+        m = self._menu_win
+        if m and m.winfo_exists():
+            # Detach the click-outside binding before destroying the Toplevel.
+            cleanup = getattr(m, '_autoclose_cleanup', None)
+            if cleanup:
+                cleanup()
+            m.destroy()
             wlog('MENU   closed')
         self._menu_win = None
 
