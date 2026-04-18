@@ -90,7 +90,7 @@ PCT_FG   = '#ffffff'
 MENU_BG  = '#2c2c2a'
 
 # ─── App ────────────────────────────────────────────
-APP_VERSION = '2.6.4'
+APP_VERSION = '2.7.0'
 
 # ─── Layout ──────────────────────────────────────────
 DEF_W    = 280
@@ -162,6 +162,11 @@ LANG = {
         'menu_mode_essential': 'Essential mode',
         'menu_renew': 'Renew session\u2026',
         'menu_open_config': 'Open config.json',
+        'menu_refresh_interval': 'Refresh interval\u2026',
+        'dlg_interval_title': 'Refresh interval',
+        'dlg_interval_label': 'Interval in seconds (minimum 10):',
+        'dlg_interval_invalid': 'Enter a number between 10 and 3600',
+        'dlg_save': ' Save ',
         'menu_quit': 'Quit',
         'menu_language': 'Language',
         # Dialog
@@ -197,6 +202,11 @@ LANG = {
         'menu_mode_essential': 'Modalit\u00e0 essential',
         'menu_renew': 'Rinnova sessione\u2026',
         'menu_open_config': 'Apri config.json',
+        'menu_refresh_interval': 'Intervallo aggiornamento\u2026',
+        'dlg_interval_title': 'Intervallo aggiornamento',
+        'dlg_interval_label': 'Intervallo in secondi (minimo 10):',
+        'dlg_interval_invalid': 'Inserisci un numero tra 10 e 3600',
+        'dlg_save': ' Salva ',
         'menu_quit': 'Chiudi',
         'menu_language': 'Lingua',
         'dlg_renew_title': 'Rinnova Sessione',
@@ -231,6 +241,11 @@ LANG = {
         'menu_mode_essential': '\u30b7\u30f3\u30d7\u30eb\u30e2\u30fc\u30c9',
         'menu_renew': '\u30bb\u30c3\u30b7\u30e7\u30f3\u66f4\u65b0\u2026',
         'menu_open_config': 'config.json\u3092\u958b\u304f',
+        'menu_refresh_interval': '\u66f4\u65b0\u9593\u9694\u2026',
+        'dlg_interval_title': '\u66f4\u65b0\u9593\u9694',
+        'dlg_interval_label': '\u79d2\u5358\u4f4d\u306e\u9593\u9694 (\u6700\u4f4e10):',
+        'dlg_interval_invalid': '10\u304b\u30893600\u306e\u6570\u5024\u3092\u5165\u529b',
+        'dlg_save': ' \u4fdd\u5b58 ',
         'menu_quit': '\u7d42\u4e86',
         'menu_language': '\u8a00\u8a9e',
         'dlg_renew_title': '\u30bb\u30c3\u30b7\u30e7\u30f3\u66f4\u65b0',
@@ -979,12 +994,12 @@ class Widget:
         self._tick_countdown()
 
     def _tick_countdown(self):
-        """Update countdown display. Every 30s above 30s, every 1s below 30s."""
-        # Check if any reset time has been reached — refresh immediately
+        """Update countdown. Every 30s above 60s, every 1s in the final 60s."""
+        # Check if any reset time has been reached, refresh immediately
         now_utc = datetime.now(timezone.utc)
         for t in self._resets_at:
             if t <= now_utc:
-                wlog('RESET  tempo di reset raggiunto — refresh immediato')
+                wlog('RESET  tempo di reset raggiunto, refresh immediato')
                 self._resets_at = []
                 self._countdown_job = None
                 self.refresh()
@@ -1000,13 +1015,13 @@ class Widget:
             else:
                 cd_txt = f'{self._last_time} ({s}s)'
             self.s_session.set_countdown(cd_txt)
-            if s > 30:
-                # Tick every 30 seconds
-                skip = min(30, s - 30)
+            if s > 60:
+                # Tick every 30 seconds when more than 1 minute remains
+                skip = min(30, s - 60)
                 self._countdown_secs -= skip
                 self._countdown_job = self.root.after(skip * 1000, self._tick_countdown)
             else:
-                # Tick every second for last 30s
+                # Tick every second for last 60s
                 self._countdown_secs -= 1
                 self._countdown_job = self.root.after(1000, self._tick_countdown)
         else:
@@ -1075,10 +1090,14 @@ class Widget:
         lang_names = {'en': 'English', 'it': 'Italiano', 'ja': '\u65e5\u672c\u8a9e'}
         cur_lang = lang_names.get(_current_lang, 'English')
         lang_label = f"{t('menu_language')}: {cur_lang}"
+        # Current refresh interval label
+        cur_secs = self.cfg.get('refresh_ms', REFRESH) // 1000
+        interval_label = f"{t('menu_refresh_interval')} ({cur_secs}s)"
         items = [
             ('\u21bb', FT_BTN, t('menu_refresh'), self.refresh),
             ('\u21c5', FT_BTN, mode_label, self._toggle_essential),
             None,
+            ('\u23f1', FT, interval_label, self._show_interval_dialog),
             ('\u2692', FT, t('menu_renew'), self._renew_session),
             ('\u2699', FT, t('menu_open_config'), self._open_config),
             ('\U0001F310', FT, lang_label, self._show_language_menu),
@@ -1191,7 +1210,7 @@ class Widget:
         m.focus_set()
 
     def _set_language(self, code):
-        """Apply new language — save to config, retranslate visible UI."""
+        """Apply new language, save to config, retranslate visible UI."""
         set_lang(code)
         self.cfg['language'] = code
         save_cfg(self.cfg)
@@ -1203,6 +1222,93 @@ class Widget:
         # Refresh to update reset text + any visible messages
         if self.cfg.get('session_key') and self.cfg.get('org_id'):
             self.refresh()
+
+    # ── Refresh interval dialog ──────────────────────
+
+    def _show_interval_dialog(self):
+        """Defer to run after close_menu completes."""
+        self.root.after(10, self._show_interval_dialog_now)
+
+    def _show_interval_dialog_now(self):
+        dlg = tk.Toplevel(self.root)
+        dlg.title(t('dlg_interval_title'))
+        dlg.configure(bg=BG)
+        dlg.overrideredirect(True)
+        dlg.attributes('-topmost', True)
+        dlg.resizable(False, False)
+
+        dw, dh = 320, 150
+        wx = self.root.winfo_x() + (self.root.winfo_width() - dw) // 2
+        wy = self.root.winfo_y() - dh - 10
+        if wy < 0:
+            wy = self.root.winfo_y() + self.root.winfo_height() + 10
+        dlg.geometry(f'{dw}x{dh}+{wx}+{wy}')
+        dlg.after(10, lambda: dwm_round(dlg))
+
+        tb = tk.Frame(dlg, bg=BG_TITLE, height=30)
+        tb.pack(fill='x')
+        tb.pack_propagate(False)
+        tk.Label(tb, text=f"  {t('dlg_interval_title')}", font=FT_B, fg=FG,
+                 bg=BG_TITLE).pack(side='left', padx=4)
+        close_btn = tk.Label(tb, text=' \u2715 ', font=('Segoe UI', 10),
+                             fg=DIM, bg=BG_TITLE, cursor='hand2')
+        close_btn.pack(side='right', padx=2)
+        close_btn.bind('<Button-1>', lambda e: dlg.destroy())
+
+        def drag_s(e): dlg._dx, dlg._dy = e.x, e.y
+        def drag_m(e): dlg.geometry(
+            f'+{dlg.winfo_x()+e.x-dlg._dx}+{dlg.winfo_y()+e.y-dlg._dy}')
+        tb.bind('<Button-1>', drag_s)
+        tb.bind('<B1-Motion>', drag_m)
+
+        body = tk.Frame(dlg, bg=BG)
+        body.pack(fill='both', expand=True, padx=PAD, pady=(10, PAD))
+
+        tk.Label(body, text=t('dlg_interval_label'), font=FT, fg=FG, bg=BG,
+                 anchor='w').pack(fill='x')
+        entry = tk.Entry(body, font=FT, bg=BAR_BG, fg=FG,
+                         insertbackground=FG, bd=0, highlightthickness=1,
+                         highlightcolor=CLAUDE, highlightbackground=DIM)
+        entry.pack(fill='x', ipady=4, pady=(4, 0))
+        current_secs = self.cfg.get('refresh_ms', REFRESH) // 1000
+        entry.insert(0, str(current_secs))
+        entry.select_range(0, 'end')
+        entry.focus_set()
+
+        status_lbl = tk.Label(body, text='', font=FT_S, fg=RED, bg=BG)
+        status_lbl.pack(fill='x', pady=(4, 0))
+
+        def save_interval():
+            try:
+                secs = int(entry.get().strip())
+            except ValueError:
+                status_lbl.config(text=t('dlg_interval_invalid'))
+                return
+            if secs < 10 or secs > 3600:
+                status_lbl.config(text=t('dlg_interval_invalid'))
+                return
+            self.cfg['refresh_ms'] = secs * 1000
+            save_cfg(self.cfg)
+            # Restart countdown with new interval
+            if self._countdown_job:
+                self.root.after_cancel(self._countdown_job)
+            self._countdown_secs = secs
+            self._tick_countdown()
+            # Reschedule auto-refresh
+            if self._job:
+                self.root.after_cancel(self._job)
+            self._schedule()
+            dlg.destroy()
+
+        btn_frame = tk.Frame(body, bg=BG)
+        btn_frame.pack(fill='x', pady=(8, 0))
+        save_btn = tk.Label(btn_frame, text=t('dlg_save'), font=FT_B,
+                            fg=BG, bg=CLAUDE, cursor='hand2', padx=12, pady=2)
+        save_btn.pack(side='right')
+        save_btn.bind('<Button-1>', lambda e: save_interval())
+        save_btn.bind('<Enter>', lambda e: save_btn.config(bg='#E08060'))
+        save_btn.bind('<Leave>', lambda e: save_btn.config(bg=CLAUDE))
+        entry.bind('<Return>', lambda e: save_interval())
 
     # ── Open config ──────────────────────────────────
 

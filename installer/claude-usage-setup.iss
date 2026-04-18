@@ -2,7 +2,7 @@
 ; Run from the installer/ folder. All Source paths are relative to this script.
 
 #define MyAppName "Claude Usage"
-#define MyAppVersion "2.6.4"
+#define MyAppVersion "2.7.0"
 #define MyAppPublisher "Niccolo Sabato"
 #define MyAppExeName "Claude Usage.exe"
 #define MyAppIcon "claude.ico"
