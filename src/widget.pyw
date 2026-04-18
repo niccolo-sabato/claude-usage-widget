@@ -95,7 +95,7 @@ PCT_FG   = '#ffffff'
 MENU_BG  = '#2c2c2a'
 
 # ─── App ────────────────────────────────────────────
-APP_VERSION = '2.8.14'
+APP_VERSION = '2.8.15'
 
 # ─── Auto-update ────────────────────────────────────
 UPDATE_REPO = 'niccolo-sabato/claude-usage-widget'
@@ -472,6 +472,38 @@ _MD_INLINE_RE = re.compile(r'(\*\*[^*\n]+?\*\*|`[^`\n]+?`|~~[^~\n]+?~~)')
 _MD_HEADER_RE = re.compile(r'^\s*(#{1,6})\s+(.+?)\s*$')
 _MD_BULLET_RE = re.compile(r'^\s*[-*]\s+(.+?)\s*$')
 
+# Headers that mark boilerplate sections not useful inside the in-app update
+# dialog (the user is already triggering the install). Case-insensitive.
+_MD_SKIP_HEADERS = (
+    'install', 'installation', 'installazione',
+    'download',
+    '\u30a4\u30f3\u30b9\u30c8\u30fc\u30eb',  # インストール
+    '\u30c0\u30a6\u30f3\u30ed\u30fc\u30c9',  # ダウンロード
+)
+
+
+def strip_boilerplate_sections(markdown_str):
+    """Drop the install/download section (and everything after it).
+
+    GitHub release bodies typically end with an install section that's
+    relevant when reading the release page on GitHub but redundant in the
+    in-app update dialog — the user is already acting on the update via the
+    Install button. We cut the text at the first header whose title matches
+    one of the known install/download keywords.
+    """
+    out_lines = []
+    for line in markdown_str.splitlines():
+        h = _MD_HEADER_RE.match(line)
+        if h:
+            title = h.group(2).strip().lower()
+            if any(k in title for k in _MD_SKIP_HEADERS):
+                break
+        out_lines.append(line)
+    # Trim trailing blank lines so the rendered block doesn't end with gap.
+    while out_lines and not out_lines[-1].strip():
+        out_lines.pop()
+    return '\n'.join(out_lines)
+
 
 def _md_insert_inline(text_widget, line, base_tag=None):
     """Insert a line splitting on **bold**, `code`, and ~~strike~~ tokens."""
@@ -503,11 +535,12 @@ def render_markdown_into(text_widget, markdown_str, *, base_font, fg, header_fg)
     """
     fam, size = base_font[0], base_font[1]
 
-    # Tag styles — registered each render so the widget can be reused.
+    # Tag styles — tight spacing so a typical release note fits without
+    # scrolling in the update dialog.
     text_widget.tag_configure('md_h',
-                              font=(fam, size + 2, 'bold'),
+                              font=(fam, size + 1, 'bold'),
                               foreground=header_fg,
-                              spacing1=8, spacing3=2)
+                              spacing1=6, spacing3=1)
     text_widget.tag_configure('md_bold',
                               font=(fam, size, 'bold'),
                               foreground=header_fg)
@@ -518,8 +551,8 @@ def render_markdown_into(text_widget, markdown_str, *, base_font, fg, header_fg)
     text_widget.tag_configure('md_strike',
                               overstrike=1, foreground=fg)
     text_widget.tag_configure('md_bullet',
-                              lmargin1=10, lmargin2=26, spacing1=2)
-    text_widget.tag_configure('md_para', spacing1=4)
+                              lmargin1=10, lmargin2=26, spacing1=1)
+    text_widget.tag_configure('md_para', spacing1=1)
 
     text_widget.config(state='normal')
     text_widget.delete('1.0', 'end')
@@ -2102,7 +2135,9 @@ class Widget:
         tk.Label(body, text=t('update_dlg_changelog'), font=FT_DLG_BODY, fg=FG,
                  bg=BG, anchor='w').pack(fill='x', pady=(10, 4))
 
-        changelog = info.get('body') or t('update_dlg_no_changelog')
+        raw_changelog = info.get('body') or ''
+        raw_changelog = strip_boilerplate_sections(raw_changelog)
+        changelog = raw_changelog or t('update_dlg_no_changelog')
         if len(changelog) > UPDATE_CHANGELOG_MAX_CHARS:
             changelog = changelog[:UPDATE_CHANGELOG_MAX_CHARS].rstrip() + '\u2026'
 
