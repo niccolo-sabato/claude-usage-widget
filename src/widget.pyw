@@ -18,20 +18,23 @@ To get a new sessionKey when it expires:
   4. Paste via ≡ menu → Renew session
 
 To start at Windows login:
-  Win+R → shell:startup → create shortcut to:
-  pythonw.exe "C:\\Users\\Kanjiro\\Scripts\\claude-usage-widget\\widget.pyw"
+  Win+R -> shell:startup -> create shortcut to the installed exe.
 """
 
 import sys
 import os
 import re
 import json
+import ssl
 import ctypes
 import signal
 import atexit
+import tempfile
 import threading
 import subprocess
 import webbrowser
+import urllib.request
+import urllib.error
 import tkinter as tk
 from datetime import datetime, timezone
 
@@ -90,7 +93,16 @@ PCT_FG   = '#ffffff'
 MENU_BG  = '#2c2c2a'
 
 # ─── App ────────────────────────────────────────────
-APP_VERSION = '2.7.5'
+APP_VERSION = '2.8.0'
+
+# ─── Auto-update ────────────────────────────────────
+UPDATE_REPO = 'niccolo-sabato/claude-usage-widget'
+UPDATE_API_URL = f'https://api.github.com/repos/{UPDATE_REPO}/releases/latest'
+UPDATE_RELEASES_URL = f'https://github.com/{UPDATE_REPO}/releases'
+UPDATE_ASSET_NAME = 'ClaudeUsage-Setup.exe'
+UPDATE_CHECK_INTERVAL_S = 24 * 3600       # at most once per 24 hours
+UPDATE_STARTUP_DELAY_MS = 10_000          # check 10s after widget ready
+UPDATE_CHANGELOG_MAX_CHARS = 900          # truncate release body shown in dialog
 
 # ─── Layout ──────────────────────────────────────────
 DEF_W    = 280
@@ -151,12 +163,14 @@ LANG = {
         'reset_prefix': 'reset',
         'days': ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
         'unit_d': 'd', 'unit_h': 'h', 'unit_min': 'min',
-        'setup_required': 'Setup required',
-        'session_expired': 'Session expired: update sessionKey\n(\u2261 menu \u2192 Renew session)',
+        'setup_required': 'Session key required to connect to Claude.ai.',
+        'session_expired': 'Session expired. Renew your session key to keep tracking usage.',
         'error': 'error',
         'empty_response': 'Empty response',
         'no_org': 'No organization found',
         'session_expired_short': 'Session expired',
+        'action_setup_now': 'Configure now',
+        'action_renew_now': 'Renew session',
         # Menu
         'menu_refresh': 'Refresh',
         'menu_mode_normal': 'Normal mode',
@@ -171,6 +185,26 @@ LANG = {
         'dlg_save': ' Save ',
         'menu_quit': 'Quit',
         'menu_language': 'Language',
+        'menu_check_updates': 'Check for updates\u2026',
+        # Update flow
+        'update_banner_available': 'Update available: v{version}',
+        'update_banner_update': 'Update',
+        'update_banner_later': 'Later',
+        'update_banner_skip': 'Skip',
+        'update_dlg_title': 'Update available',
+        'update_dlg_subtitle': 'Version {version} is available (you have {current}).',
+        'update_dlg_changelog': "What's new:",
+        'update_dlg_install': 'Install now',
+        'update_dlg_cancel': 'Cancel',
+        'update_dlg_no_changelog': '(no release notes)',
+        'update_dlg_downloading': 'Downloading {percent}% ({done} / {total})',
+        'update_dlg_launching': 'Launching installer\u2026',
+        'update_dlg_failed': 'Update failed: {error}',
+        'update_dlg_open_page': 'Open release page',
+        'update_check_checking': 'Checking for updates\u2026',
+        'update_check_uptodate': 'You are on the latest version (v{version}).',
+        'update_check_failed': 'Could not reach GitHub. Try again later.',
+        'update_check_no_asset': 'New version available but no installer asset was found.',
         # Dialog
         'dlg_renew_title': 'Renew Session',
         'dlg_setup_title': 'Setup',
@@ -193,12 +227,14 @@ LANG = {
         'reset_prefix': 'reset',
         'days': ['lun', 'mar', 'mer', 'gio', 'ven', 'sab', 'dom'],
         'unit_d': 'gg', 'unit_h': 'h', 'unit_min': 'min',
-        'setup_required': 'Configurazione necessaria',
-        'session_expired': 'Sessione scaduta: aggiorna sessionKey\n(\u2261 menu \u2192 Rinnova sessione)',
+        'setup_required': 'Session key necessaria per connettersi a Claude.ai.',
+        'session_expired': 'Sessione scaduta. Rinnova la session key per continuare.',
         'error': 'errore',
         'empty_response': 'Risposta vuota',
         'no_org': 'Nessuna organizzazione trovata',
         'session_expired_short': 'Sessione scaduta',
+        'action_setup_now': 'Configura ora',
+        'action_renew_now': 'Rinnova sessione',
         'menu_refresh': 'Aggiorna',
         'menu_mode_normal': 'Modalit\u00e0 normale',
         'menu_mode_essential': 'Modalit\u00e0 essential',
@@ -212,6 +248,25 @@ LANG = {
         'dlg_save': ' Salva ',
         'menu_quit': 'Chiudi',
         'menu_language': 'Lingua',
+        'menu_check_updates': 'Controlla aggiornamenti\u2026',
+        'update_banner_available': 'Aggiornamento disponibile: v{version}',
+        'update_banner_update': 'Aggiorna',
+        'update_banner_later': 'Dopo',
+        'update_banner_skip': 'Ignora',
+        'update_dlg_title': 'Aggiornamento disponibile',
+        'update_dlg_subtitle': 'La versione {version} \u00e8 disponibile (hai la {current}).',
+        'update_dlg_changelog': 'Novit\u00e0:',
+        'update_dlg_install': 'Installa ora',
+        'update_dlg_cancel': 'Annulla',
+        'update_dlg_no_changelog': '(nessuna nota di rilascio)',
+        'update_dlg_downloading': 'Download {percent}% ({done} / {total})',
+        'update_dlg_launching': 'Avvio installer\u2026',
+        'update_dlg_failed': 'Aggiornamento fallito: {error}',
+        'update_dlg_open_page': 'Apri pagina rilascio',
+        'update_check_checking': 'Controllo aggiornamenti\u2026',
+        'update_check_uptodate': 'Versione gi\u00e0 aggiornata (v{version}).',
+        'update_check_failed': 'Impossibile contattare GitHub. Riprova pi\u00f9 tardi.',
+        'update_check_no_asset': 'Nuova versione disponibile ma non trovo l\u2019installer.',
         'dlg_renew_title': 'Rinnova Sessione',
         'dlg_setup_title': 'Configurazione',
         'dlg_howto': 'Come ottenere il Session Key:',
@@ -233,12 +288,14 @@ LANG = {
         'reset_prefix': '\u30ea\u30bb\u30c3\u30c8',
         'days': ['\u6708', '\u706b', '\u6c34', '\u6728', '\u91d1', '\u571f', '\u65e5'],
         'unit_d': '\u65e5', 'unit_h': '\u6642\u9593', 'unit_min': '\u5206',
-        'setup_required': '\u30bb\u30c3\u30c8\u30a2\u30c3\u30d7\u304c\u5fc5\u8981\u3067\u3059',
-        'session_expired': '\u30bb\u30c3\u30b7\u30e7\u30f3\u6709\u52b9\u671f\u9650\u5207\u308c: sessionKey\u3092\u66f4\u65b0\n(\u2261 \u30e1\u30cb\u30e5\u30fc \u2192 \u30bb\u30c3\u30b7\u30e7\u30f3\u66f4\u65b0)',
+        'setup_required': 'Claude.ai \u306b\u63a5\u7d9a\u3059\u308b\u306b\u306f\u30bb\u30c3\u30b7\u30e7\u30f3\u30ad\u30fc\u304c\u5fc5\u8981\u3067\u3059\u3002',
+        'session_expired': '\u30bb\u30c3\u30b7\u30e7\u30f3\u6709\u52b9\u671f\u5207\u308c\u3002\u30bb\u30c3\u30b7\u30e7\u30f3\u30ad\u30fc\u3092\u66f4\u65b0\u3057\u3066\u304f\u3060\u3055\u3044\u3002',
         'error': '\u30a8\u30e9\u30fc',
         'empty_response': '\u5fdc\u7b54\u304c\u7a7a\u3067\u3059',
         'no_org': '\u7d44\u7e54\u304c\u898b\u3064\u304b\u308a\u307e\u305b\u3093',
-        'session_expired_short': '\u30bb\u30c3\u30b7\u30e7\u30f3\u6709\u52b9\u671f\u9650\u5207\u308c',
+        'session_expired_short': '\u30bb\u30c3\u30b7\u30e7\u30f3\u6709\u52b9\u671f\u5207\u308c',
+        'action_setup_now': '\u4eca\u3059\u3050\u8a2d\u5b9a',
+        'action_renew_now': '\u30bb\u30c3\u30b7\u30e7\u30f3\u66f4\u65b0',
         'menu_refresh': '\u66f4\u65b0',
         'menu_mode_normal': '\u901a\u5e38\u30e2\u30fc\u30c9',
         'menu_mode_essential': '\u30b7\u30f3\u30d7\u30eb\u30e2\u30fc\u30c9',
@@ -252,6 +309,25 @@ LANG = {
         'dlg_save': ' \u4fdd\u5b58 ',
         'menu_quit': '\u7d42\u4e86',
         'menu_language': '\u8a00\u8a9e',
+        'menu_check_updates': '\u66f4\u65b0\u3092\u78ba\u8a8d\u2026',
+        'update_banner_available': '\u65b0\u3057\u3044\u30d0\u30fc\u30b8\u30e7\u30f3: v{version}',
+        'update_banner_update': '\u66f4\u65b0',
+        'update_banner_later': '\u3042\u3068\u3067',
+        'update_banner_skip': '\u30b9\u30ad\u30c3\u30d7',
+        'update_dlg_title': '\u65b0\u3057\u3044\u30d0\u30fc\u30b8\u30e7\u30f3\u304c\u3042\u308a\u307e\u3059',
+        'update_dlg_subtitle': '\u30d0\u30fc\u30b8\u30e7\u30f3 {version} \u304c\u5229\u7528\u53ef\u80fd\u3067\u3059\uff08\u73fe\u5728 {current}\uff09\u3002',
+        'update_dlg_changelog': '\u5909\u66f4\u70b9:',
+        'update_dlg_install': '\u4eca\u3059\u3050\u30a4\u30f3\u30b9\u30c8\u30fc\u30eb',
+        'update_dlg_cancel': '\u30ad\u30e3\u30f3\u30bb\u30eb',
+        'update_dlg_no_changelog': '\uff08\u30ea\u30ea\u30fc\u30b9\u30ce\u30fc\u30c8\u306a\u3057\uff09',
+        'update_dlg_downloading': '\u30c0\u30a6\u30f3\u30ed\u30fc\u30c9\u4e2d {percent}%\uff08{done} / {total}\uff09',
+        'update_dlg_launching': '\u30a4\u30f3\u30b9\u30c8\u30fc\u30e9\u30fc\u3092\u8d77\u52d5\u4e2d\u2026',
+        'update_dlg_failed': '\u66f4\u65b0\u306b\u5931\u6557: {error}',
+        'update_dlg_open_page': '\u30ea\u30ea\u30fc\u30b9\u30da\u30fc\u30b8\u3092\u958b\u304f',
+        'update_check_checking': '\u66f4\u65b0\u3092\u78ba\u8a8d\u4e2d\u2026',
+        'update_check_uptodate': '\u6700\u65b0\u30d0\u30fc\u30b8\u30e7\u30f3\u3067\u3059\uff08v{version}\uff09\u3002',
+        'update_check_failed': 'GitHub \u306b\u63a5\u7d9a\u3067\u304d\u307e\u305b\u3093\u3002\u5f8c\u3067\u518d\u8a66\u884c\u3057\u3066\u304f\u3060\u3055\u3044\u3002',
+        'update_check_no_asset': '\u65b0\u3057\u3044\u30d0\u30fc\u30b8\u30e7\u30f3\u306f\u3042\u308a\u307e\u3059\u304c\u3001\u30a4\u30f3\u30b9\u30c8\u30fc\u30e9\u30fc\u304c\u898b\u3064\u304b\u308a\u307e\u305b\u3093\u3002',
         'dlg_renew_title': '\u30bb\u30c3\u30b7\u30e7\u30f3\u66f4\u65b0',
         'dlg_setup_title': '\u30bb\u30c3\u30c8\u30a2\u30c3\u30d7',
         'dlg_howto': 'Session Key\u306e\u53d6\u5f97\u65b9\u6cd5:',
@@ -436,6 +512,116 @@ def fetch_usage(cfg):
 
 
 # ═══════════════════════════════════════════════════════
+# Auto-update
+# ═══════════════════════════════════════════════════════
+
+def _version_tuple(v):
+    """Parse 'v2.8.0' / '2.8.0' into (2, 8, 0); returns (0,) on failure."""
+    if not v:
+        return (0,)
+    v = v.strip().lstrip('vV')
+    parts = []
+    for chunk in v.split('.'):
+        m = re.match(r'\d+', chunk)
+        if not m:
+            break
+        parts.append(int(m.group(0)))
+    return tuple(parts) if parts else (0,)
+
+
+def _http_get(url, timeout=15, accept=None):
+    """Simple HTTPS GET using urllib. Returns (status, bytes). Raises URLError on network failure."""
+    req = urllib.request.Request(
+        url,
+        headers={
+            'User-Agent': f'ClaudeUsageWidget/{APP_VERSION} (+{UPDATE_RELEASES_URL})',
+            **({'Accept': accept} if accept else {}),
+        },
+    )
+    ctx = ssl.create_default_context()
+    with urllib.request.urlopen(req, timeout=timeout, context=ctx) as resp:
+        return resp.status, resp.read()
+
+
+def check_latest_release():
+    """Query GitHub for the latest release metadata.
+
+    Returns a dict {'version', 'tag', 'body', 'asset_url', 'asset_size', 'html_url'}
+    or None if the API call fails (network error, rate limit, etc.).
+    """
+    try:
+        status, raw = _http_get(UPDATE_API_URL, accept='application/vnd.github+json')
+        if status != 200:
+            wlog(f'UPDATE check HTTP {status}')
+            return None
+        data = json.loads(raw.decode('utf-8'))
+    except (urllib.error.URLError, urllib.error.HTTPError, json.JSONDecodeError, OSError) as e:
+        wlog(f'UPDATE check failed: {e}')
+        return None
+    tag = data.get('tag_name') or ''
+    if data.get('draft') or data.get('prerelease'):
+        return None
+    asset_url = None
+    asset_size = 0
+    for a in data.get('assets') or []:
+        if a.get('name') == UPDATE_ASSET_NAME:
+            asset_url = a.get('browser_download_url')
+            asset_size = a.get('size') or 0
+            break
+    return {
+        'version': tag.lstrip('vV'),
+        'tag': tag,
+        'body': (data.get('body') or '').strip(),
+        'asset_url': asset_url,
+        'asset_size': asset_size,
+        'html_url': data.get('html_url') or UPDATE_RELEASES_URL,
+    }
+
+
+def is_newer_version(latest, current=APP_VERSION):
+    """True if `latest` is a semver-style version strictly newer than `current`."""
+    return _version_tuple(latest) > _version_tuple(current)
+
+
+def download_installer(url, dest_path, on_progress=None, chunk_size=65536):
+    """Download the installer to `dest_path`, calling on_progress(downloaded, total).
+
+    Returns the final path on success. Writes to a temp file and renames atomically
+    so a partial download cannot be mistaken for a complete one. Raises on failure.
+    """
+    if not url:
+        raise ValueError('no asset URL')
+    tmp_path = dest_path + '.part'
+    req = urllib.request.Request(
+        url,
+        headers={'User-Agent': f'ClaudeUsageWidget/{APP_VERSION}'},
+    )
+    ctx = ssl.create_default_context()
+    with urllib.request.urlopen(req, timeout=30, context=ctx) as resp:
+        total = int(resp.headers.get('Content-Length') or 0)
+        downloaded = 0
+        with open(tmp_path, 'wb') as f:
+            while True:
+                buf = resp.read(chunk_size)
+                if not buf:
+                    break
+                f.write(buf)
+                downloaded += len(buf)
+                if on_progress:
+                    try:
+                        on_progress(downloaded, total)
+                    except Exception:
+                        pass
+    if os.path.exists(dest_path):
+        try:
+            os.remove(dest_path)
+        except OSError:
+            pass
+    os.replace(tmp_path, dest_path)
+    return dest_path
+
+
+# ═══════════════════════════════════════════════════════
 # Usage Section
 # ═══════════════════════════════════════════════════════
 
@@ -599,22 +785,27 @@ class Widget:
             self.refresh()
             self._schedule()
         else:
-            self._error(t('setup_required'))
+            self._error(t('setup_required'),
+                        action_label=t('action_setup_now'),
+                        action_cmd=self._setup_dialog)
             self.root.after(300, self._setup_dialog)
+
+        self._update_banner = None
+        self._schedule_update_check()
 
         self.root.protocol('WM_DELETE_WINDOW', self._quit)
 
         # Protect against external termination (PowerToys, Task Manager, etc.)
-        atexit.register(lambda: wlog('ATEXIT processo in chiusura'))
+        atexit.register(lambda: wlog('ATEXIT process shutting down'))
         for sig in (signal.SIGTERM, signal.SIGINT, signal.SIGBREAK):
             try:
                 signal.signal(sig, self._signal_quit)
             except (OSError, ValueError):
                 pass
 
-        wlog('START  widget avviato')
+        wlog('START  widget started')
         self.root.mainloop()
-        wlog('EXIT   mainloop terminato')
+        wlog('EXIT   mainloop ended')
 
     # ── Build UI ─────────────────────────────────────
 
@@ -741,9 +932,16 @@ class Widget:
                                  bd=0, highlightthickness=0, padx=4, pady=0)
         self.ess_time.pack(side='left')
 
-        # Error label
-        self.lbl_err = tk.Label(self.content, text='', font=FT_S, fg=RED, bg=BG,
-                                wraplength=DEF_W - 30, justify='left')
+        # Error panel: message label + optional action button (e.g. "Configure now")
+        self.err_frame = tk.Frame(self.content, bg=BG)
+        self.lbl_err = tk.Label(self.err_frame, text='', font=FT_S, fg=RED, bg=BG,
+                                wraplength=DEF_W - 30, justify='left', anchor='w')
+        self.lbl_err.pack(fill='x', padx=PAD, pady=(0, 4))
+        self.err_btn = tk.Label(self.err_frame, text='', font=FT_B, fg=BG,
+                                bg=CLAUDE, cursor='hand2', padx=10, pady=3)
+        self.err_btn.bind('<Enter>', lambda e: self.err_btn.config(bg='#E08060'))
+        self.err_btn.bind('<Leave>', lambda e: self.err_btn.config(bg=CLAUDE))
+        self._err_action = None
 
     # ── Toggle expand/collapse ─────────────────────
 
@@ -821,7 +1019,7 @@ class Widget:
     def _toggle_essential(self):
         if getattr(self, '_animating', False):
             return
-        wlog(f'MODE   toggle essential: {self._essential} → {not self._essential}')
+        wlog(f'MODE   toggle essential: {self._essential} -> {not self._essential}')
         start_h = self.root.winfo_height()
         start_y = self.root.winfo_y()
         bottom = start_y + start_h
@@ -861,7 +1059,7 @@ class Widget:
 
     def _restore_essential(self):
         """Restore essential mode on startup — no animation, direct layout."""
-        wlog(f'MODE   toggle essential: {self._essential} → {not self._essential}')
+        wlog(f'MODE   toggle essential: {self._essential} -> {not self._essential}')
         self._essential = True
         self.tb.pack_forget()
         self.sep.pack_forget()
@@ -937,27 +1135,31 @@ class Widget:
         threading.Thread(target=self._fetch, daemon=True).start()
 
     def _fetch(self):
-        wlog('FETCH  inizio fetch thread')
+        wlog('FETCH  thread started')
         try:
             data = fetch_usage(self.cfg)
-            wlog('FETCH  dati ricevuti, invio a main thread')
+            wlog('FETCH  data received, dispatching to main thread')
             self.root.after(0, self._on_data, data)
         except PermissionError:
-            wlog('FETCH  session scaduta (401/403)')
+            wlog('FETCH  session expired (401/403)')
             try:
-                self.root.after(0, self._error,
-                                t('session_expired'))
+                self.root.after(
+                    0,
+                    lambda: self._error(
+                        t('session_expired'),
+                        action_label=t('action_renew_now'),
+                        action_cmd=self._renew_session))
             except Exception as ex:
-                wlog(f'FETCH  errore post-PermissionError: {ex}')
+                wlog(f'FETCH  error after PermissionError: {ex}')
         except Exception as e:
-            wlog(f'FETCH  eccezione: {e}')
+            wlog(f'FETCH  exception: {e}')
             try:
                 self.root.after(0, self._error, str(e))
             except Exception as ex:
-                wlog(f'FETCH  errore post-Exception: {ex}')
+                wlog(f'FETCH  error after Exception: {ex}')
 
     def _on_data(self, d):
-        self.lbl_err.pack_forget()
+        self._clear_error()
         fh = d.get('five_hour')
         self.s_session.update(fh['utilization'] if fh else None,
                               fh.get('resets_at') if fh else None)
@@ -979,7 +1181,7 @@ class Widget:
         now = f'{datetime.now():%H:%M}'
         self._last_time = now
         self.btn_r.config(fg=DIM)
-        wlog(f'FETCH  ok — session={fh["utilization"] if fh else "?"} weekly={sd["utilization"] if sd else "?"} sonnet={ss["utilization"] if ss else "?"}')
+        wlog(f'FETCH  ok: session={fh["utilization"] if fh else "?"} weekly={sd["utilization"] if sd else "?"} sonnet={ss["utilization"] if ss else "?"}')
         self._save_geometry()  # auto-save on each refresh (protection against kill)
         self._start_countdown()
         self._update_minsize()
@@ -998,21 +1200,22 @@ class Widget:
         self._tick_countdown()
 
     def _tick_countdown(self):
-        """Update countdown. Every 30s above 60s, every 1s in the final 60s."""
-        # Check if any reset time has been reached, refresh immediately
+        """Update countdown with adaptive cadence:
+          s >  60: tick every 30s
+          30 < s <= 60: tick every 10s (so display updates at 60, 50, 40, 30)
+          s <= 30: tick every 1s
+        """
         now_utc = datetime.now(timezone.utc)
         for t in self._resets_at:
             if t <= now_utc:
-                wlog('RESET  tempo di reset raggiunto, refresh immediato')
+                wlog('RESET  reset time reached, refreshing now')
                 self._resets_at = []
                 self._countdown_job = None
                 self.refresh()
                 return
         s = self._countdown_secs
-        # Update current time on the right
         self._update_clock()
         if s > 0:
-            # Format countdown as Xmin Ys
             if s >= 60:
                 m, sec = divmod(s, 60)
                 cd_txt = f'{self._last_time} ({m}min {sec:02d}s)'
@@ -1020,35 +1223,64 @@ class Widget:
                 cd_txt = f'{self._last_time} ({s}s)'
             self.s_session.set_countdown(cd_txt)
             if s > 60:
-                # Tick every 30 seconds when more than 1 minute remains
-                skip = min(30, s - 60)
+                # Snap to the next 30s tick boundary on the way down to 60.
+                skip = min(30, s - 60) if s > 60 else 30
+                self._countdown_secs -= skip
+                self._countdown_job = self.root.after(skip * 1000, self._tick_countdown)
+            elif s > 30:
+                # 60 -> 50 -> 40 -> 30 — one tick every 10s.
+                skip = min(10, s - 30) if s > 30 else 10
                 self._countdown_secs -= skip
                 self._countdown_job = self.root.after(skip * 1000, self._tick_countdown)
             else:
-                # Tick every second for last 60s
                 self._countdown_secs -= 1
                 self._countdown_job = self.root.after(1000, self._tick_countdown)
         else:
             self.s_session.set_countdown('')
             self._countdown_job = None
 
-    def _error(self, msg):
+    def _clear_error(self):
+        """Hide the error panel and drop any pending action binding."""
+        self.err_btn.pack_forget()
+        self.err_frame.pack_forget()
+        if self._err_action is not None:
+            try:
+                self.err_btn.unbind('<Button-1>')
+            except Exception:
+                pass
+            self._err_action = None
+
+    def _error(self, msg, action_label=None, action_cmd=None):
+        """Show an error panel. If action_label/action_cmd are given, render a button below."""
         wlog(f'ERROR  {msg}')
         self.lbl_err.config(text=msg)
-        self.lbl_err.pack(fill='x', padx=PAD, pady=(4, 0))
+        self.err_btn.pack_forget()
+        if self._err_action is not None:
+            try:
+                self.err_btn.unbind('<Button-1>')
+            except Exception:
+                pass
+            self._err_action = None
+        if action_label and action_cmd:
+            self._err_action = action_cmd
+            self.err_btn.config(text=f' {action_label} ')
+            self.err_btn.bind('<Button-1>', lambda e: action_cmd())
+            self.err_btn.pack(anchor='w', padx=PAD, pady=(0, 4))
+        self.err_frame.pack(fill='x', pady=(4, 0))
         self.s_session.set_countdown(t('error'))
         self.btn_r.config(fg=DIM)
+        self._update_minsize()
 
     def _schedule(self):
         ms = self.cfg.get('refresh_ms', REFRESH)
         self._job = self.root.after(ms, self._schedule_tick)
 
     def _schedule_tick(self):
-        wlog('SCHED  tick — avvio refresh programmato')
+        wlog('SCHED  tick -> scheduled refresh')
         try:
             self.refresh()
         except Exception as e:
-            wlog(f'SCHED  errore refresh: {e}')
+            wlog(f'SCHED  refresh error: {e}')
         self._schedule()
 
     # ── Drag ─────────────────────────────────────────
@@ -1072,7 +1304,7 @@ class Widget:
             self.cfg['essential'] = self._essential
             save_cfg(self.cfg)
         except Exception as ex:
-            wlog(f'SAVE   errore save_geometry: {ex}')
+            wlog(f'SAVE   save_geometry error: {ex}')
 
     # ── W11 Styled Menu ─────────────────────────────
 
@@ -1107,6 +1339,7 @@ class Widget:
             ('{ }', FT_EMOJI, t('menu_open_config'), self._open_config),
             ('\U0001F30D', FT_EMOJI, lang_label, self._show_language_menu),
             None,
+            ('\u2B06', FT_EMOJI, t('menu_check_updates'), self._check_updates_manual),
             ('\u2715', FT, t('menu_quit'), self._quit),
             None,
             (None, None, f'v{APP_VERSION}', None),
@@ -1171,7 +1404,7 @@ class Widget:
     def _close_menu(self):
         if self._menu_win and self._menu_win.winfo_exists():
             self._menu_win.destroy()
-            wlog('MENU   chiuso')
+            wlog('MENU   closed')
         self._menu_win = None
 
     # ── Language submenu ─────────────────────────────
@@ -1316,6 +1549,275 @@ class Widget:
         save_btn.bind('<Leave>', lambda e: save_btn.config(bg=CLAUDE))
         entry.bind('<Return>', lambda e: save_interval())
 
+    # ── Auto-update ──────────────────────────────────
+
+    def _schedule_update_check(self):
+        """Schedule the initial (throttled) update check shortly after startup."""
+        if not self.cfg.get('update_check_enabled', True):
+            return
+        # Respect 24h throttle between automatic checks.
+        last = self.cfg.get('last_update_check', 0)
+        now_ts = int(datetime.now().timestamp())
+        if now_ts - last < UPDATE_CHECK_INTERVAL_S:
+            return
+        self.root.after(UPDATE_STARTUP_DELAY_MS, self._auto_check_updates)
+
+    def _auto_check_updates(self):
+        """Run a non-blocking update check; show banner only if newer + not skipped."""
+        self.cfg['last_update_check'] = int(datetime.now().timestamp())
+        save_cfg(self.cfg)
+        threading.Thread(target=self._do_check_auto, daemon=True).start()
+
+    def _do_check_auto(self):
+        info = check_latest_release()
+        if not info:
+            return
+        if not is_newer_version(info['version']):
+            return
+        if self.cfg.get('skip_version') == info['version']:
+            wlog(f"UPDATE  v{info['version']} skipped by user preference")
+            return
+        self.root.after(0, self._show_update_banner, info)
+
+    def _check_updates_manual(self):
+        """Menu entry: always runs a fresh check and shows a result either way."""
+        self.cfg['last_update_check'] = int(datetime.now().timestamp())
+        save_cfg(self.cfg)
+        threading.Thread(target=self._do_check_manual, daemon=True).start()
+
+    def _do_check_manual(self):
+        info = check_latest_release()
+        if info is None:
+            self.root.after(0, self._show_info_toast, t('update_check_failed'))
+            return
+        if not is_newer_version(info['version']):
+            self.root.after(
+                0,
+                self._show_info_toast,
+                t('update_check_uptodate').format(version=APP_VERSION),
+            )
+            return
+        if not info.get('asset_url'):
+            self.root.after(0, self._show_info_toast, t('update_check_no_asset'))
+            return
+        self.root.after(0, self._show_update_dialog, info)
+
+    def _show_update_banner(self, info):
+        """Show a slim orange banner at the top of the widget with Update/Later/Skip."""
+        if getattr(self, '_update_banner', None):
+            try:
+                self._update_banner.destroy()
+            except Exception:
+                pass
+        bar = tk.Frame(self.main, bg=ORANGE)
+        self._update_banner = bar
+        bar.pack(fill='x', before=self.tb if self.tb.winfo_ismapped() else self.content)
+
+        msg = t('update_banner_available').format(version=info['version'])
+        tk.Label(bar, text=msg, font=FT_B, fg='#1e1e1c', bg=ORANGE,
+                 anchor='w', padx=8, pady=3).pack(side='left', fill='x', expand=True)
+
+        def make_btn(text, cmd, fg='#1e1e1c'):
+            b = tk.Label(bar, text=f' {text} ', font=FT_S, fg=fg, bg=ORANGE,
+                         cursor='hand2', padx=4)
+            b.pack(side='right', padx=(0, 2))
+            b.bind('<Button-1>', lambda e: cmd())
+            b.bind('<Enter>', lambda e: b.config(fg='#ffffff'))
+            b.bind('<Leave>', lambda e: b.config(fg=fg))
+            return b
+
+        make_btn(t('update_banner_skip'),   lambda: self._skip_update(info))
+        make_btn(t('update_banner_later'),  self._dismiss_update_banner)
+        make_btn(t('update_banner_update'), lambda: self._show_update_dialog(info))
+
+    def _dismiss_update_banner(self):
+        if getattr(self, '_update_banner', None):
+            try:
+                self._update_banner.destroy()
+            except Exception:
+                pass
+            self._update_banner = None
+
+    def _skip_update(self, info):
+        self.cfg['skip_version'] = info['version']
+        save_cfg(self.cfg)
+        wlog(f"UPDATE  v{info['version']} marked as skipped")
+        self._dismiss_update_banner()
+
+    def _show_info_toast(self, message):
+        """Quick transient feedback anchored to the widget (used by manual check results)."""
+        dlg = tk.Toplevel(self.root)
+        dlg.overrideredirect(True)
+        dlg.attributes('-topmost', True)
+        dlg.configure(bg=MENU_BG)
+        tk.Label(dlg, text=message, font=FT, fg=FG, bg=MENU_BG,
+                 padx=12, pady=8, wraplength=320, justify='left').pack()
+        dlg.update_idletasks()
+        dw, dh = dlg.winfo_reqwidth(), dlg.winfo_reqheight()
+        wx = self.root.winfo_x() + (self.root.winfo_width() - dw) // 2
+        wy = self.root.winfo_y() + self.root.winfo_height() + 6
+        dlg.geometry(f'{dw}x{dh}+{wx}+{wy}')
+        dlg.after(50, lambda: dwm_round(dlg))
+        dlg.after(3500, dlg.destroy)
+
+    def _show_update_dialog(self, info):
+        """Full update dialog: shows changelog + download button + progress."""
+        self._dismiss_update_banner()
+        dlg = tk.Toplevel(self.root)
+        dlg.title(t('update_dlg_title'))
+        dlg.configure(bg=BG)
+        dlg.overrideredirect(True)
+        dlg.attributes('-topmost', True)
+        dlg.resizable(False, False)
+
+        dw, dh = 460, 340
+        wx = self.root.winfo_x() + (self.root.winfo_width() - dw) // 2
+        wy = self.root.winfo_y() - dh - 10
+        if wy < 0:
+            wy = max(10, self.root.winfo_y() + self.root.winfo_height() + 10)
+        dlg.geometry(f'{dw}x{dh}+{wx}+{wy}')
+        dlg.after(50, lambda: dwm_round(dlg))
+
+        tb = tk.Frame(dlg, bg=BG_TITLE, height=30)
+        tb.pack(fill='x')
+        tb.pack_propagate(False)
+        tk.Label(tb, text=f"  {t('update_dlg_title')}", font=FT_B, fg=FG,
+                 bg=BG_TITLE).pack(side='left', padx=4)
+        close_btn = tk.Label(tb, text=' \u2715 ', font=('Segoe UI', 10),
+                             fg=DIM, bg=BG_TITLE, cursor='hand2')
+        close_btn.pack(side='right', padx=2)
+        close_btn.bind('<Button-1>', lambda e: dlg.destroy())
+
+        def drag_s(e): dlg._dx, dlg._dy = e.x, e.y
+        def drag_m(e): dlg.geometry(
+            f'+{dlg.winfo_x()+e.x-dlg._dx}+{dlg.winfo_y()+e.y-dlg._dy}')
+        tb.bind('<Button-1>', drag_s)
+        tb.bind('<B1-Motion>', drag_m)
+
+        body = tk.Frame(dlg, bg=BG)
+        body.pack(fill='both', expand=True, padx=PAD, pady=(10, PAD))
+
+        subtitle = t('update_dlg_subtitle').format(
+            version=info['version'], current=APP_VERSION)
+        tk.Label(body, text=subtitle, font=FT_B, fg=CLAUDE, bg=BG,
+                 anchor='w').pack(fill='x')
+
+        tk.Label(body, text=t('update_dlg_changelog'), font=FT, fg=FG, bg=BG,
+                 anchor='w').pack(fill='x', pady=(8, 2))
+
+        changelog = info.get('body') or t('update_dlg_no_changelog')
+        if len(changelog) > UPDATE_CHANGELOG_MAX_CHARS:
+            changelog = changelog[:UPDATE_CHANGELOG_MAX_CHARS].rstrip() + '\u2026'
+
+        txt_frame = tk.Frame(body, bg=BAR_BG, bd=0, highlightthickness=0)
+        txt_frame.pack(fill='both', expand=True)
+        txt = tk.Text(txt_frame, font=FT_S, fg=DIM, bg=BAR_BG, bd=0,
+                      highlightthickness=0, wrap='word', padx=8, pady=6, height=7,
+                      relief='flat')
+        txt.insert('1.0', changelog)
+        txt.config(state='disabled')
+        txt.pack(fill='both', expand=True)
+
+        status_lbl = tk.Label(body, text='', font=FT_S, fg=DIM, bg=BG, anchor='w')
+        status_lbl.pack(fill='x', pady=(6, 0))
+
+        progress_cv = tk.Canvas(body, height=6, bg=BG, bd=0, highlightthickness=0)
+        progress_cv.pack(fill='x', pady=(2, 0))
+        progress_cv.pack_forget()
+
+        btn_frame = tk.Frame(body, bg=BG)
+        btn_frame.pack(fill='x', pady=(8, 0))
+
+        cancel_btn = tk.Label(btn_frame, text=f" {t('update_dlg_cancel')} ",
+                              font=FT, fg=FG, bg=BAR_BG, cursor='hand2', padx=10, pady=2)
+        cancel_btn.pack(side='right')
+        cancel_btn.bind('<Button-1>', lambda e: dlg.destroy())
+        cancel_btn.bind('<Enter>', lambda e: cancel_btn.config(bg=HOVER_BG))
+        cancel_btn.bind('<Leave>', lambda e: cancel_btn.config(bg=BAR_BG))
+
+        open_btn = tk.Label(btn_frame, text=f" {t('update_dlg_open_page')} ",
+                            font=FT, fg=BLUE, bg=BG, cursor='hand2', padx=8, pady=2)
+        open_btn.pack(side='left')
+        open_btn.bind('<Button-1>', lambda e: webbrowser.open(info['html_url']))
+
+        install_btn = tk.Label(btn_frame, text=f" {t('update_dlg_install')} ",
+                               font=FT_B, fg=BG, bg=CLAUDE, cursor='hand2', padx=12, pady=2)
+        install_btn.pack(side='right', padx=(0, 6))
+        install_btn.bind('<Enter>', lambda e: install_btn.config(bg='#E08060'))
+        install_btn.bind('<Leave>', lambda e: install_btn.config(bg=CLAUDE))
+
+        def fmt_size(n):
+            for unit in ('B', 'KB', 'MB'):
+                if n < 1024 or unit == 'MB':
+                    return f'{n:.1f} {unit}' if unit != 'B' else f'{n} {unit}'
+                n /= 1024
+            return f'{n:.1f} GB'
+
+        def draw_progress(pct):
+            w = progress_cv.winfo_width()
+            progress_cv.delete('all')
+            pill(progress_cv, 0, 0, w, 6, BAR_BG)
+            if pct > 0:
+                fw = max(6, w * pct / 100)
+                pill(progress_cv, 0, 0, fw, 6, CLAUDE)
+
+        def on_progress(done, total):
+            pct = int(done * 100 / total) if total else 0
+            status_lbl.config(
+                text=t('update_dlg_downloading').format(
+                    percent=pct, done=fmt_size(done), total=fmt_size(total) if total else '?'),
+                fg=DIM)
+            draw_progress(pct)
+
+        def start_download():
+            if not info.get('asset_url'):
+                webbrowser.open(info['html_url'])
+                dlg.destroy()
+                return
+            install_btn.unbind('<Button-1>')
+            install_btn.config(bg=DIM, cursor='arrow')
+            progress_cv.pack(fill='x', pady=(2, 0))
+            status_lbl.config(text=t('update_dlg_downloading').format(
+                percent=0, done='0', total=fmt_size(info.get('asset_size') or 0)), fg=DIM)
+            dest = os.path.join(tempfile.gettempdir(),
+                                f'ClaudeUsage-Setup-{info["version"]}.exe')
+            def worker():
+                try:
+                    download_installer(
+                        info['asset_url'], dest,
+                        on_progress=lambda d, tot: dlg.after(0, on_progress, d, tot))
+                    dlg.after(0, lambda: status_lbl.config(
+                        text=t('update_dlg_launching'), fg=BLUE))
+                    dlg.after(300, lambda: self._launch_installer(dest))
+                except Exception as e:
+                    wlog(f'UPDATE  download failed: {e}')
+                    dlg.after(0, lambda: status_lbl.config(
+                        text=t('update_dlg_failed').format(error=str(e)), fg=RED))
+                    dlg.after(0, lambda: install_btn.config(
+                        bg=CLAUDE, cursor='hand2'))
+                    dlg.after(0, lambda: install_btn.bind(
+                        '<Button-1>', lambda e: start_download()))
+            threading.Thread(target=worker, daemon=True).start()
+
+        install_btn.bind('<Button-1>', lambda e: start_download())
+
+    def _launch_installer(self, path):
+        """Spawn the downloaded installer and exit so it can replace files in place."""
+        try:
+            # /SILENT would run without UI but the user is better served seeing the wizard
+            # for consent. Inno Setup's CloseApplications=force will close us anyway.
+            subprocess.Popen(
+                [path],
+                creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP,
+                close_fds=True)
+        except Exception as e:
+            wlog(f'UPDATE  launch failed: {e}')
+            return
+        wlog('UPDATE  installer launched, exiting widget')
+        self._save_geometry()
+        # Give the OS a beat to start the installer before we vanish.
+        self.root.after(400, self._quit)
+
     # ── Open config ──────────────────────────────────
 
     def _open_config(self):
@@ -1337,107 +1839,6 @@ class Widget:
 
     def _renew_session(self):
         self._session_key_dialog(t('dlg_renew_title'))
-
-    def _session_dialog(self):
-        dlg = tk.Toplevel(self.root)
-        dlg.title('Renew Session')
-        dlg.configure(bg=BG)
-        dlg.overrideredirect(True)
-        dlg.attributes('-topmost', True)
-        dlg.resizable(False, False)
-
-        dlg.update_idletasks()
-        dw, dh = 420, 310
-        wx = self.root.winfo_x() + (self.root.winfo_width() - dw) // 2
-        wy = self.root.winfo_y() - dh - 10
-        if wy < 0:
-            wy = self.root.winfo_y() + self.root.winfo_height() + 10
-        dlg.geometry(f'{dw}x{dh}+{wx}+{wy}')
-        dlg.after(10, lambda: dwm_round(dlg))
-
-        tb = tk.Frame(dlg, bg=BG_TITLE, height=30)
-        tb.pack(fill='x')
-        tb.pack_propagate(False)
-        tk.Label(tb, text='  Renew Session', font=FT_B, fg=FG,
-                 bg=BG_TITLE).pack(side='left', padx=4)
-        close_btn = tk.Label(tb, text=' \u2715 ', font=('Segoe UI', 10),
-                             fg=DIM, bg=BG_TITLE, cursor='hand2')
-        close_btn.pack(side='right', padx=2)
-        close_btn.bind('<Button-1>', lambda e: dlg.destroy())
-
-        def drag_s(e): dlg._dx, dlg._dy = e.x, e.y
-        def drag_m(e): dlg.geometry(
-            f'+{dlg.winfo_x()+e.x-dlg._dx}+{dlg.winfo_y()+e.y-dlg._dy}')
-        tb.bind('<Button-1>', drag_s)
-        tb.bind('<B1-Motion>', drag_m)
-
-        body = tk.Frame(dlg, bg=BG)
-        body.pack(fill='both', expand=True, padx=PAD, pady=(8, PAD))
-
-        steps = [
-            '1. Log in to claude.ai in your browser',
-            '2. Press F12 to open DevTools',
-            '3. Click the "Application" tab at the top',
-            '   (if not visible, click \u00bb to show more tabs)',
-            '4. Left panel: Cookies \u2192 https://claude.ai',
-            '5. Find the row with Name = "sessionKey"',
-            '6. Double-click the "Value" column to select it',
-            '7. Ctrl+C to copy, then paste below:',
-        ]
-        for step in steps:
-            fg_c = DIM if step.startswith('   ') else FG
-            tk.Label(body, text=step, font=FT_S, fg=fg_c, bg=BG,
-                     anchor='w').pack(fill='x')
-
-        tk.Label(body, text='', bg=BG).pack()
-        entry = tk.Entry(body, font=FT_S, bg=BAR_BG, fg=FG,
-                         insertbackground=FG, bd=0, highlightthickness=1,
-                         highlightcolor=CLAUDE, highlightbackground=DIM)
-        entry.pack(fill='x', ipady=4)
-        entry.focus_set()
-
-        status_lbl = tk.Label(body, text='', font=FT_S, fg=RED, bg=BG)
-        status_lbl.pack(fill='x', pady=(2, 0))
-
-        def save_key():
-            key = entry.get().strip().strip('"').strip("'")
-            if not key:
-                status_lbl.config(text=t('dlg_paste_empty'), fg=RED)
-                return
-            if not key.startswith('sk-ant-'):
-                status_lbl.config(text=t('dlg_invalid_prefix'), fg=RED)
-                return
-            save_btn.config(bg=DIM)
-            save_btn.unbind('<Button-1>')
-            status_lbl.config(text=t('dlg_verifying'), fg=BLUE)
-            dlg.update_idletasks()
-            def detect():
-                try:
-                    org_id = fetch_org_id(key)
-                    dlg.after(0, lambda: on_ok(key, org_id))
-                except Exception as e:
-                    dlg.after(0, lambda: on_err(str(e)))
-            def on_ok(key, org_id):
-                self.cfg['session_key'] = key
-                self.cfg['org_id'] = org_id
-                save_cfg(self.cfg)
-                dlg.destroy()
-                self.refresh()
-            def on_err(msg):
-                status_lbl.config(text=f"{t('dlg_error_prefix')}: {msg}", fg=RED)
-                save_btn.config(bg=CLAUDE)
-                save_btn.bind('<Button-1>', lambda e: save_key())
-            threading.Thread(target=detect, daemon=True).start()
-
-        btn_frame = tk.Frame(body, bg=BG)
-        btn_frame.pack(fill='x', pady=(6, 0))
-        save_btn = tk.Label(btn_frame, text=' Save and Update ', font=FT_B,
-                            fg=BG, bg=CLAUDE, cursor='hand2', padx=8, pady=2)
-        save_btn.pack(side='right')
-        save_btn.bind('<Button-1>', lambda e: save_key())
-        save_btn.bind('<Enter>', lambda e: save_btn.config(bg='#E08060'))
-        save_btn.bind('<Leave>', lambda e: save_btn.config(bg=CLAUDE))
-        entry.bind('<Return>', lambda e: save_key())
 
     # ── Open session key guide ────────────────────────
 
@@ -1538,8 +1939,8 @@ class Widget:
                 self.cfg['org_id'] = org_id
                 save_cfg(self.cfg)
                 dlg.destroy()
+                self._clear_error()
                 if is_setup:
-                    self.lbl_err.pack_forget()
                     self._schedule()
                 self.refresh()
             def on_err(msg):
@@ -1615,12 +2016,12 @@ class Widget:
         self._topmost_job = self.root.after(500, self._keep_topmost)
 
     def _signal_quit(self, signum, frame):
-        wlog(f'SIGNAL ricevuto segnale {signum} — salvo e chiudo')
+        wlog(f'SIGNAL received {signum} -> saving and exiting')
         self._save_geometry()
         sys.exit(0)
 
     def _quit(self):
-        wlog('QUIT   _quit() chiamato')
+        wlog('QUIT   _quit() called')
         self._close_menu()
         self._save_geometry()
         if self._job:
@@ -1666,7 +2067,7 @@ if __name__ == '__main__':
             pass
     sys.excepthook = _excepthook
 
-    wlog('INIT   processo avviato')
+    wlog('INIT   process started')
     try:
         Widget()
     except Exception:

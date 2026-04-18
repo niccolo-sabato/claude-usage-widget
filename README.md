@@ -2,7 +2,7 @@
 
 A floating always-on-top desktop widget for Windows that displays real-time **Claude.ai** usage statistics. Built with Python + tkinter, styled in the Windows 11 Material design language: rounded corners, translucent background, pill-shaped progress bars.
 
-**Version:** 2.6.3 · **Platform:** Windows 10/11 · **License:** MIT
+**Version:** 2.8.0 · **Platform:** Windows 10/11 · **License:** MIT
 
 > 💡 **Tip:** the widget is designed to sit on top of the Windows taskbar in **Essential mode** for always-visible usage monitoring. See [Recommended placement](#recommended-placement).
 
@@ -13,6 +13,7 @@ A floating always-on-top desktop widget for Windows that displays real-time **Cl
 - **Three live usage bars**: current 5-hour session, 7-day all models, 7-day Sonnet-only
 - **Auto-refresh every 3 minutes** with live countdown timer
 - **Instant refresh** when a reset time is reached
+- **Auto-update** from GitHub releases with one click (no reinstall needed)
 - **Two display modes**: standard (full) and essential (compact, single bar)
 - **Drag-to-move** and **drag-to-resize** from the orange corner dot
 - **Always above the taskbar** - including after virtual desktop switch
@@ -121,11 +122,14 @@ Height is always auto-sized to content - you only control width.
 |---|---|
 | ↻ **Refresh** | Force immediate data refresh |
 | ⇅ **Normal / Essential mode** | Toggle between the two display modes |
-| ⚒ **Renew session…** | Update the sessionKey (when it expires) |
-| ⚙ **Open config.json** | Open config file in Notepad |
+| ⏳ **Refresh interval…** | Set auto-refresh interval (10-3600 seconds) |
+| 🗝 **Session key…** | Update the sessionKey (when it expires) |
+| ↗ **Go to Claude Usage** | Open the Claude.ai usage page in your browser |
+| { } **Open config.json** | Open config file in Notepad |
 | 🌐 **Language** | Switch UI language (EN / IT / JA) |
+| ⬆ **Check for updates…** | Check GitHub for a newer version |
 | ✕ **Quit** | Close the widget |
-| *v2.6.0* | Current version (non-clickable) |
+| *v2.8.0* | Current version (non-clickable) |
 
 **In essential mode:** right-click anywhere on the widget to open the menu.
 
@@ -151,14 +155,28 @@ Toggle with **double-click on the orange dot**.
 
 ## Auto-refresh and countdown
 
-- **Default interval:** 3 minutes (180 seconds)
+- **Default interval:** 3 minutes (180 seconds); configurable from the ≡ menu (10 – 3600 s)
 - **Countdown display:** `19:24 (2min 30s)` after the last refresh time
-- **Update frequency:**
-  - Every 30 seconds when > 30 seconds remaining
+- **Countdown cadence:**
+  - Every 30 seconds above 1 minute
+  - Every 10 seconds between 60 s and 30 s (ticks at 60, 50, 40)
   - Every 1 second in the final 30 seconds
 - **Reset trigger:** if a reset time is reached, the widget refreshes instantly regardless of the countdown
 
-Configurable via `config.json` (`refresh_ms` field, in milliseconds).
+---
+
+## Updates
+
+The widget checks GitHub for new releases automatically (at most once every 24 hours, silently in the background). When a newer version is published:
+
+1. An orange banner appears at the top of the widget: **"Update available: v2.X.Y"**
+2. Click **Update** → dialog opens with the changelog and a one-click installer download
+3. The widget downloads `ClaudeUsage-Setup.exe`, launches it, and exits
+4. The installer replaces the files in place (your config/position/language are preserved)
+
+The banner also offers **Later** (dismiss for this session) and **Skip** (never remind again for this specific version). You can run the check manually at any time from **≡ → Check for updates…**.
+
+To disable automatic checks entirely, set `"update_check_enabled": false` in `config.json`.
 
 ---
 
@@ -220,7 +238,10 @@ Config file: `%LOCALAPPDATA%\Claude Usage\config.json`
   "width": 280,
   "height": 90,
   "expanded": false,
-  "essential": false
+  "essential": false,
+  "update_check_enabled": true,
+  "last_update_check": 1744934400,
+  "skip_version": ""
 }
 ```
 

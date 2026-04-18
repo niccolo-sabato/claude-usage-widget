@@ -2,7 +2,9 @@
 from PIL import Image, ImageDraw, ImageFont
 import os
 
-OUT = 'C:/Users/Kanjiro/Scripts/claude-usage-widget/docs/images'
+# Resolve path relative to the script (works from any checkout location).
+_HERE = os.path.dirname(os.path.abspath(__file__))
+OUT = os.path.normpath(os.path.join(_HERE, '..', 'docs', 'images'))
 os.makedirs(OUT, exist_ok=True)
 
 BG = '#262624'

@@ -1,8 +1,10 @@
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
-$outDir = "C:\Users\Kanjiro\Scripts\claude-usage-widget\docs\images"
+$scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$outDir = Join-Path $scriptDir '..\docs\images'
 if (-not (Test-Path $outDir)) { New-Item -ItemType Directory -Path $outDir -Force | Out-Null }
+$outDir = (Resolve-Path $outDir).Path
 
 $names = @(
     "widget-standard",
@@ -25,7 +27,7 @@ foreach ($name in $names) {
     Read-Host "Copia l'immagine (clicca su Win+V) e premi INVIO"
 
     $img = [System.Windows.Forms.Clipboard]::GetImage()
-    if ($img -eq $null) {
+    if ($null -eq $img) {
         Write-Host "  Nessuna immagine negli appunti. Skip." -ForegroundColor Red
         continue
     }
