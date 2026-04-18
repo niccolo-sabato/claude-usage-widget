@@ -95,7 +95,7 @@ PCT_FG   = '#ffffff'
 MENU_BG  = '#2c2c2a'
 
 # ─── App ────────────────────────────────────────────
-APP_VERSION = '2.8.9'
+APP_VERSION = '2.8.10'
 
 # ─── Auto-update ────────────────────────────────────
 UPDATE_REPO = 'niccolo-sabato/claude-usage-widget'
@@ -543,13 +543,20 @@ def make_pill_button(parent, *, text, font, fg, bg, hover_bg, cmd,
     cv._pill_hover  = img_hover
     bg_item = cv.create_image(0, 0, image=img_normal, anchor='nw')
 
-    x = padx
     cy = btn_h / 2
     if icon:
-        cv.create_text(x, cy - 1, text=icon, fill=fg,
+        # Center the icon+text pair as a group so measurement padding on the
+        # text Label doesn't pull everything visually to one side.
+        content_w = icon_w + gap + text_w
+        start_x = (btn_w - content_w) / 2
+        cv.create_text(start_x, cy - 1, text=icon, fill=fg,
                        font=icon_font or font, anchor='w')
-        x += icon_w + gap
-    cv.create_text(x, cy, text=text, fill=fg, font=font, anchor='w')
+        cv.create_text(start_x + icon_w + gap, cy, text=text,
+                       fill=fg, font=font, anchor='w')
+    else:
+        # Anchor the Canvas text to the pill's geometric center.
+        cv.create_text(btn_w / 2, cy, text=text, fill=fg,
+                       font=font, anchor='center')
 
     cv.bind('<Enter>', lambda e: cv.itemconfigure(bg_item, image=img_hover))
     cv.bind('<Leave>', lambda e: cv.itemconfigure(bg_item, image=img_normal))
