@@ -1,0 +1,26 @@
+{
+  "extName":        { "message": "Claude Session Key" },
+  "extShortName":   { "message": "Claude Session Key" },
+  "extDescription": { "message": "Copia la tua session key di Claude.ai negli appunti con un click. Estensione companion per Claude Usage Widget." },
+  "actionTitle":    { "message": "Copia la session key di Claude.ai" },
+  "cmdCopyKey":     { "description": "Keyboard shortcut description", "message": "Copia session key negli appunti" },
+
+  "ui_searching":       { "message": "Ricerca session key in corso" },
+  "ui_found":           { "message": "Session key trovata" },
+  "ui_notFound":        { "message": "Session key non trovata" },
+  "ui_notLoggedIn":     { "message": "Accedi prima a claude.ai" },
+  "ui_openClaude":      { "message": "Apri claude.ai" },
+  "ui_retry":           { "message": "Riprova" },
+  "ui_copy":            { "message": "Copia negli appunti" },
+  "ui_copied":          { "message": "Copiata!" },
+  "ui_copyFailed":      { "message": "Copia non riuscita. Seleziona la chiave e premi Ctrl+C." },
+  "ui_invalidFormat":   { "message": "Formato cookie inatteso. Ci si aspetta il prefisso \"sk-ant-\"." },
+  "ui_genericError":    { "message": "Errore" },
+  "ui_paste_hint":      { "message": "Incolla questa chiave nella configurazione di Claude Usage Widget" },
+  "ui_getWidgetPrompt": { "message": "Non hai ancora il widget?" },
+  "ui_getWidgetLink":   { "message": "Ottienilo qui" },
+  "ui_expiresIn":       { "message": "La sessione scade tra $DAYS$ giorni", "placeholders": { "days": { "content": "$1" } } },
+  "ui_expiresSoon":     { "message": "La sessione scade tra $HOURS$ ore", "placeholders": { "hours": { "content": "$1" } } },
+  "ui_expired":         { "message": "Sessione scaduta" },
+  "ui_shortcutHint":    { "message": "Suggerimento: usa la scorciatoia da tastiera per copiare senza aprire questa finestra." }
+}

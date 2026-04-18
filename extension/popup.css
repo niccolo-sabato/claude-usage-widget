@@ -1,0 +1,150 @@
+/* Claude Session Key - Popup styles */
+
+:root {
+  --bg:        #1e1e1c;
+  --bg2:       #262624;
+  --bg3:       #2c2c2a;
+  --bar:       #3a3a38;
+  --fg:        #e4e4e4;
+  --dim:       #9a9a98;
+  --dimmer:    #7a7a78;
+  --accent:    #DA7756;
+  --accent-hv: #E08060;
+  --green:     #6BC275;
+  --green-hv:  #7ED48A;
+  --green-dk:  #0d1f0d;
+  --blue:      #5BA8C8;
+  --red:       #E85858;
+  --orange:    #E8A838;
+  --radius-lg: 8px;
+  --radius-md: 6px;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html { color-scheme: dark; }
+
+body {
+  width: 320px;
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--fg);
+  padding: 16px;
+  line-height: 1.5;
+}
+
+h1 {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+h1 img { width: 20px; height: 20px; display: block; }
+
+.status {
+  font-size: 12px;
+  padding: 10px 12px;
+  border-radius: var(--radius-lg);
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+}
+.status.loading  { background: #2a2a28; color: var(--dim); }
+.status.success  { background: #1a2e1a; color: var(--green); }
+.status.error    { background: #2e1a1a; color: var(--red); }
+.status.warning  { background: #2e2a1a; color: var(--orange); }
+
+.spinner {
+  width: 14px; height: 14px;
+  border: 2px solid var(--bar);
+  border-top-color: var(--dim);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.status-icon {
+  font-size: 14px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.key-box {
+  background: var(--bg2);
+  border: 1px solid var(--bar);
+  border-radius: var(--radius-md);
+  padding: 8px 10px;
+  font-family: 'Cascadia Code', 'Consolas', 'Courier New', monospace;
+  font-size: 11px;
+  color: var(--accent);
+  word-break: break-all;
+  max-height: 60px;
+  overflow-y: auto;
+  margin-bottom: 8px;
+  user-select: all;
+  -webkit-user-select: all;
+}
+
+.expiry-note {
+  font-size: 11px;
+  color: var(--dimmer);
+  margin-bottom: 12px;
+  text-align: center;
+}
+.expiry-note.warning { color: var(--orange); }
+.expiry-note.error   { color: var(--red); }
+
+.btn {
+  display: block;
+  width: 100%;
+  padding: 8px;
+  border: none;
+  border-radius: var(--radius-md);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.08s;
+}
+.btn:active { transform: scale(0.98); }
+.btn:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+
+.btn-primary { background: var(--accent); color: var(--bg); }
+.btn-primary:hover { background: var(--accent-hv); }
+
+.btn-copy { background: var(--green); color: var(--green-dk); }
+.btn-copy:hover { background: var(--green-hv); }
+.btn-copy.copied { background: var(--bar); color: var(--green); }
+
+.hint {
+  font-size: 11px;
+  color: var(--dimmer);
+  margin-top: 10px;
+  text-align: center;
+}
+.hint + .hint { margin-top: 4px; }
+.hint a { color: var(--blue); text-decoration: none; }
+.hint a:hover { text-decoration: underline; }
+
+kbd {
+  background: var(--bg2);
+  border: 1px solid var(--bar);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-family: 'Cascadia Code', 'Consolas', monospace;
+  font-size: 10px;
+  color: var(--fg);
+}
+
+[hidden] { display: none !important; }
+
+.fade-enter {
+  animation: fadeIn 0.2s ease-out;
+}
+@keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }

@@ -1,16 +1,22 @@
 {
   "manifest_version": 3,
-  "name": "Claude Session Key",
-  "short_name": "Claude Session Key",
-  "version": "1.0.3",
-  "description": "Copy your Claude.ai session key to clipboard with one click. Companion for Claude Usage Widget.",
+  "name": "__MSG_extName__",
+  "short_name": "__MSG_extShortName__",
+  "version": "1.1.0",
+  "description": "__MSG_extDescription__",
+  "default_locale": "en",
   "author": "Niccolo Sabato",
   "homepage_url": "https://github.com/niccolo-sabato/claude-usage-widget",
+  "minimum_chrome_version": "116",
   "permissions": ["cookies"],
   "host_permissions": ["*://*.claude.ai/*"],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
   "action": {
     "default_popup": "popup.html",
-    "default_title": "Copy Claude.ai session key",
+    "default_title": "__MSG_actionTitle__",
     "default_icon": {
       "16": "icon16.png",
       "48": "icon48.png",
