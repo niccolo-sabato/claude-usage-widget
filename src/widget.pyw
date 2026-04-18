@@ -93,7 +93,7 @@ PCT_FG   = '#ffffff'
 MENU_BG  = '#2c2c2a'
 
 # ─── App ────────────────────────────────────────────
-APP_VERSION = '2.8.2'
+APP_VERSION = '2.8.3'
 
 # ─── Auto-update ────────────────────────────────────
 UPDATE_REPO = 'niccolo-sabato/claude-usage-widget'
@@ -1789,40 +1789,96 @@ class Widget:
         self.root.after(0, self._show_update_dialog, info)
 
     def _show_update_banner(self, info):
-        """Show a slim orange banner at the top of the widget with Update/Later/Skip."""
-        if getattr(self, '_update_banner', None):
-            try:
-                self._update_banner.destroy()
-            except Exception:
-                pass
-        bar = tk.Frame(self.main, bg=ORANGE)
+        """Floating notification above the widget with Update/Later/Skip actions.
+
+        Independent Toplevel so it can size itself freely and stays visible even
+        in essential mode where the widget is just a strip. Follows the widget
+        when it's moved or resized.
+        """
+        self._dismiss_update_banner()
+        bar = tk.Toplevel(self.root)
         self._update_banner = bar
-        bar.pack(fill='x', before=self.tb if self.tb.winfo_ismapped() else self.content)
+        bar.overrideredirect(True)
+        bar.attributes('-topmost', True)
+        bar.configure(bg=ORANGE)
+
+        wrap = tk.Frame(bar, bg=ORANGE, padx=14, pady=10)
+        wrap.pack()
+
+        tk.Label(wrap, text='\u2B06', font=FT_EMOJI_11,
+                 fg='#1e1e1c', bg=ORANGE).pack(side='left', padx=(0, 8))
 
         msg = t('update_banner_available').format(version=info['version'])
-        tk.Label(bar, text=msg, font=FT_B, fg='#1e1e1c', bg=ORANGE,
-                 anchor='w', padx=8, pady=3).pack(side='left', fill='x', expand=True)
+        tk.Label(wrap, text=msg, font=FT_DLG_H, fg='#1e1e1c',
+                 bg=ORANGE).pack(side='left', padx=(0, 14))
 
-        def make_btn(text, cmd, fg='#1e1e1c'):
-            b = tk.Label(bar, text=f' {text} ', font=FT_S, fg=fg, bg=ORANGE,
-                         cursor='hand2', padx=4)
-            b.pack(side='right', padx=(0, 2))
-            b.bind('<Button-1>', lambda e: cmd())
-            b.bind('<Enter>', lambda e: b.config(fg='#ffffff'))
-            b.bind('<Leave>', lambda e: b.config(fg=fg))
-            return b
+        def banner_pill(text, cmd, primary=False):
+            if primary:
+                return make_pill_button(
+                    wrap, text=text, font=FT_DLG_BTN_B,
+                    fg='#FFFFFF', bg='#2c2c2a', hover_bg='#3c3c3a',
+                    cmd=cmd, padx=14, pady=6, parent_bg=ORANGE)
+            return make_pill_button(
+                wrap, text=text, font=FT_DLG_BTN,
+                fg='#1e1e1c', bg='#D89018', hover_bg='#C88008',
+                cmd=cmd, padx=12, pady=6, parent_bg=ORANGE)
 
-        make_btn(t('update_banner_skip'),   lambda: self._skip_update(info))
-        make_btn(t('update_banner_later'),  self._dismiss_update_banner)
-        make_btn(t('update_banner_update'), lambda: self._show_update_dialog(info))
+        banner_pill(t('update_banner_update'),
+                    lambda: self._show_update_dialog(info),
+                    primary=True).pack(side='left', padx=(0, 6))
+        banner_pill(t('update_banner_later'),
+                    self._dismiss_update_banner).pack(side='left', padx=(0, 6))
+        banner_pill(t('update_banner_skip'),
+                    lambda: self._skip_update(info)).pack(side='left')
+
+        bar.update_idletasks()
+        bw = max(bar.winfo_reqwidth(), 380)
+        bh = bar.winfo_reqheight()
+        self._reposition_banner(bw, bh)
+        bar.after(50, lambda: dwm_round(bar))
+        bar.bind('<Escape>', lambda e: self._dismiss_update_banner())
+
+        # Follow the widget while it's moved/resized.
+        self._banner_size = (bw, bh)
+        self._banner_follow_id = self.root.bind(
+            '<Configure>',
+            lambda e: self.root.after_idle(self._on_banner_follow),
+            add='+')
+
+    def _reposition_banner(self, bw, bh):
+        bar = getattr(self, '_update_banner', None)
+        if not bar or not bar.winfo_exists():
+            return
+        wx = self.root.winfo_x() + (self.root.winfo_width() - bw) // 2
+        wy = self.root.winfo_y() - bh - 8
+        if wy < SCREEN_MARGIN:
+            wy = self.root.winfo_y() + self.root.winfo_height() + 8
+        sw = self.root.winfo_screenwidth()
+        sh = self.root.winfo_screenheight()
+        wx = max(SCREEN_MARGIN, min(wx, sw - bw - SCREEN_MARGIN))
+        wy = max(SCREEN_MARGIN, min(wy, sh - bh - TASKBAR_GAP))
+        bar.geometry(f'{bw}x{bh}+{wx}+{wy}')
+
+    def _on_banner_follow(self):
+        bw, bh = getattr(self, '_banner_size', (0, 0))
+        if bw and bh:
+            self._reposition_banner(bw, bh)
 
     def _dismiss_update_banner(self):
-        if getattr(self, '_update_banner', None):
+        bar = getattr(self, '_update_banner', None)
+        if bar:
             try:
-                self._update_banner.destroy()
+                bar.destroy()
             except Exception:
                 pass
             self._update_banner = None
+        follow_id = getattr(self, '_banner_follow_id', None)
+        if follow_id:
+            try:
+                self.root.unbind('<Configure>', follow_id)
+            except Exception:
+                pass
+            self._banner_follow_id = None
 
     def _skip_update(self, info):
         self.cfg['skip_version'] = info['version']
