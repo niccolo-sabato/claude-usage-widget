@@ -2,7 +2,7 @@
 
 A floating always-on-top desktop widget for Windows that displays real-time **Claude.ai** usage statistics. Built with Python + tkinter, styled in the Windows 11 Material design language: rounded corners, translucent background, pill-shaped progress bars.
 
-**Version:** 2.8.5 · **Platform:** Windows 10/11 · **License:** MIT
+**Version:** 2.8.6 · **Platform:** Windows 10/11 · **License:** MIT
 
 > 💡 **Tip:** the widget is designed to sit on top of the Windows taskbar in **Essential mode** for always-visible usage monitoring. See [Recommended placement](#recommended-placement).
 
@@ -129,7 +129,7 @@ Height is always auto-sized to content - you only control width.
 | 🌐 **Language** | Switch UI language (EN / IT / JA) |
 | ⬆ **Check for updates…** | Check GitHub for a newer version |
 | ✕ **Quit** | Close the widget |
-| *v2.8.5* | Current version (non-clickable) |
+| *v2.8.6* | Current version (non-clickable) |
 
 **In essential mode:** right-click anywhere on the widget to open the menu.
 
@@ -176,7 +176,7 @@ The widget checks GitHub for new releases automatically (at most once every 24 h
 
 The banner also offers **Later** (dismiss for this session) and **Skip** (never remind again for this specific version). You can run the check manually at any time from **≡ → Check for updates…**.
 
-To disable automatic checks entirely, set `"update_check_enabled": false` in `config.json`.
+To disable automatic checks entirely, set `"update_check_enabled": false` in `config.json`. To bypass the 24h throttle and re-check on every launch, set `"always_check_updates": true` (useful during development).
 
 ---
 
@@ -240,6 +240,7 @@ Config file: `%LOCALAPPDATA%\Claude Usage\config.json`
   "expanded": false,
   "essential": false,
   "update_check_enabled": true,
+  "always_check_updates": false,
   "last_update_check": 1744934400,
   "skip_version": ""
 }

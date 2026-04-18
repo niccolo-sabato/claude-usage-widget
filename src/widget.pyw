@@ -94,13 +94,14 @@ PCT_FG   = '#ffffff'
 MENU_BG  = '#2c2c2a'
 
 # ─── App ────────────────────────────────────────────
-APP_VERSION = '2.8.5'
+APP_VERSION = '2.8.6'
 
 # ─── Auto-update ────────────────────────────────────
 UPDATE_REPO = 'niccolo-sabato/claude-usage-widget'
 UPDATE_API_URL = f'https://api.github.com/repos/{UPDATE_REPO}/releases/latest'
 UPDATE_RELEASES_URL = f'https://github.com/{UPDATE_REPO}/releases'
 UPDATE_ASSET_NAME = 'ClaudeUsage-Setup.exe'
+UPDATE_CHECK_INTERVAL_S = 24 * 3600       # default throttle between auto-checks
 UPDATE_STARTUP_DELAY_MS = 10_000          # check 10s after widget ready
 UPDATE_CHANGELOG_MAX_CHARS = 900          # truncate release body shown in dialog
 
@@ -1781,13 +1782,29 @@ class Widget:
     # ── Auto-update ──────────────────────────────────
 
     def _schedule_update_check(self):
-        """Schedule the update check shortly after startup. Runs every launch."""
+        """Schedule the update check shortly after startup.
+
+        Normally throttled to once every `UPDATE_CHECK_INTERVAL_S` seconds
+        (24h) to be polite to the GitHub API. Can be overridden by setting
+        `always_check_updates: true` in config.json — useful during development
+        on the maintainer's machine where every launch should re-check.
+        """
         if not self.cfg.get('update_check_enabled', True):
             return
+        if not self.cfg.get('always_check_updates', False):
+            last = self.cfg.get('last_update_check', 0)
+            now_ts = int(datetime.now().timestamp())
+            if now_ts - last < UPDATE_CHECK_INTERVAL_S:
+                return
         self.root.after(UPDATE_STARTUP_DELAY_MS, self._auto_check_updates)
 
     def _auto_check_updates(self):
         """Run a non-blocking update check; show banner only if newer + not skipped."""
+        # Only persist the timestamp when we're respecting the throttle, so the
+        # dev override doesn't clutter the config with a stale marker.
+        if not self.cfg.get('always_check_updates', False):
+            self.cfg['last_update_check'] = int(datetime.now().timestamp())
+            save_cfg(self.cfg)
         threading.Thread(target=self._do_check_auto, daemon=True).start()
 
     def _do_check_auto(self):
