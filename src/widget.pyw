@@ -95,7 +95,7 @@ PCT_FG   = '#ffffff'
 MENU_BG  = '#2c2c2a'
 
 # ─── App ────────────────────────────────────────────
-APP_VERSION = '2.8.12'
+APP_VERSION = '2.8.13'
 
 # ─── Auto-update ────────────────────────────────────
 UPDATE_REPO = 'niccolo-sabato/claude-usage-widget'
@@ -1660,7 +1660,7 @@ class Widget:
         if self._menu_win and self._menu_win.winfo_exists():
             wlog('MENU   toggle: closing existing menu')
             self._close_menu()
-            return
+            return 'break'
 
         m = tk.Toplevel(self.root)
         self._menu_win = m
@@ -1728,6 +1728,11 @@ class Widget:
         m.bind('<Escape>', lambda e: self._close_menu())
         self._bind_menu_autoclose(m)
         m.focus_set()
+        # Stop the click from propagating to ancestor widgets that also bind
+        # <Button-1> or <Button-3> to _show_menu (in essential mode several
+        # children share the same binding, which would fire _show_menu twice
+        # and toggle the menu shut).
+        return 'break'
 
     def _bind_menu_autoclose(self, m):
         """Close the menu when the user clicks anywhere on the widget body.
@@ -1836,6 +1841,7 @@ class Widget:
         m.bind('<Escape>', lambda e: self._close_menu())
         self._bind_menu_autoclose(m)
         m.focus_set()
+        return 'break'
 
     def _set_language(self, code):
         """Apply new language, save to config, retranslate visible UI."""
