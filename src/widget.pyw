@@ -95,7 +95,7 @@ PCT_FG   = '#ffffff'
 MENU_BG  = '#2c2c2a'
 
 # ─── App ────────────────────────────────────────────
-APP_VERSION = '2.8.13'
+APP_VERSION = '2.8.14'
 
 # ─── Auto-update ────────────────────────────────────
 UPDATE_REPO = 'niccolo-sabato/claude-usage-widget'
@@ -226,19 +226,19 @@ LANG = {
         'update_banner_later': 'Later',
         'update_banner_skip': 'Skip',
         'update_dlg_title': 'Update available',
-        'update_dlg_subtitle': 'Version {version} is available (you have {current}).',
-        'update_dlg_changelog': "What's new:",
+        'update_dlg_subtitle': 'Version {version} is available. You\u2019re currently running {current}.',
+        'update_dlg_changelog': "What\u2019s new",
         'update_dlg_install': 'Install now',
         'update_dlg_cancel': 'Cancel',
-        'update_dlg_no_changelog': '(no release notes)',
-        'update_dlg_downloading': 'Downloading {percent}% ({done} / {total})',
-        'update_dlg_launching': 'Launching installer\u2026',
+        'update_dlg_no_changelog': 'No release notes provided.',
+        'update_dlg_downloading': 'Downloading {percent}%  ({done} / {total})',
+        'update_dlg_launching': 'Updating\u2026',
         'update_dlg_failed': 'Update failed: {error}',
-        'update_dlg_open_page': 'Open release page',
+        'update_dlg_open_page': 'View on GitHub',
         'update_check_checking': 'Checking for updates\u2026',
-        'update_check_uptodate': 'You are on the latest version (v{version}).',
+        'update_check_uptodate': 'You\u2019re already on the latest version (v{version}).',
         'update_check_failed': 'Could not reach GitHub. Try again later.',
-        'update_check_no_asset': 'New version available but no installer asset was found.',
+        'update_check_no_asset': 'New version available but the installer is missing from the release.',
         # Dialog
         'dlg_renew_title': 'Renew session',
         'dlg_setup_title': 'Welcome',
@@ -293,19 +293,19 @@ LANG = {
         'update_banner_later': 'Dopo',
         'update_banner_skip': 'Ignora',
         'update_dlg_title': 'Aggiornamento disponibile',
-        'update_dlg_subtitle': 'La versione {version} \u00e8 disponibile (hai la {current}).',
-        'update_dlg_changelog': 'Novit\u00e0:',
+        'update_dlg_subtitle': '\u00c8 disponibile la versione {version}. Attualmente stai usando la {current}.',
+        'update_dlg_changelog': 'Cosa cambia',
         'update_dlg_install': 'Installa ora',
         'update_dlg_cancel': 'Annulla',
-        'update_dlg_no_changelog': '(nessuna nota di rilascio)',
-        'update_dlg_downloading': 'Download {percent}% ({done} / {total})',
-        'update_dlg_launching': 'Avvio installer\u2026',
+        'update_dlg_no_changelog': 'Nessuna nota di rilascio disponibile.',
+        'update_dlg_downloading': 'Download {percent}%  ({done} / {total})',
+        'update_dlg_launching': 'Aggiornamento in corso\u2026',
         'update_dlg_failed': 'Aggiornamento fallito: {error}',
-        'update_dlg_open_page': 'Apri pagina rilascio',
+        'update_dlg_open_page': 'Vedi su GitHub',
         'update_check_checking': 'Controllo aggiornamenti\u2026',
-        'update_check_uptodate': 'Versione gi\u00e0 aggiornata (v{version}).',
+        'update_check_uptodate': 'Stai gi\u00e0 usando la versione pi\u00f9 recente (v{version}).',
         'update_check_failed': 'Impossibile contattare GitHub. Riprova pi\u00f9 tardi.',
-        'update_check_no_asset': 'Nuova versione disponibile ma non trovo l\u2019installer.',
+        'update_check_no_asset': 'Nuova versione disponibile ma l\u2019installer non \u00e8 stato trovato nella release.',
         'dlg_renew_title': 'Rinnova sessione',
         'dlg_setup_title': 'Benvenuto',
         'dlg_welcome_hint': 'Collega il widget al tuo account Claude.ai.',
@@ -358,19 +358,19 @@ LANG = {
         'update_banner_later': '\u3042\u3068\u3067',
         'update_banner_skip': '\u30b9\u30ad\u30c3\u30d7',
         'update_dlg_title': '\u65b0\u3057\u3044\u30d0\u30fc\u30b8\u30e7\u30f3\u304c\u3042\u308a\u307e\u3059',
-        'update_dlg_subtitle': '\u30d0\u30fc\u30b8\u30e7\u30f3 {version} \u304c\u5229\u7528\u53ef\u80fd\u3067\u3059\uff08\u73fe\u5728 {current}\uff09\u3002',
-        'update_dlg_changelog': '\u5909\u66f4\u70b9:',
-        'update_dlg_install': '\u4eca\u3059\u3050\u30a4\u30f3\u30b9\u30c8\u30fc\u30eb',
+        'update_dlg_subtitle': '\u30d0\u30fc\u30b8\u30e7\u30f3 {version} \u304c\u5229\u7528\u53ef\u80fd\u3067\u3059\u3002\u73fe\u5728\u306e\u30d0\u30fc\u30b8\u30e7\u30f3: {current}',
+        'update_dlg_changelog': '\u5909\u66f4\u70b9',
+        'update_dlg_install': '\u4eca\u3059\u3050\u66f4\u65b0',
         'update_dlg_cancel': '\u30ad\u30e3\u30f3\u30bb\u30eb',
-        'update_dlg_no_changelog': '\uff08\u30ea\u30ea\u30fc\u30b9\u30ce\u30fc\u30c8\u306a\u3057\uff09',
-        'update_dlg_downloading': '\u30c0\u30a6\u30f3\u30ed\u30fc\u30c9\u4e2d {percent}%\uff08{done} / {total}\uff09',
-        'update_dlg_launching': '\u30a4\u30f3\u30b9\u30c8\u30fc\u30e9\u30fc\u3092\u8d77\u52d5\u4e2d\u2026',
-        'update_dlg_failed': '\u66f4\u65b0\u306b\u5931\u6557: {error}',
-        'update_dlg_open_page': '\u30ea\u30ea\u30fc\u30b9\u30da\u30fc\u30b8\u3092\u958b\u304f',
+        'update_dlg_no_changelog': '\u30ea\u30ea\u30fc\u30b9\u30ce\u30fc\u30c8\u306f\u3042\u308a\u307e\u305b\u3093\u3002',
+        'update_dlg_downloading': '\u30c0\u30a6\u30f3\u30ed\u30fc\u30c9\u4e2d {percent}%  ({done} / {total})',
+        'update_dlg_launching': '\u66f4\u65b0\u4e2d\u2026',
+        'update_dlg_failed': '\u66f4\u65b0\u306b\u5931\u6557\u3057\u307e\u3057\u305f: {error}',
+        'update_dlg_open_page': 'GitHub \u3067\u8868\u793a',
         'update_check_checking': '\u66f4\u65b0\u3092\u78ba\u8a8d\u4e2d\u2026',
-        'update_check_uptodate': '\u6700\u65b0\u30d0\u30fc\u30b8\u30e7\u30f3\u3067\u3059\uff08v{version}\uff09\u3002',
+        'update_check_uptodate': '\u3059\u3067\u306b\u6700\u65b0\u30d0\u30fc\u30b8\u30e7\u30f3\u3067\u3059\uff08v{version}\uff09\u3002',
         'update_check_failed': 'GitHub \u306b\u63a5\u7d9a\u3067\u304d\u307e\u305b\u3093\u3002\u5f8c\u3067\u518d\u8a66\u884c\u3057\u3066\u304f\u3060\u3055\u3044\u3002',
-        'update_check_no_asset': '\u65b0\u3057\u3044\u30d0\u30fc\u30b8\u30e7\u30f3\u306f\u3042\u308a\u307e\u3059\u304c\u3001\u30a4\u30f3\u30b9\u30c8\u30fc\u30e9\u30fc\u304c\u898b\u3064\u304b\u308a\u307e\u305b\u3093\u3002',
+        'update_check_no_asset': '\u65b0\u3057\u3044\u30d0\u30fc\u30b8\u30e7\u30f3\u306f\u3042\u308a\u307e\u3059\u304c\u3001\u30ea\u30ea\u30fc\u30b9\u306b\u30a4\u30f3\u30b9\u30c8\u30fc\u30e9\u30fc\u304c\u542b\u307e\u308c\u3066\u3044\u307e\u305b\u3093\u3002',
         'dlg_renew_title': '\u30bb\u30c3\u30b7\u30e7\u30f3\u66f4\u65b0',
         'dlg_setup_title': '\u3088\u3046\u3053\u305d',
         'dlg_welcome_hint': 'Claude.ai \u30a2\u30ab\u30a6\u30f3\u30c8\u3068\u30a6\u30a3\u30b8\u30a7\u30c3\u30c8\u3092\u63a5\u7d9a\u3057\u307e\u3059\u3002',
@@ -1662,6 +1662,10 @@ class Widget:
             self._close_menu()
             return 'break'
 
+        # Dismiss the update banner so it can't compete with the menu for
+        # Z-order / focus. User can re-trigger via Check for updates.
+        self._dismiss_update_banner()
+
         m = tk.Toplevel(self.root)
         self._menu_win = m
         m.overrideredirect(True)
@@ -1735,33 +1739,18 @@ class Widget:
         return 'break'
 
     def _bind_menu_autoclose(self, m):
-        """Close the menu when the user clicks anywhere on the widget body.
+        """Intentionally a no-op.
 
-        FocusOut is not usable while the update banner is visible: the banner
-        is always-on-top and keeps reclaiming focus, which would destroy the
-        menu before the user could interact with it. We instead bind a
-        Button-1 on the root widget so clicking outside the menu (i.e. on
-        the widget itself) closes it — the same intuition as a native
-        dropdown. Binding is deferred via after_idle so the click that just
-        opened the menu doesn't bubble up and immediately close it.
+        Earlier versions wired up click-outside-to-close and FocusOut-to-close,
+        but both patterns fought with the update banner's topmost focus steal
+        and with the event bindtags (root is in every child's bindtag chain,
+        so a <Button-1> on the root widget would also fire for clicks on
+        children that were meant to interact with something else). The menu
+        now closes only on explicit user action: clicking a menu item, the
+        hamburger button again, or Escape. That's predictable and avoids a
+        whole class of flaky behavior.
         """
-        def on_root_click(_e):
-            self._close_menu()
-
-        def attach():
-            if not m.winfo_exists():
-                return
-            binding_id = self.root.bind('<Button-1>', on_root_click, add='+')
-
-            def cleanup():
-                try:
-                    self.root.unbind('<Button-1>', binding_id)
-                except Exception:
-                    pass
-
-            m._autoclose_cleanup = cleanup
-
-        self.root.after_idle(attach)
+        pass
 
     def _lift_menu(self, m):
         """Force menu Toplevel above everything including the main widget."""
@@ -1778,10 +1767,6 @@ class Widget:
     def _close_menu(self):
         m = self._menu_win
         if m and m.winfo_exists():
-            # Detach the click-outside binding before destroying the Toplevel.
-            cleanup = getattr(m, '_autoclose_cleanup', None)
-            if cleanup:
-                cleanup()
             m.destroy()
             wlog('MENU   closed')
         self._menu_win = None
