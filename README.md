@@ -2,7 +2,7 @@
 
 A floating always-on-top desktop widget for Windows that displays real-time **Claude.ai** usage statistics. Built with Python + tkinter, styled in the Windows 11 Material design language: rounded corners, translucent background, pill-shaped progress bars.
 
-**Version:** 2.8.16 · **Platform:** Windows 10/11 · **License:** MIT
+**Version:** 2.8.17 · **Platform:** Windows 10/11 · **License:** MIT
 
 > 💡 **Tip:** the widget is designed to sit on top of the Windows taskbar in **Essential mode** for always-visible usage monitoring. See [Recommended placement](#recommended-placement).
 
@@ -129,7 +129,7 @@ Height is always auto-sized to content - you only control width.
 | 🌐 **Language** | Switch UI language (EN / IT / JA) |
 | ⬆ **Check for updates…** | Check GitHub for a newer version |
 | ✕ **Quit** | Close the widget |
-| *v2.8.16* | Current version (non-clickable) |
+| *v2.8.17* | Current version (non-clickable) |
 
 **In essential mode:** right-click anywhere on the widget to open the menu.
 
