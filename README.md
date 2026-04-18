@@ -4,6 +4,8 @@ A floating always-on-top desktop widget for Windows that displays real-time **Cl
 
 **Version:** 2.6.3 · **Platform:** Windows 10/11 · **License:** MIT
 
+> 💡 **Tip:** the widget is designed to sit on top of the Windows taskbar in **Essential mode** for always-visible usage monitoring. See [Recommended placement](#recommended-placement).
+
 ---
 
 ## Features at a glance
