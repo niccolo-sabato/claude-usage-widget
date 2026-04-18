@@ -90,7 +90,7 @@ PCT_FG   = '#ffffff'
 MENU_BG  = '#2c2c2a'
 
 # ─── App ────────────────────────────────────────────
-APP_VERSION = '2.7.3'
+APP_VERSION = '2.7.4'
 
 # ─── Layout ──────────────────────────────────────────
 DEF_W    = 280
@@ -107,7 +107,7 @@ FT       = ('Segoe UI', 9)
 FT_B     = ('Segoe UI', 9, 'bold')
 FT_S     = ('Segoe UI', 8)
 FT_BTN   = ('Segoe UI', 11)
-FT_EMOJI = ('Segoe UI Emoji', 11)
+FT_EMOJI = ('Segoe UI Emoji', 10)
 FT_DOT   = ('Segoe UI', 10)
 FT_BAR   = ('Segoe UI', 9, 'bold')
 
@@ -1103,7 +1103,7 @@ class Widget:
             None,
             ('\u23F3', FT_EMOJI, interval_label, self._show_interval_dialog),
             ('\U0001F5DD', FT_EMOJI, t('menu_renew'), self._renew_session),
-            ('\u2197', FT, t('menu_open_claude'), self._open_claude_usage),
+            ('\u2197\uFE0F', FT_EMOJI, t('menu_open_claude'), self._open_claude_usage),
             ('{}', FT_EMOJI, t('menu_open_config'), self._open_config),
             ('\U0001F30D', FT_EMOJI, lang_label, self._show_language_menu),
             None,
