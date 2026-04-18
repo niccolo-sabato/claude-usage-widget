@@ -95,7 +95,7 @@ PCT_FG   = '#ffffff'
 MENU_BG  = '#2c2c2a'
 
 # ─── App ────────────────────────────────────────────
-APP_VERSION = '2.8.27'
+APP_VERSION = '2.8.28'
 
 # ─── Auto-update ────────────────────────────────────
 UPDATE_REPO = 'niccolo-sabato/claude-usage-widget'
@@ -1819,7 +1819,14 @@ class Widget:
         ]
 
         ROW_PADY = 5
-        ROW_ICON_W = 3
+        # Fixed-pixel icon column. `width=N` on a tk.Label is N characters of
+        # THAT LABEL's font, so different icon fonts (MDL2, Segoe UI Emoji at
+        # different sizes) gave different pixel widths — which is why the
+        # text started at different X positions row-to-row. Wrapping each
+        # icon in a fixed-pixel Frame makes the icon column identical for
+        # every row regardless of which font the icon uses.
+        ICON_CELL_W = 34
+        ICON_CELL_H = 26
         for item in items:
             if item is None:
                 tk.Frame(m, bg=BAR_BG, height=1).pack(fill='x', padx=12, pady=4)
@@ -1831,21 +1838,21 @@ class Widget:
                 continue
             row = tk.Frame(m, bg=MENU_BG, cursor='hand2')
             row.pack(fill='x')
-            ico_lbl = tk.Label(row, text=icon, font=icon_ft, fg=FG, bg=MENU_BG,
-                               padx=6, pady=ROW_PADY, width=ROW_ICON_W)
-            ico_lbl.pack(side='left')
+            icon_cell = tk.Frame(row, bg=MENU_BG, width=ICON_CELL_W, height=ICON_CELL_H)
+            icon_cell.pack(side='left', pady=ROW_PADY)
+            icon_cell.pack_propagate(False)  # enforce fixed pixel W x H
+            ico_lbl = tk.Label(icon_cell, text=icon, font=icon_ft, fg=FG, bg=MENU_BG)
+            ico_lbl.pack(expand=True)
             txt_lbl = tk.Label(row, text=text, font=FT_MENU, fg=FG, bg=MENU_BG,
                                anchor='w', pady=ROW_PADY)
-            # Tuple padx is valid on pack() but NOT on the Label constructor
-            # — the latter throws TclError("bad screen distance") which tk
-            # swallows, leaving the Toplevel empty (the bug that broke the
-            # menu across many releases).
             txt_lbl.pack(side='left', fill='x', expand=True, padx=(0, 14))
-            for w in (row, ico_lbl, txt_lbl):
-                w.bind('<Enter>', lambda e, r=row, i=ico_lbl, t=txt_lbl: (
-                    r.config(bg=HOVER_BG), i.config(bg=HOVER_BG), t.config(bg=HOVER_BG)))
-                w.bind('<Leave>', lambda e, r=row, i=ico_lbl, t=txt_lbl: (
-                    r.config(bg=MENU_BG), i.config(bg=MENU_BG), t.config(bg=MENU_BG)))
+            for w in (row, icon_cell, ico_lbl, txt_lbl):
+                w.bind('<Enter>', lambda e, r=row, c=icon_cell, i=ico_lbl, t=txt_lbl: (
+                    r.config(bg=HOVER_BG), c.config(bg=HOVER_BG),
+                    i.config(bg=HOVER_BG), t.config(bg=HOVER_BG)))
+                w.bind('<Leave>', lambda e, r=row, c=icon_cell, i=ico_lbl, t=txt_lbl: (
+                    r.config(bg=MENU_BG), c.config(bg=MENU_BG),
+                    i.config(bg=MENU_BG), t.config(bg=MENU_BG)))
                 w.bind('<Button-1>', lambda e, c=cmd: (c(), self._close_menu()))
 
         m.update_idletasks()
