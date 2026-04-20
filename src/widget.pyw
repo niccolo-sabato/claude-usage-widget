@@ -95,7 +95,7 @@ PCT_FG   = '#ffffff'
 MENU_BG  = '#2c2c2a'
 
 # ─── App ────────────────────────────────────────────
-APP_VERSION = '2.8.29'
+APP_VERSION = '2.8.30'
 
 # ─── Auto-update ────────────────────────────────────
 UPDATE_REPO = 'niccolo-sabato/claude-usage-widget'
@@ -984,6 +984,10 @@ class Widget:
         # Load language from config, default English
         set_lang(self.cfg.get('language', 'en'))
         self.root = tk.Tk()
+        # Hide the window until positioning and (optional) essential-mode
+        # restore are complete, so the user never sees the widget land at
+        # the default Tk spawn position before snapping to the saved one.
+        self.root.withdraw()
         # Surface callback-level exceptions in the log. Tkinter normally
         # prints these to stderr, which is invisible for a pythonw/exe app,
         # so a typo inside an event handler (e.g. a bad screen distance)
@@ -1029,21 +1033,29 @@ class Widget:
         self._build()
 
         w = self.cfg.get('width', DEF_W)
+        h = self.cfg.get('height', 41)
         x = self.cfg.get('x', 100)
         y = self.cfg.get('y', 100)
         # Validate the saved position against the FULL virtual desktop —
         # winfo_vroot* can start at negative coordinates when secondary
-        # monitors extend to the left or above the primary. The previous
-        # check was `x < -w + 50` which resets any legitimate position on a
-        # left-side secondary display back to (100, 100).
+        # monitors extend to the left or above the primary. The old check
+        # used a fixed 50px buffer that rejected legitimate positions on
+        # short widgets (essential mode is only ~41px tall, so any saved y
+        # within 50px of the screen bottom was being reset to 100 even when
+        # the widget was fully visible). Now we use the saved width/height
+        # and only require a small visible overlap.
         vrx = self.root.winfo_vrootx()
         vry = self.root.winfo_vrooty()
         vrw = self.root.winfo_vrootwidth()
         vrh = self.root.winfo_vrootheight()
-        # Require at least 50px of the widget to be inside the virtual desktop.
-        if x + w < vrx + 50 or x > vrx + vrw - 50:
+        wlog(f'INIT   vroot=({vrx},{vry}) {vrw}x{vrh} '
+             f'saved=({x},{y}) {w}x{h}')
+        MIN_VISIBLE = 20
+        if x + w < vrx + MIN_VISIBLE or x > vrx + vrw - MIN_VISIBLE:
+            wlog(f'INIT   x={x} (w={w}) outside vroot -> reset to 100')
             x = 100
-        if y + 20 < vry or y > vry + vrh - 50:
+        if y + h < vry + MIN_VISIBLE or y > vry + vrh - MIN_VISIBLE:
+            wlog(f'INIT   y={y} (h={h}) outside vroot -> reset to 100')
             y = 100
         self.root.geometry(f'+{x}+{y}')
         self.root.update_idletasks()
@@ -1057,9 +1069,14 @@ class Widget:
         self.root.bind('<FocusOut>', lambda e: self.root.after(50, self._force_topmost))
         self.root.bind('<Visibility>', lambda e: self.root.after(50, self._force_topmost))
 
-        # Restore essential mode if it was active when last closed
+        # Restore essential mode if it was active when last closed, then
+        # reveal the window in its final shape. For non-essential mode we
+        # reveal right after dwm_round (50ms) so the rounded corners are
+        # already in place when it appears.
         if self.cfg.get('essential', False):
-            self.root.after(100, self._restore_essential)
+            self.root.after(100, self._restore_essential_and_show)
+        else:
+            self.root.after(60, self.root.deiconify)
 
         if self.cfg.get('session_key') and self.cfg.get('org_id'):
             self.refresh()
@@ -1349,6 +1366,13 @@ class Widget:
         # Cover content, reset to start, animate
         self.root.geometry(f'{self.root.winfo_width()}x{start_h}+{self.root.winfo_x()}+{start_y}')
         self._start_anim(start_y, start_h, end_y, end_h)
+
+    def _restore_essential_and_show(self):
+        """Restore essential mode then reveal the window. Used at startup
+        to avoid the user seeing the expanded layout flash before the
+        widget collapses to essential."""
+        self._restore_essential()
+        self.root.deiconify()
 
     def _restore_essential(self):
         """Restore essential mode on startup — no animation, direct layout."""
