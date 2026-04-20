@@ -95,7 +95,7 @@ PCT_FG   = '#ffffff'
 MENU_BG  = '#2c2c2a'
 
 # ─── App ────────────────────────────────────────────
-APP_VERSION = '2.8.30'
+APP_VERSION = '2.8.31'
 
 # ─── Auto-update ────────────────────────────────────
 UPDATE_REPO = 'niccolo-sabato/claude-usage-widget'
@@ -984,10 +984,6 @@ class Widget:
         # Load language from config, default English
         set_lang(self.cfg.get('language', 'en'))
         self.root = tk.Tk()
-        # Hide the window until positioning and (optional) essential-mode
-        # restore are complete, so the user never sees the widget land at
-        # the default Tk spawn position before snapping to the saved one.
-        self.root.withdraw()
         # Surface callback-level exceptions in the log. Tkinter normally
         # prints these to stderr, which is invisible for a pythonw/exe app,
         # so a typo inside an event handler (e.g. a bad screen distance)
@@ -1020,30 +1016,23 @@ class Widget:
         except Exception:
             pass
 
-        # Make visible in Win+Tab via WS_EX_APPWINDOW on the real window
-        self.root.update_idletasks()
-        self._make_wintab_visible()
-
-        self._bar_icon = None
-        try:
-            self._bar_icon = tk.PhotoImage(file=ICO_BAR)
-        except Exception:
-            pass
-
-        self._build()
-
+        # Read + validate the saved geometry BEFORE the first
+        # update_idletasks(). winfo_vroot* talk to Windows directly so
+        # they work without an idletasks pump. By calling geometry('+x+y')
+        # here, the very first map (triggered by the idletasks below)
+        # places the window at the saved position instead of at the
+        # default Tk spawn spot — no startup flash.
+        #
+        # update_idletasks() must still run BEFORE _make_wintab_visible():
+        # the helper reads winfo_id() to set WS_EX_TOOLWINDOW (hides from
+        # taskbar + keeps topmost rock-solid against taskbar clicks).
+        # Without the idletasks pump the HWND isn't ready, the EXSTYLE
+        # write silently no-ops, and the widget regresses to acting like
+        # a normal app window (flash on taskbar interaction).
         w = self.cfg.get('width', DEF_W)
         h = self.cfg.get('height', 41)
         x = self.cfg.get('x', 100)
         y = self.cfg.get('y', 100)
-        # Validate the saved position against the FULL virtual desktop —
-        # winfo_vroot* can start at negative coordinates when secondary
-        # monitors extend to the left or above the primary. The old check
-        # used a fixed 50px buffer that rejected legitimate positions on
-        # short widgets (essential mode is only ~41px tall, so any saved y
-        # within 50px of the screen bottom was being reset to 100 even when
-        # the widget was fully visible). Now we use the saved width/height
-        # and only require a small visible overlap.
         vrx = self.root.winfo_vrootx()
         vry = self.root.winfo_vrooty()
         vrw = self.root.winfo_vrootwidth()
@@ -1058,25 +1047,42 @@ class Widget:
             wlog(f'INIT   y={y} (h={h}) outside vroot -> reset to 100')
             y = 100
         self.root.geometry(f'+{x}+{y}')
+
+        self.root.update_idletasks()
+        self._make_wintab_visible()
+
+        self._bar_icon = None
+        try:
+            self._bar_icon = tk.PhotoImage(file=ICO_BAR)
+        except Exception:
+            pass
+
+        self._build()
+
+        # Re-apply geometry now that the UI is built so the height matches
+        # the actual layout.
         self.root.update_idletasks()
         rh = self.root.winfo_reqheight()
         self.root.geometry(f'{w}x{rh}+{x}+{y}')
         self.root.minsize(MIN_W, 0)
 
         self.root.after(50, lambda: dwm_round(self.root, shadow=False))
-        # Force above taskbar — re-assert topmost every 500ms + on focus/visibility events
+        # Topmost recovery, three layers, all running on the Tk thread:
+        #  1. WS_EX_NOACTIVATE on the window itself — eliminates the
+        #     worst-case taskbar flash (focus transfer from widget to
+        #     taskbar). Set in _make_wintab_visible.
+        #  2. <Visibility> binding — Tk fires this when the window is
+        #     covered/uncovered, instant SetWindowPos recovery.
+        #  3. 10ms keep_topmost timer — safety net for cases Visibility
+        #     misses (Tk's Visibility on Win32 isn't always reliable).
+        # FocusOut is intentionally NOT bound: NOACTIVATE keeps the
+        # widget out of the focus rotation, so the event would never fire.
         self._keep_topmost()
-        self.root.bind('<FocusOut>', lambda e: self.root.after(50, self._force_topmost))
-        self.root.bind('<Visibility>', lambda e: self.root.after(50, self._force_topmost))
+        self.root.bind('<Visibility>', lambda e: self._force_topmost())
 
-        # Restore essential mode if it was active when last closed, then
-        # reveal the window in its final shape. For non-essential mode we
-        # reveal right after dwm_round (50ms) so the rounded corners are
-        # already in place when it appears.
+        # Restore essential mode if it was active when last closed.
         if self.cfg.get('essential', False):
-            self.root.after(100, self._restore_essential_and_show)
-        else:
-            self.root.after(60, self.root.deiconify)
+            self.root.after(100, self._restore_essential)
 
         if self.cfg.get('session_key') and self.cfg.get('org_id'):
             self.refresh()
@@ -1366,13 +1372,6 @@ class Widget:
         # Cover content, reset to start, animate
         self.root.geometry(f'{self.root.winfo_width()}x{start_h}+{self.root.winfo_x()}+{start_y}')
         self._start_anim(start_y, start_h, end_y, end_h)
-
-    def _restore_essential_and_show(self):
-        """Restore essential mode then reveal the window. Used at startup
-        to avoid the user seeing the expanded layout flash before the
-        widget collapses to essential."""
-        self._restore_essential()
-        self.root.deiconify()
 
     def _restore_essential(self):
         """Restore essential mode on startup — no animation, direct layout."""
@@ -2542,11 +2541,20 @@ class Widget:
                 hwnd = self.root.winfo_id()
             self._hwnd = hwnd
             GWL_EXSTYLE = -20
-            WS_EX_APPWINDOW = 0x00040000   # visible in Win+Tab
-            WS_EX_TOOLWINDOW = 0x00000080  # hidden from taskbar
-            # TOOLWINDOW: no taskbar icon, no Win+Tab
+            WS_EX_APPWINDOW  = 0x00040000   # visible in Win+Tab
+            WS_EX_TOOLWINDOW = 0x00000080   # hidden from taskbar
+            WS_EX_NOACTIVATE = 0x08000000   # never enters foreground
+            # TOOLWINDOW: no taskbar icon, no Win+Tab.
+            # NOACTIVATE: clicks on the widget never make it the
+            # foreground window. Eliminates the worst-case flash
+            # scenario (user used the widget, then first click on the
+            # taskbar = focus transfer = z-order shuffle visible).
+            # FocusOut is suppressed by this flag, but Visibility events
+            # + the 10ms keep_topmost timer still cover any taskbar-
+            # overlap recovery.
             exstyle = ctypes.windll.user32.GetWindowLongPtrW(hwnd, GWL_EXSTYLE)
-            exstyle = (exstyle | WS_EX_TOOLWINDOW) & ~WS_EX_APPWINDOW
+            exstyle = ((exstyle | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE)
+                       & ~WS_EX_APPWINDOW)
             ctypes.windll.user32.SetWindowLongPtrW(hwnd, GWL_EXSTYLE, exstyle)
             # Force style update
             SWP_FRAMECHANGED = 0x0020
@@ -2593,9 +2601,17 @@ class Widget:
             pass
 
     def _keep_topmost(self):
-        """Re-assert topmost every 500ms to stay above taskbar."""
+        """Re-assert topmost every 10ms to stay above taskbar.
+
+        10ms is below the 16ms frame budget at 60Hz, so any taskbar-overlap
+        flash is recovered within a single frame and stays imperceptible.
+        SetWindowPos with NOMOVE/NOSIZE/NOACTIVATE is a cheap no-op when
+        the window is already topmost, so the high cadence doesn't show
+        up in CPU usage. Going lower (e.g. after(0)) would starve the Tk
+        mainloop of drag/refresh/click events.
+        """
         self._force_topmost()
-        self._topmost_job = self.root.after(500, self._keep_topmost)
+        self._topmost_job = self.root.after(10, self._keep_topmost)
 
     def _signal_quit(self, signum, frame):
         wlog(f'SIGNAL received {signum} -> saving and exiting')
