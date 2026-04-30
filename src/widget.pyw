@@ -46,6 +46,20 @@ try:
 except Exception:
     pass
 
+# ─── AppUserModelID ─────────────────────────────────
+# Register an explicit AUMID for the process. Without one Windows
+# treats the widget as a generic legacy Win32 app, which on Win11
+# 22H2+ means a smaller / less prominent ITaskbarList3 progress bar
+# under the taskbar icon. Setting an AUMID lets Windows associate
+# the process with a stable identity (same one we use for the
+# installer's start-menu shortcut) and apply the modern rendering
+# path that store-installed apps get.
+try:
+    ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(
+        'NiccoloSabato.ClaudeUsage')
+except Exception:
+    pass
+
 # ─── Paths ───────────────────────────────────────────
 # EXE_DIR: where the exe/script lives (Program Files or Scripts)
 # DATA_DIR: writable folder for config, logs (AppData\Local\Claude Usage)
@@ -96,7 +110,7 @@ PCT_FG   = '#ffffff'
 MENU_BG  = '#2c2c2a'
 
 # ─── App ────────────────────────────────────────────
-APP_VERSION = '2.8.33'
+APP_VERSION = '2.8.34'
 
 # ─── Auto-update ────────────────────────────────────
 UPDATE_REPO = 'niccolo-sabato/claude-usage-widget'
@@ -221,6 +235,129 @@ def wlog(msg):
     except Exception:
         pass
 
+# ─── Win32 ITaskbarList3 (taskbar icon progress bar) ─
+
+
+class TaskbarProgress:
+    """Wrap ITaskbarList3 so the widget can paint a coloured progress
+    bar underneath its taskbar icon (the same UI Edge / Explorer use
+    during file copies and downloads).
+
+    Only renders when the widget's window is visible in the taskbar:
+    Windows ignores SetProgressValue calls on toolwindow-styled or
+    hidden windows. The widget's taskbar visibility is itself a
+    user-controlled toggle (see Widget._set_taskbar_visible).
+
+    Bare ctypes COM, no pywin32. Vtable layout is fixed by the COM
+    contract:
+      0..2   IUnknown      (QueryInterface, AddRef, Release)
+      3..7   ITaskbarList  (HrInit, AddTab, DeleteTab, ActivateTab, SetActiveAlt)
+      8      ITaskbarList2 (MarkFullscreenWindow)
+      9..    ITaskbarList3 (SetProgressValue, SetProgressState, ...)
+    """
+    _CLSID_TASKBARLIST = '{56FDF344-FD6D-11d0-958A-006097C9A090}'
+    _IID_ITASKBARLIST3 = '{ea1afb91-9e28-4b86-90e9-9e9f8a5eefaf}'
+    _CLSCTX_INPROC_SERVER = 0x1
+    _COINIT_APARTMENTTHREADED = 0x2
+    _S_OK = 0
+    # TBPFLAG values
+    NOPROGRESS    = 0
+    INDETERMINATE = 1
+    NORMAL        = 2  # green
+    ERROR         = 4  # red
+    PAUSED        = 8  # yellow
+
+    class _GUID(ctypes.Structure):
+        _fields_ = [('Data1', ctypes.c_ulong),
+                    ('Data2', ctypes.c_ushort),
+                    ('Data3', ctypes.c_ushort),
+                    ('Data4', ctypes.c_ubyte * 8)]
+
+    def __init__(self):
+        self._ptr = None
+        self._co_initialized = False
+        try:
+            ole = ctypes.windll.ole32
+            # Apartment-threaded matches Tk's main thread model. If COM is
+            # already initialized (e.g. by some extension) RPC_E_CHANGED_MODE
+            # may be returned; that's fine, we just don't pair an Uninit.
+            hr = ole.CoInitializeEx(None, self._COINIT_APARTMENTTHREADED)
+            self._co_initialized = (hr == self._S_OK)
+
+            clsid = self._GUID()
+            iid = self._GUID()
+            ole.CLSIDFromString(self._CLSID_TASKBARLIST,
+                                ctypes.byref(clsid))
+            ole.IIDFromString(self._IID_ITASKBARLIST3,
+                              ctypes.byref(iid))
+
+            ptr = ctypes.c_void_p()
+            hr = ole.CoCreateInstance(
+                ctypes.byref(clsid), None,
+                self._CLSCTX_INPROC_SERVER,
+                ctypes.byref(iid),
+                ctypes.byref(ptr))
+            if hr != self._S_OK or not ptr.value:
+                raise RuntimeError(f'CoCreateInstance HRESULT {hr:#x}')
+            self._ptr = ptr.value
+            # ITaskbarList::HrInit must be called once before any other
+            # method or SetProgressValue silently no-ops.
+            self._invoke(3, ctypes.HRESULT)
+            wlog('TASKBAR ITaskbarList3 ready')
+        except Exception as e:
+            wlog(f'TASKBAR init failed: {e}')
+            self.close()
+
+    def _invoke(self, vtable_index, restype, *args):
+        """Call vtable[vtable_index] of self._ptr with the given args."""
+        if not self._ptr:
+            return None
+        # Resolve method pointer: this -> *vtable -> vtable[index]
+        vtable_addr = ctypes.cast(
+            self._ptr, ctypes.POINTER(ctypes.c_void_p))[0]
+        method_addr = ctypes.cast(
+            vtable_addr, ctypes.POINTER(ctypes.c_void_p))[vtable_index]
+        proto = ctypes.WINFUNCTYPE(
+            restype, ctypes.c_void_p, *(type(a) for a in args))
+        return proto(method_addr)(self._ptr, *args)
+
+    def set_progress(self, hwnd, completed, total=100):
+        """SetProgressValue (vtable index 9). 0-`total` -> 0-100% width."""
+        try:
+            self._invoke(
+                9, ctypes.HRESULT,
+                ctypes.c_void_p(hwnd),
+                ctypes.c_ulonglong(int(completed)),
+                ctypes.c_ulonglong(int(total)))
+        except Exception as e:
+            wlog(f'TASKBAR set_progress: {e}')
+
+    def set_state(self, hwnd, state):
+        """SetProgressState (vtable index 10). state is a TBPFLAG."""
+        try:
+            self._invoke(
+                10, ctypes.HRESULT,
+                ctypes.c_void_p(hwnd),
+                ctypes.c_int(state))
+        except Exception as e:
+            wlog(f'TASKBAR set_state: {e}')
+
+    def close(self):
+        if self._ptr:
+            try:
+                # IUnknown::Release (vtable index 2)
+                self._invoke(2, ctypes.c_ulong)
+            except Exception:
+                pass
+            self._ptr = None
+        if self._co_initialized:
+            try:
+                ctypes.windll.ole32.CoUninitialize()
+            except Exception:
+                pass
+            self._co_initialized = False
+
+
 # ─── Toast notifications ─────────────────────────────
 
 
@@ -307,6 +444,8 @@ LANG = {
         'menu_open_repo': 'Open GitHub repo',
         'menu_notifications_on': 'Notifications: ON',
         'menu_notifications_off': 'Notifications: OFF',
+        'menu_taskbar_on': 'Taskbar icon: ON',
+        'menu_taskbar_off': 'Taskbar icon: OFF',
         'menu_refresh_interval': 'Refresh interval\u2026',
         'dlg_interval_title': 'Refresh interval',
         'dlg_interval_label': 'Interval in seconds (minimum 10):',
@@ -380,6 +519,8 @@ LANG = {
         'menu_open_repo': 'Apri repo GitHub',
         'menu_notifications_on': 'Notifiche: attive',
         'menu_notifications_off': 'Notifiche: disattive',
+        'menu_taskbar_on': 'Icona taskbar: visibile',
+        'menu_taskbar_off': 'Icona taskbar: nascosta',
         'menu_refresh_interval': 'Intervallo aggiornamento\u2026',
         'dlg_interval_title': 'Intervallo aggiornamento',
         'dlg_interval_label': 'Intervallo in secondi (minimo 10):',
@@ -450,6 +591,8 @@ LANG = {
         'menu_open_repo': 'GitHub\u30ea\u30dd\u30b8\u30c8\u30ea\u3092\u958b\u304f',
         'menu_notifications_on': '\u901a\u77e5: \u30aa\u30f3',
         'menu_notifications_off': '\u901a\u77e5: \u30aa\u30d5',
+        'menu_taskbar_on': '\u30bf\u30b9\u30af\u30d0\u30fc\u30a2\u30a4\u30b3\u30f3: \u8868\u793a',
+        'menu_taskbar_off': '\u30bf\u30b9\u30af\u30d0\u30fc\u30a2\u30a4\u30b3\u30f3: \u975e\u8868\u793a',
         'menu_refresh_interval': '\u66f4\u65b0\u9593\u9694\u2026',
         'dlg_interval_title': '\u66f4\u65b0\u9593\u9694',
         'dlg_interval_label': '\u79d2\u5358\u4f4d\u306e\u9593\u9694 (\u6700\u4f4e10):',
@@ -1220,6 +1363,14 @@ class Widget:
         self.root.update_idletasks()
         self._make_wintab_visible()
 
+        # ITaskbarList3 wrapper for the Win11 progress overlay on the
+        # taskbar icon. Initialised even when show_in_taskbar is off:
+        # constructing the COM object eagerly prevents a stutter the
+        # first time the user toggles the icon on. Calls into it are
+        # safe no-ops while the icon isn't visible.
+        self._taskbar = TaskbarProgress()
+        self._last_session_pct = None
+
         self._bar_icon = None
         try:
             self._bar_icon = tk.PhotoImage(file=ICO_BAR)
@@ -1708,36 +1859,113 @@ class Widget:
         if fh and fh.get('utilization') is not None:
             self._check_thresholds(int(fh['utilization']),
                                    fh.get('resets_at'))
+            self._last_session_pct = fh['utilization']
+            self._push_taskbar_state()
         self._save_geometry()  # auto-save on each refresh (protection against kill)
         self._start_countdown()
         self._update_minsize()
 
+    # Two separate sets: toasts notify at every meaningful milestone
+    # including 95 % (the last warning before the cap), pulses skip 95
+    # so they don't fire twice in quick succession near 100.
+    TOAST_THRESHOLDS = (25, 50, 75, 90, 95, 100)
+    PULSE_THRESHOLDS = (25, 50, 75, 90, 100)
+
+    @staticmethod
+    def _stable_reset_key(resets_at):
+        """Strip microseconds from claude.ai's resets_at ISO string.
+
+        The API returns values like '2026-04-30T18:19:59.881978+00:00'
+        and the microsecond portion drifts every fetch even though the
+        underlying 5-hour session window is the same. Comparing the raw
+        strings was making _check_thresholds think a new session had
+        started on every refresh, which re-fired the 25/50 toasts and
+        kept INDETERMINATE pulses cycling forever (visible to the user
+        as 'the bar stays grey at 56 %').
+        """
+        if not resets_at:
+            return None
+        # Keep YYYY-MM-DDTHH:MM:SS plus tz suffix (anything after '.' is
+        # microseconds; cut everything between the dot and the next '+'
+        # or '-' that introduces the tz offset).
+        s = str(resets_at)
+        if '.' in s:
+            dot = s.index('.')
+            tz_pos = -1
+            for i, ch in enumerate(s[dot:], start=dot):
+                if ch in ('+', '-', 'Z'):
+                    tz_pos = i
+                    break
+            if tz_pos > 0:
+                s = s[:dot] + s[tz_pos:]
+            else:
+                s = s[:dot]
+        return s
+
     def _check_thresholds(self, percentage, resets_at):
-        """Fire a Windows toast when session usage crosses 25/50/75/90 %.
+        """Fire a Windows toast and a taskbar progress pulse when the
+        session usage crosses one of the configured thresholds.
 
         State (last threshold notified, current session reset time) lives
         in config so it survives widget restarts within the same 5-hour
-        window. Notifications reset automatically when a new session
-        starts (resets_at changes).
+        window. Counters reset automatically when a new session starts
+        (resets_at changes - compared as a microsecond-stripped key so
+        natural API-side jitter doesn't false-trigger the reset).
         """
-        if not self.cfg.get('notifications_enabled', True):
-            return
-        thresholds = (25, 50, 75, 90)
         # New session detected: reset state.
-        if resets_at and self.cfg.get('toast_session_reset_at') != resets_at:
-            self.cfg['toast_session_reset_at'] = resets_at
+        key = self._stable_reset_key(resets_at)
+        if key and self.cfg.get('toast_session_reset_at') != key:
+            self.cfg['toast_session_reset_at'] = key
             self.cfg['toast_last_threshold'] = 0
+            self.cfg['pulse_last_threshold'] = 0
             save_cfg(self.cfg)
-        last = self.cfg.get('toast_last_threshold', 0)
-        for threshold in thresholds:
-            if percentage >= threshold and last < threshold:
-                wlog(f'TOAST  session crossed {threshold}% (now {percentage}%)')
-                show_toast(t('toast_title'),
-                           t('toast_threshold_session').format(pct=percentage))
-                last = threshold
-        if last != self.cfg.get('toast_last_threshold', 0):
-            self.cfg['toast_last_threshold'] = last
+        notifications_on = self.cfg.get('notifications_enabled', True)
+
+        # Toasts.
+        last_t = self.cfg.get('toast_last_threshold', 0)
+        for threshold in self.TOAST_THRESHOLDS:
+            if percentage >= threshold and last_t < threshold:
+                wlog(f'TOAST  session crossed {threshold}% '
+                     f'(now {percentage}%)')
+                if notifications_on:
+                    show_toast(t('toast_title'),
+                               t('toast_threshold_session').format(
+                                   pct=percentage))
+                last_t = threshold
+        if last_t != self.cfg.get('toast_last_threshold', 0):
+            self.cfg['toast_last_threshold'] = last_t
             save_cfg(self.cfg)
+
+        # Pulses on the taskbar progress bar - independent of toast
+        # notifications because they're a separate visual cue.
+        last_p = self.cfg.get('pulse_last_threshold', 0)
+        pulsed = False
+        for threshold in self.PULSE_THRESHOLDS:
+            if percentage >= threshold and last_p < threshold:
+                wlog(f'PULSE  session crossed {threshold}%')
+                last_p = threshold
+                pulsed = True
+        if last_p != self.cfg.get('pulse_last_threshold', 0):
+            self.cfg['pulse_last_threshold'] = last_p
+            save_cfg(self.cfg)
+        if pulsed:
+            self._pulse_taskbar()
+
+    def _pulse_taskbar(self):
+        """Flash INDETERMINATE on the taskbar progress bar for ~1.5 s,
+        then snap back to the current colour. Acts as a visual cue
+        whenever a threshold is crossed."""
+        tp = getattr(self, '_taskbar', None)
+        hwnd = getattr(self, '_hwnd', None)
+        if not tp or not hwnd:
+            return
+        if not self.cfg.get('show_in_taskbar', False):
+            return
+        try:
+            tp.set_state(hwnd, TaskbarProgress.INDETERMINATE)
+            self.root.after(1500, self._push_taskbar_state)
+        except Exception:
+            pass
 
     def _update_clock(self):
         """Update the current time in title bar and essential controls."""
@@ -2069,6 +2297,9 @@ class Widget:
         notif_on = self.cfg.get('notifications_enabled', True)
         notif_label = (t('menu_notifications_on') if notif_on
                        else t('menu_notifications_off'))
+        taskbar_on = self.cfg.get('show_in_taskbar', False)
+        taskbar_label = (t('menu_taskbar_on') if taskbar_on
+                         else t('menu_taskbar_off'))
         # GitHub icon is a PhotoImage if rendering succeeded at startup;
         # fall back to a laptop emoji otherwise. icon_ft=None signals the
         # menu loop to render as an image rather than as text.
@@ -2089,6 +2320,7 @@ class Widget:
             None,
             ('\u23F3\uFE0E',       FT_EMOJI,     interval_label,           self._show_interval_dialog),
             ('\U0001F514\uFE0E',   FT_EMOJI,     notif_label,              self._toggle_notifications),
+            ('\U0001F4CC\uFE0E',   FT_EMOJI,     taskbar_label,            self._toggle_taskbar),
             ('\U0001F5DD\uFE0E',   FT_EMOJI,     t('menu_renew'),          self._renew_session),
             ('\u2197\uFE0E',       FT_EMOJI,     t('menu_open_claude'),    self._open_claude_usage),
             (gh_icon,              gh_font,      t('menu_open_repo'),      self._open_repo),
@@ -2699,6 +2931,23 @@ class Widget:
         save_cfg(self.cfg)
         wlog(f'TOAST  notifications_enabled -> {new_value}')
 
+    def _toggle_taskbar(self):
+        """Toggle whether the widget shows in the Windows taskbar.
+
+        Off (default) keeps the widget as a pure floating tool window
+        (WS_EX_TOOLWINDOW). On flips it to WS_EX_APPWINDOW so Windows
+        gives it a real taskbar icon - which is also a prerequisite for
+        the ITaskbarList3 progress overlay (set in _push_taskbar_state).
+        """
+        new_value = not self.cfg.get('show_in_taskbar', False)
+        self.cfg['show_in_taskbar'] = new_value
+        save_cfg(self.cfg)
+        wlog(f'TASKBAR show_in_taskbar -> {new_value}')
+        self._apply_taskbar_visibility()
+        # Push the latest cached usage onto the new taskbar icon (if any),
+        # otherwise the bar appears empty until the next refresh tick.
+        self._push_taskbar_state()
+
     # ── Session renewal ──────────────────────────────
 
     def _renew_session(self):
@@ -2813,38 +3062,111 @@ class Widget:
     # ── Win32 toolwindow style ─────────────────────
 
     def _make_wintab_visible(self):
-        """Make overrideredirect window visible in Win+Tab (Task View)."""
+        """Cache the widget's HWND and apply the initial taskbar style."""
         try:
             hwnd = ctypes.windll.user32.GetParent(self.root.winfo_id())
             if not hwnd:
                 hwnd = self.root.winfo_id()
             self._hwnd = hwnd
-            GWL_EXSTYLE = -20
-            WS_EX_APPWINDOW  = 0x00040000   # visible in Win+Tab
-            WS_EX_TOOLWINDOW = 0x00000080   # hidden from taskbar
-            WS_EX_NOACTIVATE = 0x08000000   # never enters foreground
-            # TOOLWINDOW: no taskbar icon, no Win+Tab.
-            # NOACTIVATE: clicks on the widget never make it the
-            # foreground window. Eliminates the worst-case flash
-            # scenario (user used the widget, then first click on the
-            # taskbar = focus transfer = z-order shuffle visible).
-            # FocusOut is suppressed by this flag, but Visibility events
-            # + the 10ms keep_topmost timer still cover any taskbar-
-            # overlap recovery.
-            exstyle = ctypes.windll.user32.GetWindowLongPtrW(hwnd, GWL_EXSTYLE)
-            exstyle = ((exstyle | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE)
-                       & ~WS_EX_APPWINDOW)
-            ctypes.windll.user32.SetWindowLongPtrW(hwnd, GWL_EXSTYLE, exstyle)
-            # Force style update
-            SWP_FRAMECHANGED = 0x0020
-            SWP_NOMOVE = 0x0002
-            SWP_NOSIZE = 0x0001
-            SWP_NOZORDER = 0x0004
-            ctypes.windll.user32.SetWindowPos(
-                hwnd, 0, 0, 0, 0, 0,
-                SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER)
+            self._apply_taskbar_visibility()
         except Exception:
             pass
+
+    def _apply_taskbar_visibility(self):
+        """Set or clear the taskbar icon based on the show_in_taskbar config.
+
+        Off (default): WS_EX_TOOLWINDOW + WS_EX_NOACTIVATE - widget is a
+        pure floating tool, no taskbar icon, no Win+Tab entry, never
+        activates on click (which avoids the click-the-taskbar focus-
+        transfer flash).
+
+        On: WS_EX_APPWINDOW - widget gets a real taskbar icon, which is
+        also a prerequisite for ITaskbarList3 progress drawing. Keep
+        NOACTIVATE so the click-into-widget UX stays the same.
+        """
+        hwnd = getattr(self, '_hwnd', None)
+        if not hwnd:
+            return
+        try:
+            GWL_EXSTYLE      = -20
+            WS_EX_APPWINDOW  = 0x00040000
+            WS_EX_TOOLWINDOW = 0x00000080
+            WS_EX_NOACTIVATE = 0x08000000
+            SWP_FRAMECHANGED = 0x0020
+            SWP_NOMOVE       = 0x0002
+            SWP_NOSIZE       = 0x0001
+            SWP_NOZORDER     = 0x0004
+            SWP_NOACTIVATE   = 0x0010
+            SW_HIDE          = 0
+            SW_SHOWNOACTIVATE = 4
+
+            show = bool(self.cfg.get('show_in_taskbar', False))
+            exstyle = ctypes.windll.user32.GetWindowLongPtrW(hwnd, GWL_EXSTYLE)
+            if show:
+                # Real taskbar icon: drop NOACTIVATE so clicking the icon
+                # can raise the widget like any other app. Trade-off: the
+                # widget can flash briefly when the user clicks back into
+                # the taskbar, since focus transfer is no longer
+                # suppressed. That's the cost of having a real icon.
+                exstyle = ((exstyle | WS_EX_APPWINDOW)
+                           & ~WS_EX_TOOLWINDOW & ~WS_EX_NOACTIVATE)
+            else:
+                # Pure floating tool window: NOACTIVATE on, no taskbar
+                # icon, no foreground transitions, no flash.
+                exstyle = ((exstyle | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE)
+                           & ~WS_EX_APPWINDOW)
+
+            # The taskbar/Win+Tab style change only takes effect once the
+            # window has been hidden and shown again. Hide+show without
+            # activation so the user's focus / topmost ordering doesn't
+            # flicker.
+            ctypes.windll.user32.ShowWindow(hwnd, SW_HIDE)
+            ctypes.windll.user32.SetWindowLongPtrW(hwnd, GWL_EXSTYLE, exstyle)
+            ctypes.windll.user32.SetWindowPos(
+                hwnd, 0, 0, 0, 0, 0,
+                SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE
+                | SWP_NOZORDER | SWP_NOACTIVATE)
+            ctypes.windll.user32.ShowWindow(hwnd, SW_SHOWNOACTIVATE)
+        except Exception as e:
+            wlog(f'TASKBAR apply visibility failed: {e}')
+
+    def _push_taskbar_state(self):
+        """Push the cached usage % to the taskbar progress overlay.
+
+        Colour mapping (constrained by what ITaskbarList3 actually
+        supports - Windows only exposes 5 progress states, no custom
+        colours; "neutral grey" effectively means "no bar"):
+
+            0-50  -> NOPROGRESS (icon clean, no bar)
+            51-74 -> NORMAL     (green)
+            75-89 -> PAUSED     (yellow, warning)
+            >=90  -> ERROR      (red, danger)
+
+        Below 50 % the icon stays pristine; the bar only appears when it
+        carries meaningful information.
+        """
+        tp = getattr(self, '_taskbar', None)
+        hwnd = getattr(self, '_hwnd', None)
+        if not tp or not hwnd:
+            return
+        if not self.cfg.get('show_in_taskbar', False):
+            tp.set_state(hwnd, TaskbarProgress.NOPROGRESS)
+            return
+        pct = getattr(self, '_last_session_pct', None)
+        if pct is None or pct <= 50:
+            tp.set_state(hwnd, TaskbarProgress.NOPROGRESS)
+            return
+        # Bar fill width tracks the actual session usage. The empty
+        # portion is rendered by Windows as a dim line so the unused
+        # part of the limit is also visible.
+        tp.set_progress(hwnd, max(0, min(100, int(pct))), 100)
+        if pct >= 90:
+            state = TaskbarProgress.ERROR     # red
+        elif pct >= 75:
+            state = TaskbarProgress.PAUSED    # yellow
+        else:
+            state = TaskbarProgress.NORMAL    # green (51-74)
+        tp.set_state(hwnd, state)
 
     # ── Keep topmost (above taskbar) ────────────────
 
@@ -2907,6 +3229,16 @@ class Widget:
             self.root.after_cancel(self._countdown_job)
         if self._topmost_job:
             self.root.after_cancel(self._topmost_job)
+        # Clear any progress overlay before tearing the COM wrapper down.
+        try:
+            tp = getattr(self, '_taskbar', None)
+            hwnd = getattr(self, '_hwnd', None)
+            if tp and hwnd:
+                tp.set_state(hwnd, TaskbarProgress.NOPROGRESS)
+            if tp:
+                tp.close()
+        except Exception:
+            pass
         self.root.destroy()
 
 
