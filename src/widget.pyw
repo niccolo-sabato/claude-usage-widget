@@ -46,19 +46,13 @@ try:
 except Exception:
     pass
 
-# ─── AppUserModelID ─────────────────────────────────
-# Register an explicit AUMID for the process. Without one Windows
-# treats the widget as a generic legacy Win32 app, which on Win11
-# 22H2+ means a smaller / less prominent ITaskbarList3 progress bar
-# under the taskbar icon. Setting an AUMID lets Windows associate
-# the process with a stable identity (same one we use for the
-# installer's start-menu shortcut) and apply the modern rendering
-# path that store-installed apps get.
-try:
-    ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(
-        'NiccoloSabato.ClaudeUsage')
-except Exception:
-    pass
+# NOTE: SetCurrentProcessExplicitAppUserModelID was tried here to
+# improve the taskbar progress overlay rendering on Win11 22H2+, but
+# it disassociated the running process from the installer-supplied
+# icon (Windows treats a new AUMID as a fresh app entity without an
+# attached icon) - the taskbar showed the default placeholder
+# instead of the Claude logo. Reverted: we live with the default
+# rendering rather than break the icon.
 
 # ─── Paths ───────────────────────────────────────────
 # EXE_DIR: where the exe/script lives (Program Files or Scripts)
@@ -110,7 +104,7 @@ PCT_FG   = '#ffffff'
 MENU_BG  = '#2c2c2a'
 
 # ─── App ────────────────────────────────────────────
-APP_VERSION = '2.8.34'
+APP_VERSION = '2.8.35'
 
 # ─── Auto-update ────────────────────────────────────
 UPDATE_REPO = 'niccolo-sabato/claude-usage-widget'
@@ -1370,6 +1364,13 @@ class Widget:
         # safe no-ops while the icon isn't visible.
         self._taskbar = TaskbarProgress()
         self._last_session_pct = None
+        # The taskbar entry can take a couple of seconds to register
+        # after WS_EX_APPWINDOW is applied. Re-push the colour on a
+        # short ramp so the bar settles into the correct state even if
+        # the very first set_state was issued before Windows had
+        # registered the icon.
+        for delay in (1500, 3000, 6000):
+            self.root.after(delay, self._push_taskbar_state)
 
         self._bar_icon = None
         try:
@@ -3127,6 +3128,7 @@ class Widget:
                 SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE
                 | SWP_NOZORDER | SWP_NOACTIVATE)
             ctypes.windll.user32.ShowWindow(hwnd, SW_SHOWNOACTIVATE)
+            wlog(f'TASKBAR show_in_taskbar={show} exstyle={exstyle:#x}')
         except Exception as e:
             wlog(f'TASKBAR apply visibility failed: {e}')
 
@@ -3159,14 +3161,25 @@ class Widget:
         # Bar fill width tracks the actual session usage. The empty
         # portion is rendered by Windows as a dim line so the unused
         # part of the limit is also visible.
-        tp.set_progress(hwnd, max(0, min(100, int(pct))), 100)
         if pct >= 90:
             state = TaskbarProgress.ERROR     # red
+            label = 'ERROR/red'
         elif pct >= 75:
             state = TaskbarProgress.PAUSED    # yellow
+            label = 'PAUSED/yellow'
         else:
             state = TaskbarProgress.NORMAL    # green (51-74)
+            label = 'NORMAL/green'
+        # MSDN samples set the state BEFORE the value: SetProgressValue
+        # is documented to "force the state to TBPF_NORMAL" the first
+        # time it's called on a window that has no state, and the second
+        # call (our SetProgressState) would then override that to the
+        # right colour - which is fine, but doing state-then-value also
+        # guarantees the colour is locked in even if the value is
+        # repeated identically (e.g. after a 1500 ms pulse fade-back).
         tp.set_state(hwnd, state)
+        tp.set_progress(hwnd, max(0, min(100, int(pct))), 100)
+        wlog(f'TASKBAR push pct={pct} state={label} hwnd={hwnd:#x}')
 
     # ── Keep topmost (above taskbar) ────────────────
 
