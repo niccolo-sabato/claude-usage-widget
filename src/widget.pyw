@@ -95,7 +95,7 @@ PCT_FG   = '#ffffff'
 MENU_BG  = '#2c2c2a'
 
 # ─── App ────────────────────────────────────────────
-APP_VERSION = '2.8.31'
+APP_VERSION = '2.8.32'
 
 # ─── Auto-update ────────────────────────────────────
 UPDATE_REPO = 'niccolo-sabato/claude-usage-widget'
@@ -153,7 +153,7 @@ CLOSE_HV   = '#3a1818'   # title bar close button hover tint
 
 # Pill button padding presets — every dialog/menu button uses these so sizes
 # stay visually consistent across the app.
-PILL_PAD_PRIMARY_X   = 22
+PILL_PAD_PRIMARY_X   = 22  # baseline (96 DPI); scaled at use-site by dpi_scale
 PILL_PAD_PRIMARY_Y   = 8
 PILL_PAD_SECONDARY_X = 18
 PILL_PAD_SECONDARY_Y = 8
@@ -168,9 +168,38 @@ TASKBAR_GAP   = 50       # keep dialogs clear of the taskbar
 
 # ─── Logging ────────────────────────────────────────
 LOG_FILE = os.path.join(DIR, 'widget.log')
+CRASH_LOG_FILE = os.path.join(DIR, 'crash.log')
 MAX_LOG_LINES = 200
+MAX_CRASH_LOG_BYTES = 256 * 1024  # 256 KB cap; older entries are dropped.
 
 _log_count = 0
+
+
+def write_crash(tag, tb):
+    """Append a traceback to crash.log, capped at MAX_CRASH_LOG_BYTES.
+
+    Each entry starts with '--- timestamp tag ---' so older entries can be
+    identified and truncated whole. The cap exists because the previous
+    behaviour was unbounded append, which let the file grow without limit.
+    """
+    try:
+        line = f'\n--- {datetime.now():%Y-%m-%d %H:%M:%S} {tag} ---\n{tb}'
+        with open(CRASH_LOG_FILE, 'a', encoding='utf-8') as f:
+            f.write(line)
+        # Trim from the front if we exceeded the cap.
+        size = os.path.getsize(CRASH_LOG_FILE)
+        if size > MAX_CRASH_LOG_BYTES:
+            with open(CRASH_LOG_FILE, 'rb') as f:
+                f.seek(size - MAX_CRASH_LOG_BYTES)
+                tail = f.read()
+            # Drop the first incomplete entry so the file starts on a header.
+            cut = tail.find(b'\n--- ')
+            if cut > 0:
+                tail = tail[cut:]
+            with open(CRASH_LOG_FILE, 'wb') as f:
+                f.write(tail)
+    except Exception:
+        pass
 
 def wlog(msg):
     """Append a timestamped line to widget.log, truncating when over MAX_LOG_LINES."""
@@ -714,14 +743,29 @@ def dwm_round(win, shadow=True):
 # API
 # ═══════════════════════════════════════════════════════
 
+_BROWSER_UA = (
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+    '(KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36'
+)
+
+
 def fetch_org_id(session_key):
-    """Auto-detect org_id from session key via /api/organizations."""
-    ua = ('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
-          '(KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36')
+    """Auto-detect org_id from session key via /api/organizations.
+
+    NOTE: claude.ai sits behind Cloudflare which fingerprints the TLS
+    handshake (JA3) to detect non-browser clients. Python's urllib uses
+    OpenSSL and gets a 403 challenge regardless of how browser-shaped
+    the headers are. curl on Windows uses schannel — the same TLS stack
+    Edge/Chrome use — so the JA3 matches a real browser and the request
+    goes through. We pay the cost of a subprocess in exchange for not
+    needing a separate TLS-fingerprinting library (curl-impersonate /
+    tls_client). Schannel also uses the system CA store, so cert
+    validation is identical to what the user's browser does.
+    """
     result = subprocess.run(
         ['curl', '-s',
          '-H', f'Cookie: sessionKey={session_key}',
-         '-H', f'User-Agent: {ua}',
+         '-H', f'User-Agent: {_BROWSER_UA}',
          '-H', 'anthropic-client-platform: web_claude_ai',
          'https://claude.ai/api/organizations'],
         capture_output=True, text=True, timeout=20,
@@ -732,22 +776,23 @@ def fetch_org_id(session_key):
     body = result.stdout.strip()
     if not body:
         raise RuntimeError(t('empty_response'))
-    orgs = json.loads(body)
+    try:
+        orgs = json.loads(body)
+    except json.JSONDecodeError as e:
+        raise RuntimeError(f'invalid response: {e}')
     if isinstance(orgs, list) and len(orgs) > 0:
         return orgs[0].get('uuid') or orgs[0].get('id')
     raise RuntimeError(t('no_org'))
 
 
 def fetch_usage(cfg):
-    """Fetch usage data from Claude.ai API via curl."""
+    """Fetch usage data from Claude.ai API. See fetch_org_id for why curl."""
     url = API_URL.format(cfg['org_id'])
     cookie = f"sessionKey={cfg['session_key']}; lastActiveOrg={cfg['org_id']}"
-    ua = ('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
-          '(KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36')
     result = subprocess.run(
         ['curl', '-s', '-D', '-',
          '-H', f'Cookie: {cookie}',
-         '-H', f'User-Agent: {ua}',
+         '-H', f'User-Agent: {_BROWSER_UA}',
          '-H', 'anthropic-client-platform: web_claude_ai',
          url],
         capture_output=True, text=True, timeout=20,
@@ -773,7 +818,10 @@ def fetch_usage(cfg):
     if km and km.group(1) != cfg.get('session_key'):
         cfg['session_key'] = km.group(1)
         save_cfg(cfg)
-    return json.loads(body)
+    try:
+        return json.loads(body)
+    except json.JSONDecodeError as e:
+        raise RuntimeError(f'invalid response: {e}')
 
 
 # ═══════════════════════════════════════════════════════
@@ -993,6 +1041,27 @@ class Widget:
             wlog('TKERR  ' + ''.join(
                 traceback.format_exception(exc, val, tb)).strip())
         self.root.report_callback_exception = _tk_cb_exc
+
+        # DPI handling. Tk on Windows reads the system DPI to set its default
+        # scaling factor (1 point = 1.333 px at 96 DPI, 2.0 px at 144 DPI,
+        # etc). With SetProcessDpiAwareness(2) we render at the real per-
+        # monitor DPI. dpi_scale is "how big is one logical pixel relative
+        # to a 96-DPI baseline", used for paddings/margins that need to
+        # grow with the user's text size.
+        #
+        # Optional debug override: set "debug_tk_scaling" in config.json
+        # (e.g. 2.0 = simulate 150% Windows DPI without changing system
+        # settings) to validate dialog layouts at higher DPI locally.
+        override = self.cfg.get('debug_tk_scaling')
+        if isinstance(override, (int, float)) and override > 0:
+            try:
+                self.root.tk.call('tk', 'scaling', float(override))
+                wlog(f'INIT   tk scaling override = {override}')
+            except Exception as e:
+                wlog(f'INIT   tk scaling override failed: {e}')
+        self.dpi_scale = self.root.winfo_fpixels('1i') / 96.0
+        wlog(f'INIT   dpi_scale={self.dpi_scale:.3f}')
+
         self._job = None
         self._countdown_job = None
         self._topmost_job = None
@@ -1721,31 +1790,46 @@ class Widget:
             w.bind('<B1-Motion>', drag_m)
         return tb
 
+    def dp(self, x):
+        """Scale a 96-DPI baseline pixel value to the current display DPI."""
+        return int(round(x * self.dpi_scale))
+
     def _primary_pill(self, parent, text, cmd, enabled=True):
-        """Primary pill button (Claude orange). Fixed size across all dialogs."""
+        """Primary pill button (Claude orange). Padding scales with DPI so
+        the pill keeps proportional whitespace around the (point-scaled)
+        text at any Windows DPI setting."""
+        px = self.dp(PILL_PAD_PRIMARY_X)
+        py = self.dp(PILL_PAD_PRIMARY_Y)
         if enabled:
             return make_pill_button(
                 parent, text=text, font=FT_DLG_BTN_B,
                 fg='#FFFFFF', bg=CLAUDE, hover_bg=PRIMARY_HV, cmd=cmd,
-                padx=PILL_PAD_PRIMARY_X, pady=PILL_PAD_PRIMARY_Y)
+                padx=px, pady=py)
         return make_pill_button(
             parent, text=text, font=FT_DLG_BTN_B,
             fg=DIM, bg=BAR_BG, hover_bg=BAR_BG, cmd=lambda: None,
-            padx=PILL_PAD_PRIMARY_X, pady=PILL_PAD_PRIMARY_Y)
+            padx=px, pady=py)
 
     def _secondary_pill(self, parent, text, cmd, icon=None):
-        """Secondary pill button (soft surface). Fixed size across all dialogs."""
+        """Secondary pill button (soft surface). Padding scales with DPI."""
         return make_pill_button(
             parent, text=text, font=FT_DLG_BTN,
             fg=FG, bg=SOFT_BG, hover_bg=SOFT_BG_HV, cmd=cmd,
             icon=icon, icon_font=FT_EMOJI_11 if icon else None,
-            padx=PILL_PAD_SECONDARY_X, pady=PILL_PAD_SECONDARY_Y)
+            padx=self.dp(PILL_PAD_SECONDARY_X),
+            pady=self.dp(PILL_PAD_SECONDARY_Y))
 
     def _build_dialog_frame(self, title, dw, dh):
         """Create a Toplevel with the standard chrome. Returns (dlg, body).
 
-        All dialogs use this: same title bar, same padding, same rounded
-        corners, same screen-clamped positioning.
+        Same title bar, padding, rounded corners and screen-clamped
+        positioning across every dialog. The height passed in is treated
+        as a MINIMUM: after the caller has finished populating `body`,
+        an idle callback grows the dialog to whatever height the actual
+        layout requires. This keeps the bottom controls (the orange
+        Connect pill, in particular) on screen at higher Windows DPI
+        scaling, where text/widgets render larger and the fixed minimum
+        height would otherwise crop them.
         """
         dlg = tk.Toplevel(self.root)
         dlg.title(title)
@@ -1754,10 +1838,9 @@ class Widget:
         dlg.attributes('-topmost', True)
         dlg.resizable(False, False)
 
-        wx, wy = self._place_popup(dw, dh)
-        dlg.geometry(f'{dw}x{dh}+{wx}+{wy}')
-        dlg.update_idletasks()
-        dlg.after(50, lambda: dwm_round(dlg))
+        # Park off-screen until the body is populated and we know the
+        # real height. Avoids a flash at the default Tk spawn position.
+        dlg.geometry(f'{dw}x{dh}+10000+10000')
 
         self._build_titlebar(dlg, title)
 
@@ -1765,6 +1848,24 @@ class Widget:
         body.pack(fill='both', expand=True,
                   padx=DLG_PAD_X, pady=(DLG_PAD_TOP, DLG_PAD_BTM))
         dlg.bind('<Escape>', lambda e: dlg.destroy())
+
+        def _finalize():
+            try:
+                dlg.update_idletasks()
+                # max(passed-in, required) — at 100% DPI the two usually
+                # match; on scaled displays req > passed-in.
+                actual_h = max(dh, dlg.winfo_reqheight())
+                # Clamp to the virtual desktop so a tall dialog on a
+                # short monitor still fits; place_popup already handles
+                # x clamping.
+                vx, vy, vw, vh = self._virtual_bounds()
+                actual_h = min(actual_h, vh - 40)
+                wx, wy = self._place_popup(dw, actual_h)
+                dlg.geometry(f'{dw}x{actual_h}+{wx}+{wy}')
+                dwm_round(dlg)
+            except Exception:
+                pass
+        dlg.after_idle(_finalize)
         return dlg, body
 
     # ── W11 Styled Menu ─────────────────────────────
@@ -2658,11 +2759,7 @@ if __name__ == '__main__':
         import traceback
         tb = ''.join(traceback.format_exception(exc_type, exc_value, exc_tb))
         wlog(f'UNHANDLED  {tb}')
-        try:
-            with open(os.path.join(DIR, 'crash.log'), 'a', encoding='utf-8') as f:
-                f.write(f'\n--- {datetime.now():%Y-%m-%d %H:%M:%S} UNHANDLED ---\n{tb}')
-        except Exception:
-            pass
+        write_crash('UNHANDLED', tb)
     sys.excepthook = _excepthook
 
     wlog('INIT   process started')
@@ -2672,9 +2769,4 @@ if __name__ == '__main__':
         import traceback
         tb = traceback.format_exc()
         wlog(f'CRASH  {tb}')
-        # Also write to dedicated crash.log for full traceback
-        try:
-            with open(os.path.join(DIR, 'crash.log'), 'a', encoding='utf-8') as f:
-                f.write(f'\n--- {datetime.now():%Y-%m-%d %H:%M:%S} ---\n{tb}')
-        except Exception:
-            pass
+        write_crash('CRASH', tb)

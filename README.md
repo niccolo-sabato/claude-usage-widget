@@ -60,7 +60,7 @@ The installer:
 
 ### Chrome companion extension (optional)
 
-The **Claude Session Key** Chrome extension lets you copy the sessionKey with one click instead of digging into DevTools. Available in the `extension/` folder of this repo - pending publication on the Chrome Web Store.
+The **Claude Session Key** Chrome extension lets you copy the sessionKey with one click instead of digging into DevTools. [Install from the Chrome Web Store](https://chromewebstore.google.com/detail/claude-session-key/ppofmhjkjfinjpidlidepeonimpjmadj) (Chrome, Edge, Brave, and other Chromium browsers).
 
 ---
 
