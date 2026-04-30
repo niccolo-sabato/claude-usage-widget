@@ -201,6 +201,21 @@
     font-size: 11px;
     color: #555;
   }
+  .footer .repo-btn {
+    display: inline-block;
+    margin-bottom: 10px;
+    padding: 8px 16px;
+    background: #2a2a28;
+    color: #d8d8d8;
+    text-decoration: none;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 500;
+    border: 1px solid #3a3a37;
+    transition: background 120ms ease;
+  }
+  .footer .repo-btn:hover { background: #34342f; color: #ffffff; }
+  .footer .repo-btn::before { content: '\2B22'; margin-right: 6px; opacity: 0.7; }
 </style>
 </head>
 <body>
@@ -285,7 +300,13 @@
     <div class="method-body" id="devtoolsBody"></div>
   </div>
 
-  <div class="footer">Claude Usage Widget v2.8.28</div>
+  <div class="footer">
+    <a class="repo-btn"
+       href="https://github.com/niccolo-sabato/claude-usage-widget"
+       target="_blank" rel="noopener"
+       data-i18n="footer_repo_btn">Open GitHub repo</a>
+    <div>Claude Usage Widget v2.8.32</div>
+  </div>
 </div>
 
 <script>
@@ -310,6 +331,7 @@ const I18N = {
     m3_desc: 'For developers - direct cookie access',
     tag_advanced: 'Advanced',
     settings_note: 'This method works without installing anything. The exact menu labels may vary by browser version and language.',
+    footer_repo_btn: 'Open GitHub repo',
   },
   it: {
     title: 'Configurazione Session Key',
@@ -331,6 +353,7 @@ const I18N = {
     m3_desc: 'Per sviluppatori: accesso diretto ai cookie',
     tag_advanced: 'Avanzato',
     settings_note: 'Questo metodo funziona senza installare nulla. Le voci del menu possono variare in base al browser e alla lingua.',
+    footer_repo_btn: 'Apri repo GitHub',
   },
   ja: {
     title: '\u30bb\u30c3\u30b7\u30e7\u30f3\u30ad\u30fc\u306e\u8a2d\u5b9a',
@@ -352,6 +375,7 @@ const I18N = {
     m3_desc: '\u958b\u767a\u8005\u5411\u3051: Cookie\u306b\u76f4\u63a5\u30a2\u30af\u30bb\u30b9',
     tag_advanced: '\u4e0a\u7d1a',
     settings_note: '\u3053\u306e\u65b9\u6cd5\u306f\u30a4\u30f3\u30b9\u30c8\u30fc\u30eb\u4e0d\u8981\u3067\u3059\u3002\u30e1\u30cb\u30e5\u30fc\u540d\u306f\u30d6\u30e9\u30a6\u30b6\u306e\u30d0\u30fc\u30b8\u30e7\u30f3\u3084\u8a00\u8a9e\u306b\u3088\u308a\u7570\u306a\u308a\u307e\u3059\u3002',
+    footer_repo_btn: 'GitHub\u30ea\u30dd\u30b8\u30c8\u30ea\u3092\u958b\u304f',
   },
 };
 

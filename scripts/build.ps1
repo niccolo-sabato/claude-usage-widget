@@ -35,6 +35,7 @@ $PyiArgs = @(
     '--icon',       (Join-Path $Assets 'claude.ico'),
     '--add-data',   ((Join-Path $Assets 'claude.ico')  + ';.'),
     '--add-data',   ((Join-Path $Assets 'icon-bar.png') + ';.'),
+    '--add-data',   ((Join-Path $Assets 'icon-github-16.png') + ';.'),
     # Pillow pulls numpy as an optional accelerator. We only use Image,
     # ImageDraw and ImageTk, none of which need it. Excluding numpy and
     # its native libs cuts ~10 MB off the installer.

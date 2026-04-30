@@ -72,6 +72,7 @@ def _find_res(name):
 
 ICO = _find_res('claude.ico')
 ICO_BAR = _find_res('icon-bar.png')
+ICO_GITHUB = _find_res('icon-github-16.png')
 # Keep DIR as alias for DATA_DIR (used by log paths)
 DIR = DATA_DIR
 
@@ -95,7 +96,7 @@ PCT_FG   = '#ffffff'
 MENU_BG  = '#2c2c2a'
 
 # ─── App ────────────────────────────────────────────
-APP_VERSION = '2.8.32'
+APP_VERSION = '2.8.33'
 
 # ─── Auto-update ────────────────────────────────────
 UPDATE_REPO = 'niccolo-sabato/claude-usage-widget'
@@ -220,6 +221,56 @@ def wlog(msg):
     except Exception:
         pass
 
+# ─── Toast notifications ─────────────────────────────
+
+
+def show_toast(title, message):
+    """Fire a Windows toast notification.
+
+    Uses a one-shot PowerShell call into the WinRT
+    Windows.UI.Notifications API. Pros: zero new Python deps, runs on
+    every Windows 10+ install. Cons: ~200ms latency from PowerShell
+    cold start. That's fine for our use case (4 threshold notifications
+    per 5-hour session at most).
+
+    Title and message are passed via temp XML to avoid escaping
+    headaches with quotes / Unicode in PowerShell argument parsing.
+    """
+    try:
+        # Escape XML special chars only - PowerShell sees a literal file path.
+        safe_title = (title.replace('&', '&amp;')
+                      .replace('<', '&lt;').replace('>', '&gt;'))
+        safe_msg = (message.replace('&', '&amp;')
+                    .replace('<', '&lt;').replace('>', '&gt;'))
+        xml = (
+            '<toast><visual><binding template="ToastText02">'
+            f'<text>{safe_title}</text><text>{safe_msg}</text>'
+            '</binding></visual></toast>'
+        )
+        with tempfile.NamedTemporaryFile(
+                'w', suffix='.xml', encoding='utf-8',
+                delete=False) as f:
+            f.write(xml)
+            xml_path = f.name
+        ps = (
+            "[Windows.UI.Notifications.ToastNotificationManager,"
+            "Windows.UI.Notifications,ContentType=WindowsRuntime] | Out-Null;"
+            "$d = New-Object Windows.Data.Xml.Dom.XmlDocument;"
+            f"$d.Load('{xml_path}');"
+            "$t = New-Object Windows.UI.Notifications.ToastNotification $d;"
+            "[Windows.UI.Notifications.ToastNotificationManager]"
+            "::CreateToastNotifier('Claude Usage').Show($t);"
+            f"Remove-Item -Force '{xml_path}';"
+        )
+        subprocess.Popen(
+            ['powershell', '-NoProfile', '-WindowStyle', 'Hidden',
+             '-Command', ps],
+            creationflags=subprocess.CREATE_NO_WINDOW,
+            close_fds=True)
+    except Exception as e:
+        wlog(f'TOAST  show_toast failed: {e}')
+
+
 # ─── API ─────────────────────────────────────────────
 API_URL  = 'https://claude.ai/api/organizations/{}/usage'
 
@@ -243,6 +294,9 @@ LANG = {
         'session_expired_short': 'Session expired',
         'action_setup_now': 'Configure now',
         'action_renew_now': 'Renew session',
+        # Toast notifications
+        'toast_title': 'Claude Usage',
+        'toast_threshold_session': "You've reached {pct}% of your 5-hour session limit",
         # Menu
         'menu_refresh': 'Refresh',
         'menu_mode_normal': 'Normal mode',
@@ -250,6 +304,9 @@ LANG = {
         'menu_renew': 'Session key\u2026',
         'menu_open_config': 'Open config.json',
         'menu_open_claude': 'Go to Claude Usage',
+        'menu_open_repo': 'Open GitHub repo',
+        'menu_notifications_on': 'Notifications: ON',
+        'menu_notifications_off': 'Notifications: OFF',
         'menu_refresh_interval': 'Refresh interval\u2026',
         'dlg_interval_title': 'Refresh interval',
         'dlg_interval_label': 'Interval in seconds (minimum 10):',
@@ -312,12 +369,17 @@ LANG = {
         'session_expired_short': 'Sessione scaduta',
         'action_setup_now': 'Configura ora',
         'action_renew_now': 'Rinnova sessione',
+        'toast_title': 'Claude Usage',
+        'toast_threshold_session': 'Hai raggiunto il {pct}% del limite della sessione di 5 ore',
         'menu_refresh': 'Aggiorna',
         'menu_mode_normal': 'Modalit\u00e0 normale',
         'menu_mode_essential': 'Modalit\u00e0 essential',
         'menu_renew': 'Session key\u2026',
         'menu_open_config': 'Apri config.json',
         'menu_open_claude': 'Vai a Claude Usage',
+        'menu_open_repo': 'Apri repo GitHub',
+        'menu_notifications_on': 'Notifiche: attive',
+        'menu_notifications_off': 'Notifiche: disattive',
         'menu_refresh_interval': 'Intervallo aggiornamento\u2026',
         'dlg_interval_title': 'Intervallo aggiornamento',
         'dlg_interval_label': 'Intervallo in secondi (minimo 10):',
@@ -377,12 +439,17 @@ LANG = {
         'session_expired_short': '\u30bb\u30c3\u30b7\u30e7\u30f3\u6709\u52b9\u671f\u5207\u308c',
         'action_setup_now': '\u4eca\u3059\u3050\u8a2d\u5b9a',
         'action_renew_now': '\u30bb\u30c3\u30b7\u30e7\u30f3\u66f4\u65b0',
+        'toast_title': 'Claude Usage',
+        'toast_threshold_session': '5\u6642\u9593\u30bb\u30c3\u30b7\u30e7\u30f3\u306e\u4f7f\u7528\u91cf\u304c{pct}%\u306b\u9054\u3057\u307e\u3057\u305f',
         'menu_refresh': '\u66f4\u65b0',
         'menu_mode_normal': '\u901a\u5e38\u30e2\u30fc\u30c9',
         'menu_mode_essential': '\u30b7\u30f3\u30d7\u30eb\u30e2\u30fc\u30c9',
         'menu_renew': '\u30bb\u30c3\u30b7\u30e7\u30f3\u30ad\u30fc\u2026',
         'menu_open_config': 'config.json\u3092\u958b\u304f',
         'menu_open_claude': 'Claude Usage\u306b\u79fb\u52d5',
+        'menu_open_repo': 'GitHub\u30ea\u30dd\u30b8\u30c8\u30ea\u3092\u958b\u304f',
+        'menu_notifications_on': '\u901a\u77e5: \u30aa\u30f3',
+        'menu_notifications_off': '\u901a\u77e5: \u30aa\u30d5',
         'menu_refresh_interval': '\u66f4\u65b0\u9593\u9694\u2026',
         'dlg_interval_title': '\u66f4\u65b0\u9593\u9694',
         'dlg_interval_label': '\u79d2\u5358\u4f4d\u306e\u9593\u9694 (\u6700\u4f4e10):',
@@ -749,25 +816,22 @@ _BROWSER_UA = (
 )
 
 
-def fetch_org_id(session_key):
-    """Auto-detect org_id from session key via /api/organizations.
+def _curl_get(url, session_key):
+    """Minimal curl GET that returns the response body or raises.
 
     NOTE: claude.ai sits behind Cloudflare which fingerprints the TLS
     handshake (JA3) to detect non-browser clients. Python's urllib uses
     OpenSSL and gets a 403 challenge regardless of how browser-shaped
-    the headers are. curl on Windows uses schannel — the same TLS stack
-    Edge/Chrome use — so the JA3 matches a real browser and the request
-    goes through. We pay the cost of a subprocess in exchange for not
-    needing a separate TLS-fingerprinting library (curl-impersonate /
-    tls_client). Schannel also uses the system CA store, so cert
-    validation is identical to what the user's browser does.
+    the headers are. curl on Windows uses schannel - the same TLS stack
+    Edge/Chrome use - so the JA3 matches a real browser. Schannel also
+    uses the system CA store, so cert validation matches the browser.
     """
     result = subprocess.run(
         ['curl', '-s',
          '-H', f'Cookie: sessionKey={session_key}',
          '-H', f'User-Agent: {_BROWSER_UA}',
          '-H', 'anthropic-client-platform: web_claude_ai',
-         'https://claude.ai/api/organizations'],
+         url],
         capture_output=True, text=True, timeout=20,
         creationflags=subprocess.CREATE_NO_WINDOW
     )
@@ -776,13 +840,49 @@ def fetch_org_id(session_key):
     body = result.stdout.strip()
     if not body:
         raise RuntimeError(t('empty_response'))
+    return body
+
+
+def fetch_org_id(session_key):
+    """Resolve the user's org_id from the session key.
+
+    Strategy:
+      1. List the user's orgs via /api/organizations.
+      2. If there is exactly one, use it.
+      3. If there are multiple, ask /api/bootstrap which one was last
+         active in the browser (account.lastActiveOrgId). This matches
+         what the official Claude.ai web UI shows the user.
+      4. Fallback to the first org if bootstrap fails.
+
+    Without the bootstrap step a user with multiple orgs (personal +
+    work) would always see usage for whichever org happens to be first
+    in the API response, not the one they're actively using.
+    """
+    body = _curl_get('https://claude.ai/api/organizations', session_key)
     try:
         orgs = json.loads(body)
     except json.JSONDecodeError as e:
         raise RuntimeError(f'invalid response: {e}')
-    if isinstance(orgs, list) and len(orgs) > 0:
+    if not isinstance(orgs, list) or not orgs:
+        raise RuntimeError(t('no_org'))
+
+    if len(orgs) == 1:
         return orgs[0].get('uuid') or orgs[0].get('id')
-    raise RuntimeError(t('no_org'))
+
+    # Multi-org: prefer the org Claude.ai itself currently routes to.
+    try:
+        boot_body = _curl_get('https://claude.ai/api/bootstrap', session_key)
+        boot = json.loads(boot_body)
+        active_id = (boot.get('account') or {}).get('lastActiveOrgId')
+        if active_id:
+            for o in orgs:
+                if o.get('uuid') == active_id or o.get('id') == active_id:
+                    return active_id
+            return active_id  # bootstrap is authoritative even if not in list
+    except Exception as e:
+        wlog(f'BOOT   bootstrap fallback failed: {e}')
+
+    return orgs[0].get('uuid') or orgs[0].get('id')
 
 
 def fetch_usage(cfg):
@@ -1123,6 +1223,17 @@ class Widget:
         self._bar_icon = None
         try:
             self._bar_icon = tk.PhotoImage(file=ICO_BAR)
+        except Exception:
+            pass
+
+        # GitHub Octocat used in the menu's "Open GitHub repo" row. Pre-
+        # rendered to PNG (assets/icon-github-24.png) at build time so we
+        # don't have to ship an SVG renderer; recoloured to match the
+        # menu's FG so it lines up with the other icons.
+        self._gh_icon = None
+        try:
+            if os.path.isfile(ICO_GITHUB):
+                self._gh_icon = tk.PhotoImage(file=ICO_GITHUB)
         except Exception:
             pass
 
@@ -1593,9 +1704,40 @@ class Widget:
         self._last_time = now
         self.btn_r.config(fg=DIM)
         wlog(f'FETCH  ok: session={fh["utilization"] if fh else "?"} weekly={sd["utilization"] if sd else "?"} sonnet={ss["utilization"] if ss else "?"}')
+        # Threshold notifications on session usage (5-hour window).
+        if fh and fh.get('utilization') is not None:
+            self._check_thresholds(int(fh['utilization']),
+                                   fh.get('resets_at'))
         self._save_geometry()  # auto-save on each refresh (protection against kill)
         self._start_countdown()
         self._update_minsize()
+
+    def _check_thresholds(self, percentage, resets_at):
+        """Fire a Windows toast when session usage crosses 25/50/75/90 %.
+
+        State (last threshold notified, current session reset time) lives
+        in config so it survives widget restarts within the same 5-hour
+        window. Notifications reset automatically when a new session
+        starts (resets_at changes).
+        """
+        if not self.cfg.get('notifications_enabled', True):
+            return
+        thresholds = (25, 50, 75, 90)
+        # New session detected: reset state.
+        if resets_at and self.cfg.get('toast_session_reset_at') != resets_at:
+            self.cfg['toast_session_reset_at'] = resets_at
+            self.cfg['toast_last_threshold'] = 0
+            save_cfg(self.cfg)
+        last = self.cfg.get('toast_last_threshold', 0)
+        for threshold in thresholds:
+            if percentage >= threshold and last < threshold:
+                wlog(f'TOAST  session crossed {threshold}% (now {percentage}%)')
+                show_toast(t('toast_title'),
+                           t('toast_threshold_session').format(pct=percentage))
+                last = threshold
+        if last != self.cfg.get('toast_last_threshold', 0):
+            self.cfg['toast_last_threshold'] = last
+            save_cfg(self.cfg)
 
     def _update_clock(self):
         """Update the current time in title bar and essential controls."""
@@ -1841,6 +1983,12 @@ class Widget:
         # Park off-screen until the body is populated and we know the
         # real height. Avoids a flash at the default Tk spawn position.
         dlg.geometry(f'{dw}x{dh}+10000+10000')
+        # Apply rounded corners early on the off-screen window so the
+        # DWM attribute is in place before the dialog is first painted at
+        # its visible position. Re-applied below after the final move to
+        # be safe — Windows occasionally drops the corner preference if
+        # the window is moved before being mapped.
+        dlg.after(50, lambda: dwm_round(dlg))
 
         self._build_titlebar(dlg, title)
 
@@ -1852,7 +2000,7 @@ class Widget:
         def _finalize():
             try:
                 dlg.update_idletasks()
-                # max(passed-in, required) — at 100% DPI the two usually
+                # max(passed-in, required) - at 100% DPI the two usually
                 # match; on scaled displays req > passed-in.
                 actual_h = max(dh, dlg.winfo_reqheight())
                 # Clamp to the virtual desktop so a tall dialog on a
@@ -1862,7 +2010,8 @@ class Widget:
                 actual_h = min(actual_h, vh - 40)
                 wx, wy = self._place_popup(dw, actual_h)
                 dlg.geometry(f'{dw}x{actual_h}+{wx}+{wy}')
-                dwm_round(dlg)
+                # Re-apply DWM rounding after the final position settles.
+                dlg.after(50, lambda: dwm_round(dlg))
             except Exception:
                 pass
         dlg.after_idle(_finalize)
@@ -1917,6 +2066,14 @@ class Widget:
         lang_label = f"{t('menu_language')}: {cur_lang}"
         cur_secs = self.cfg.get('refresh_ms', REFRESH) // 1000
         interval_label = f"{t('menu_refresh_interval')} ({cur_secs}s)"
+        notif_on = self.cfg.get('notifications_enabled', True)
+        notif_label = (t('menu_notifications_on') if notif_on
+                       else t('menu_notifications_off'))
+        # GitHub icon is a PhotoImage if rendering succeeded at startup;
+        # fall back to a laptop emoji otherwise. icon_ft=None signals the
+        # menu loop to render as an image rather than as text.
+        gh_icon, gh_font = ((self._gh_icon, None) if self._gh_icon
+                            else ('\U0001F4BB︎', FT_EMOJI))
         # Use the original icon set (arrows + color emojis) at FT_EMOJI_11.
         # FE0E forces text-style presentation on BMP glyphs that Windows
         # would otherwise render as color emoji at a different weight.
@@ -1931,8 +2088,10 @@ class Widget:
             ('\u21F5\uFE0E',       FT_EMOJI_11,  mode_label,               self._toggle_essential),
             None,
             ('\u23F3\uFE0E',       FT_EMOJI,     interval_label,           self._show_interval_dialog),
+            ('\U0001F514\uFE0E',   FT_EMOJI,     notif_label,              self._toggle_notifications),
             ('\U0001F5DD\uFE0E',   FT_EMOJI,     t('menu_renew'),          self._renew_session),
             ('\u2197\uFE0E',       FT_EMOJI,     t('menu_open_claude'),    self._open_claude_usage),
+            (gh_icon,              gh_font,      t('menu_open_repo'),      self._open_repo),
             ('{ }',                FT_EMOJI,     t('menu_open_config'),    self._open_config),
             ('\U0001F30D\uFE0E',   FT_EMOJI,     lang_label,               self._show_language_menu),
             None,
@@ -1965,7 +2124,15 @@ class Widget:
             icon_cell = tk.Frame(row, bg=MENU_BG, width=ICON_CELL_W, height=ICON_CELL_H)
             icon_cell.pack(side='left', pady=ROW_PADY)
             icon_cell.pack_propagate(False)  # enforce fixed pixel W x H
-            ico_lbl = tk.Label(icon_cell, text=icon, font=icon_ft, fg=FG, bg=MENU_BG)
+            # An icon is normally a string + font tuple, but rows can also
+            # ship a tk.PhotoImage when a glyph isn't available (e.g. the
+            # GitHub Octocat). Detected by icon_ft being None.
+            if icon_ft is None and isinstance(icon, tk.PhotoImage):
+                ico_lbl = tk.Label(icon_cell, image=icon, bg=MENU_BG,
+                                   bd=0, highlightthickness=0)
+            else:
+                ico_lbl = tk.Label(icon_cell, text=icon, font=icon_ft,
+                                   fg=FG, bg=MENU_BG)
             ico_lbl.pack(expand=True)
             txt_lbl = tk.Label(row, text=text, font=FT_MENU, fg=FG, bg=MENU_BG,
                                anchor='w', pady=ROW_PADY)
@@ -2520,6 +2687,17 @@ class Widget:
     def _open_claude_usage(self):
         """Open the Claude.ai usage settings page in the default browser."""
         webbrowser.open('https://claude.ai/settings/usage')
+
+    def _open_repo(self):
+        """Open the project's GitHub repo in the default browser."""
+        webbrowser.open(f'https://github.com/{UPDATE_REPO}')
+
+    def _toggle_notifications(self):
+        """Toggle Windows toast notifications for session-usage thresholds."""
+        new_value = not self.cfg.get('notifications_enabled', True)
+        self.cfg['notifications_enabled'] = new_value
+        save_cfg(self.cfg)
+        wlog(f'TOAST  notifications_enabled -> {new_value}')
 
     # ── Session renewal ──────────────────────────────
 
