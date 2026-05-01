@@ -1,15 +1,13 @@
 # Claude Usage Widget for Windows
 
-> **Track your Claude.ai usage limits in real time from a floating widget that lives above your Windows taskbar.** Free, open source, no telemetry.
+> **Track your Claude.ai usage limits in real time from a tiny widget that sits in an empty spot of your Windows 11 taskbar.** Free, open source, no telemetry.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Windows](https://img.shields.io/badge/Windows-10%2F11-blue.svg)](https://github.com/niccolo-sabato/claude-usage-widget/releases/latest)
 [![Latest release](https://img.shields.io/github/v/release/niccolo-sabato/claude-usage-widget)](https://github.com/niccolo-sabato/claude-usage-widget/releases/latest)
 [![Downloads](https://img.shields.io/github/downloads/niccolo-sabato/claude-usage-widget/total.svg)](https://github.com/niccolo-sabato/claude-usage-widget/releases)
 
-A lightweight desktop tool that shows your **Claude.ai session limit, weekly limit and Sonnet limit** as live progress bars, so you never get cut off mid-conversation. Sits permanently on top of the Windows taskbar in a compact essential mode, or anywhere on screen in standard mode.
-
-If you've been looking for a **Claude Usage Bar / Claude Usage toolbar / Claude Usage tracker for Windows**, this is the one.
+A lightweight desktop tool that shows your **Claude.ai session limit, weekly limit and Sonnet limit** as live progress bars so you never get cut off mid-conversation. The widget is **designed to sit on a free spot of the Windows 11 taskbar** in its compact **essential mode**: low profile, never overflows the screen, never blocks the windows you're working in. The position you choose is remembered across restarts, so once you place it once you never have to touch it again.
 
 ## Why this widget
 
@@ -22,11 +20,11 @@ This widget keeps that information one glance away:
 - **Sonnet bar (7 days):** Sonnet-specific usage for Pro / Max plan users
 - **Reset countdown:** exactly when each bar refreshes (`reset 18:00 - 3h 26min`)
 
-Color codes match the urgency: orange below 75 %, yellow 75 to 89 %, red 90 % and above. You learn to manage long conversations and avoid surprises.
+Colour codes track the urgency: orange below 75 %, yellow 75-89 %, red 90 % and above. You learn to manage long conversations and avoid surprises.
 
 ## Download
 
-[**Download v2.8.32 (latest)**](https://github.com/niccolo-sabato/claude-usage-widget/releases/latest) - one-click installer (~15 MB)
+[**Download latest release**](https://github.com/niccolo-sabato/claude-usage-widget/releases/latest) - one-click installer (~15 MB)
 
 | | |
 |---|---|
@@ -47,48 +45,49 @@ The widget connects to Claude.ai using the same browser session you're already l
 
 > **Don't want to install the extension?** The setup guide built into the widget shows you how to grab the session key manually from your browser settings or DevTools. Two extra clicks.
 
+## Designed to live on the Windows 11 taskbar
+
+- **Sized for an empty spot of the taskbar.** Switch to **essential mode** (right-click → essential, or double-click the orange corner dot) and the widget collapses to a thin, low-profile bar that fits right above the taskbar without overflowing onto the desktop. You see your usage all the time without it ever getting in the way of the windows you're actually working in.
+- **Stays out of the way of every other window.** The widget is a floating tool, hidden by default from the taskbar and from Win+Tab, so it never steals focus and never appears in the alt-tab rotation. It uses Win32 `WS_EX_NOACTIVATE` so clicking the widget itself never moves your foreground window.
+- **Always on top, even over the taskbar.** Re-asserted topmost every 10 ms, plus on `<FocusOut>` and `<Visibility>` events, so it never slips behind another app or the taskbar's own panel.
+- **Position is always saved.** Drag it once to wherever you want it (above the taskbar, on a secondary monitor, in a corner) and the position is persisted across restarts, refreshes and updates. Auto-saved on every successful refresh as a backstop against force-kills.
+- **Smooth expand / collapse.** The optional second and third bars grow **upward**, never down, so the widget's bottom edge stays anchored exactly where you placed it on the taskbar.
+
 ## Features
 
-### Display
-- Three live usage bars with reset times and countdown
-- **Essential mode** (compact, single bar): designed to sit above the taskbar
-- **Standard mode** (full): all three bars with labels and dividers
-- Smooth expand / collapse animation that always grows upward, so the bottom edge stays anchored on the taskbar
-- Always above the taskbar (re-asserted topmost every 10 ms)
-- Hidden from taskbar and Win+Tab (it's a floating tool, not a window)
-- Native Windows 11 Material design: rounded corners, translucent background, anti-aliased pill buttons
+### Live monitoring
+- Three usage bars with reset times and a live countdown to the next refresh (`reset 18:00 - 3h 26min`)
+- Auto refresh every 3 minutes by default, configurable from 10 seconds to 1 hour
+- Instant refresh when a reset time is reached, no waiting for the next tick
+- **Threshold notifications**: native Windows toast when session usage crosses 25 / 50 / 75 / 90 / 95 / 100 %, so you know you're approaching the limit even when you're focused on another window. Toggle on/off from the menu.
+- **Optional Win11 taskbar progress overlay** under the app icon: bar fill width tracks session usage, colour escalates from accent (0-74 %) to yellow (75-89 %) to red (90 % +). Same overlay Edge or Explorer paint during a download.
 
-### Behavior
-- Auto refresh every 3 minutes (10 to 3600 seconds, configurable)
-- Instant refresh when a reset time is reached
-- Auto-update from GitHub releases with one click (no manual reinstall)
-- Drag to move, drag the orange corner dot to resize, double-click it to toggle essential mode
-- Single instance: launching it twice just brings the running widget to front
-- Persistent geometry: position, size and mode survive restarts
-- Crash-resilient: structured logging, signal handlers, geometry auto-saved on every refresh
+### Display
+- **Essential mode** for the taskbar: compact single bar, no titlebar, all controls condensed at the bottom right
+- **Standard mode** for desktop placement: full titlebar, three bars with labels and section dividers
+- Native Windows 11 design language: DWM rounded corners, translucent background, anti-aliased pill buttons rendered with a 4× supersample
+- DPI-aware: tested at 100 %, 125 %, 150 %, 175 % and 200 % scaling, dialog auto-sizes to its content so nothing gets clipped on high-DPI displays
+
+### Authentication and setup
+- Companion **[Claude Session Key](https://chromewebstore.google.com/detail/claude-session-key/ppofmhjkjfinjpidlidepeonimpjmadj) Chrome extension** copies your session key with one click; works on Chrome, Edge, Brave and any Chromium browser
+- Built-in setup guide with manual fallback (browser settings or DevTools) if you'd rather not install the extension
+- **Multi-organization support**: if you belong to more than one Claude org (personal + work), the widget uses `/api/bootstrap` to track the org Claude.ai itself routes to, not just the first one in the API response
 
 ### Localization
 - Three languages: **English, Italian (Italiano), Japanese (日本語)**
 - The installer auto-selects the language matching your Windows system language
+
+### Updates and maintenance
+- Auto-update from GitHub releases with a single click; the new installer is downloaded, run silently and the widget relaunches itself
+- Single-instance enforcement: launching the executable twice just brings the running widget to the front
+- Crash-resilient: structured logs in `%LOCALAPPDATA%\Claude Usage\widget.log`, separate `crash.log` capped at 256 KB, geometry auto-saved every refresh
+- Built-in "Open GitHub repo" entry in the settings menu and a matching button in the setup guide
 
 ### Privacy
 - The widget sends data **only** to `claude.ai/api/organizations/*/usage`, the exact endpoint Claude.ai itself uses
 - No analytics, no telemetry, no third-party services, no phoning home
 - Session key stored locally in `%LOCALAPPDATA%\Claude Usage\config.json`
 - 100 % open source: every line of code is auditable
-
-## How it compares to alternatives
-
-| | Claude Usage Widget (this) | [ClaudeUsageBar](https://github.com/Artzainnn/ClaudeUsageBar) (Mac) |
-|---|---|---|
-| Platform | Windows 10 / 11 | macOS 12+ |
-| Auth | Chrome extension (1 click) or DevTools | Manual cookie copy from DevTools |
-| Display modes | Compact (taskbar) + standard (3 bars) | Menu bar icon + popup |
-| Languages | EN / IT / JA | EN |
-| Auto-update | Built-in (GitHub Releases) | Manual |
-| Footprint | ~50 MB installed, ~15 MB installer | DMG installer |
-
-There isn't a native Windows equivalent of the popular Mac menu bar app for Claude usage. This project exists to fill that gap.
 
 ## Controls
 
@@ -109,15 +108,18 @@ There isn't a native Windows equivalent of the popular Mac menu bar app for Clau
 | Orange (right) | Double-click | Toggle essential ↔ standard |
 
 ### Settings menu (≡ or right-click in essential mode)
-- ↻ Refresh
-- ⇅ Toggle Essential / Normal mode
-- ⏳ Refresh interval (10 to 3600 s)
-- 🗝 Update session key
-- ↗ Open the Claude.ai usage page
-- { } Open `config.json` in Notepad
-- 🌐 Switch language
-- ⬆ Check for updates
-- ✕ Quit
+- Refresh now
+- Toggle Essential / Normal mode
+- Refresh interval (10 to 3600 s)
+- Notifications: ON / OFF (toast at threshold crossings)
+- Taskbar icon: ON / OFF (shows the icon and the Win11 progress overlay)
+- Update session key
+- Open the Claude.ai usage page
+- Open the project's GitHub repo
+- Open `config.json` in Notepad
+- Switch language (EN / IT / JA)
+- Check for updates
+- Quit
 
 ## Configuration
 
@@ -167,4 +169,4 @@ MIT License © 2026 Niccolò Sabato. See [LICENSE](LICENSE).
 
 ---
 
-**Keywords:** Claude usage bar Windows, Claude usage widget, Claude usage toolbar, Claude.ai usage tracker, Claude limits monitor, Claude desktop widget, Claude session limit tracker, Claude weekly limit, always on top Claude widget, Windows taskbar Claude tool.
+**Keywords:** Claude usage widget Windows, Claude usage bar, Claude usage toolbar, Claude.ai usage tracker Windows, Claude limits monitor, Claude desktop widget, Claude session limit tracker, Claude weekly limit, always-on-top Claude widget, Windows 11 taskbar Claude tool, Claude Code usage monitor, Anthropic Claude usage bar Windows.
