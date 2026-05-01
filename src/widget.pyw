@@ -106,7 +106,7 @@ PCT_FG   = '#ffffff'
 MENU_BG  = '#2c2c2a'
 
 # ─── App ────────────────────────────────────────────
-APP_VERSION = '2.8.38'
+APP_VERSION = '2.8.39'
 
 # ─── Auto-update ────────────────────────────────────
 UPDATE_REPO = 'niccolo-sabato/claude-usage-widget'
@@ -3251,10 +3251,17 @@ class Widget:
         # time it's called on a window that has no state, and the second
         # call (our SetProgressState) would then override that to the
         # right colour - which is fine, but doing state-then-value also
-        # guarantees the colour is locked in even if the value is
-        # repeated identically (e.g. after a 1500 ms pulse fade-back).
+        # guarantees the colour is locked in.
         tp.set_state(hwnd, state)
-        tp.set_progress(hwnd, max(0, min(100, int(pct))), 100)
+        # Floor the rendered fill at 2 % so a freshly-reset session
+        # (pct = 0) doesn't visually disappear. Windows renders
+        # SetProgressValue(0, 100) as a 0-pixel fill - technically a
+        # bar in NORMAL state, visually nothing - and the user reads
+        # that as "the bar is gone" (reported after the session reset
+        # from 100 % back to 0 %). A couple of pixels of accent colour
+        # are enough to confirm the icon is still tracking.
+        fill = max(2, min(100, int(pct)))
+        tp.set_progress(hwnd, fill, 100)
         wlog(f'TASKBAR push pct={pct} state={label} hwnd={hwnd:#x}')
 
     # ── Keep topmost (above taskbar) ────────────────
