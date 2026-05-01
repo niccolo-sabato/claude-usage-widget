@@ -32,12 +32,14 @@ import signal
 import atexit
 import tempfile
 import threading
+import base64
 import subprocess
 import webbrowser
+import winreg
 import urllib.request
 import urllib.error
 import tkinter as tk
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from PIL import Image, ImageDraw, ImageTk
 
 # ─── DPI awareness ──────────────────────────────────
@@ -104,7 +106,7 @@ PCT_FG   = '#ffffff'
 MENU_BG  = '#2c2c2a'
 
 # ─── App ────────────────────────────────────────────
-APP_VERSION = '2.8.36'
+APP_VERSION = '2.8.37'
 
 # ─── Auto-update ────────────────────────────────────
 UPDATE_REPO = 'niccolo-sabato/claude-usage-widget'
@@ -355,49 +357,93 @@ class TaskbarProgress:
 # ─── Toast notifications ─────────────────────────────
 
 
-def show_toast(title, message):
-    """Fire a Windows toast notification.
+def _xml_escape(s):
+    return (str(s).replace('&', '&amp;')
+            .replace('<', '&lt;').replace('>', '&gt;'))
 
-    Uses a one-shot PowerShell call into the WinRT
-    Windows.UI.Notifications API. Pros: zero new Python deps, runs on
-    every Windows 10+ install. Cons: ~200ms latency from PowerShell
-    cold start. That's fine for our use case (4 threshold notifications
-    per 5-hour session at most).
 
-    Title and message are passed via temp XML to avoid escaping
-    headaches with quotes / Unicode in PowerShell argument parsing.
+# Stable AppUserModelID. Must match the key registered in HKCU below
+# AND the value passed to CreateToastNotifier in the PowerShell snippet.
+TOAST_AUMID = 'NiccoloSabato.ClaudeUsage'
+
+
+def register_toast_aumid():
+    """Register the widget's AUMID in HKCU so Windows surfaces our
+    toasts as banner notifications (and lists them under Settings ->
+    Notifications with the right name and icon). Without this, Windows
+    accepts the toast call but routes it straight to Action Center
+    silently - the user observed "PS exit=0 / TOAST delivered" in the
+    log but no banner ever appeared.
+
+    HKCU only, no admin required. Safe to re-run on every launch.
     """
     try:
-        # Escape XML special chars only - PowerShell sees a literal file path.
-        safe_title = (title.replace('&', '&amp;')
-                      .replace('<', '&lt;').replace('>', '&gt;'))
-        safe_msg = (message.replace('&', '&amp;')
-                    .replace('<', '&lt;').replace('>', '&gt;'))
+        key_path = r'Software\Classes\AppUserModelId\\' + TOAST_AUMID
+        with winreg.CreateKey(winreg.HKEY_CURRENT_USER, key_path) as k:
+            winreg.SetValueEx(k, 'DisplayName', 0, winreg.REG_SZ,
+                              'Claude Usage')
+            try:
+                if os.path.isfile(ICO):
+                    winreg.SetValueEx(k, 'IconUri', 0, winreg.REG_SZ, ICO)
+            except Exception:
+                pass
+    except Exception as e:
+        wlog(f'AUMID  register failed: {e}')
+
+
+def show_toast(title, lines):
+    """Fire a Windows toast notification with one heading + N body lines.
+
+    `lines` is a list/tuple of strings; each one becomes a separate
+    `<text>` element in the ToastGeneric template (Windows shows them
+    stacked under the bold heading).
+
+    The XML is base64-encoded and reconstituted inside PowerShell to
+    bypass the quoting / encoding pitfalls of the previous Get-Content
+    -Raw + LoadXml() approach (which silently fell back to "Nuova
+    notifica" / "New notification" on this Windows 11 build because the
+    string-vs-file LoadXml overload was getting confused). Both WinRT
+    types (`Windows.UI.Notifications` and `Windows.Data.Xml.Dom`) are
+    pre-loaded since PowerShell 5 doesn't auto-resolve them on a bare
+    New-Object.
+
+    Synchronous call with a 5 s timeout so failures are surfaced into
+    widget.log instead of disappearing.
+    """
+    try:
+        if isinstance(lines, str):
+            lines = [lines]
+        body_xml = ''.join(f'<text>{_xml_escape(l)}</text>' for l in lines)
         xml = (
-            '<toast><visual><binding template="ToastText02">'
-            f'<text>{safe_title}</text><text>{safe_msg}</text>'
+            '<toast><visual><binding template="ToastGeneric">'
+            f'<text>{_xml_escape(title)}</text>{body_xml}'
             '</binding></visual></toast>'
         )
-        with tempfile.NamedTemporaryFile(
-                'w', suffix='.xml', encoding='utf-8',
-                delete=False) as f:
-            f.write(xml)
-            xml_path = f.name
+        xml_b64 = base64.b64encode(xml.encode('utf-8')).decode('ascii')
         ps = (
             "[Windows.UI.Notifications.ToastNotificationManager,"
             "Windows.UI.Notifications,ContentType=WindowsRuntime] | Out-Null;"
+            "[Windows.Data.Xml.Dom.XmlDocument,"
+            "Windows.Data.Xml.Dom.XmlDocument,"
+            "ContentType=WindowsRuntime] | Out-Null;"
+            f"$xml = [System.Text.Encoding]::UTF8.GetString("
+            f"[Convert]::FromBase64String('{xml_b64}'));"
             "$d = New-Object Windows.Data.Xml.Dom.XmlDocument;"
-            f"$d.Load('{xml_path}');"
+            "$d.LoadXml($xml);"
             "$t = New-Object Windows.UI.Notifications.ToastNotification $d;"
             "[Windows.UI.Notifications.ToastNotificationManager]"
-            "::CreateToastNotifier('Claude Usage').Show($t);"
-            f"Remove-Item -Force '{xml_path}';"
+            f"::CreateToastNotifier('{TOAST_AUMID}').Show($t);"
         )
-        subprocess.Popen(
+        result = subprocess.run(
             ['powershell', '-NoProfile', '-WindowStyle', 'Hidden',
              '-Command', ps],
             creationflags=subprocess.CREATE_NO_WINDOW,
-            close_fds=True)
+            capture_output=True, text=True, timeout=5)
+        if result.returncode != 0 or result.stderr.strip():
+            wlog(f'TOAST  PS exit={result.returncode} '
+                 f'stderr={result.stderr.strip()[:200]}')
+        else:
+            wlog(f'TOAST  delivered: {title!r}')
     except Exception as e:
         wlog(f'TOAST  show_toast failed: {e}')
 
@@ -427,7 +473,9 @@ LANG = {
         'action_renew_now': 'Renew session',
         # Toast notifications
         'toast_title': 'Claude Usage',
-        'toast_threshold_session': "You've reached {pct}% of your 5-hour session limit",
+        'toast_line_pct': 'Session: {pct}% reached at {now}',
+        'toast_line_reset': 'Resets at {reset} (in {countdown})',
+        'toast_line_no_reset': 'Session limit reached',
         # Menu
         'menu_refresh': 'Refresh',
         'menu_mode_normal': 'Normal mode',
@@ -440,6 +488,7 @@ LANG = {
         'menu_notifications_off': 'Notifications: OFF',
         'menu_taskbar_on': 'Taskbar icon: ON',
         'menu_taskbar_off': 'Taskbar icon: OFF',
+        'menu_simulate': 'Test bar sweep (10 s)',
         'menu_refresh_interval': 'Refresh interval\u2026',
         'dlg_interval_title': 'Refresh interval',
         'dlg_interval_label': 'Interval in seconds (minimum 10):',
@@ -503,7 +552,9 @@ LANG = {
         'action_setup_now': 'Configura ora',
         'action_renew_now': 'Rinnova sessione',
         'toast_title': 'Claude Usage',
-        'toast_threshold_session': 'Hai raggiunto il {pct}% del limite della sessione di 5 ore',
+        'toast_line_pct': 'Sessione: {pct}% raggiunto alle {now}',
+        'toast_line_reset': 'Reset alle {reset} (tra {countdown})',
+        'toast_line_no_reset': 'Limite sessione raggiunto',
         'menu_refresh': 'Aggiorna',
         'menu_mode_normal': 'Modalit\u00e0 normale',
         'menu_mode_essential': 'Modalit\u00e0 essential',
@@ -515,6 +566,7 @@ LANG = {
         'menu_notifications_off': 'Notifiche: disattive',
         'menu_taskbar_on': 'Icona taskbar: visibile',
         'menu_taskbar_off': 'Icona taskbar: nascosta',
+        'menu_simulate': 'Test barra (10 s)',
         'menu_refresh_interval': 'Intervallo aggiornamento\u2026',
         'dlg_interval_title': 'Intervallo aggiornamento',
         'dlg_interval_label': 'Intervallo in secondi (minimo 10):',
@@ -575,7 +627,9 @@ LANG = {
         'action_setup_now': '\u4eca\u3059\u3050\u8a2d\u5b9a',
         'action_renew_now': '\u30bb\u30c3\u30b7\u30e7\u30f3\u66f4\u65b0',
         'toast_title': 'Claude Usage',
-        'toast_threshold_session': '5\u6642\u9593\u30bb\u30c3\u30b7\u30e7\u30f3\u306e\u4f7f\u7528\u91cf\u304c{pct}%\u306b\u9054\u3057\u307e\u3057\u305f',
+        'toast_line_pct': '\u30bb\u30c3\u30b7\u30e7\u30f3: {now}\u306b{pct}%\u306b\u9054\u3057\u307e\u3057\u305f',
+        'toast_line_reset': '\u30ea\u30bb\u30c3\u30c8 {reset} (\u3042\u3068 {countdown})',
+        'toast_line_no_reset': '\u30bb\u30c3\u30b7\u30e7\u30f3\u4e0a\u9650\u306b\u5230\u9054',
         'menu_refresh': '\u66f4\u65b0',
         'menu_mode_normal': '\u901a\u5e38\u30e2\u30fc\u30c9',
         'menu_mode_essential': '\u30b7\u30f3\u30d7\u30eb\u30e2\u30fc\u30c9',
@@ -587,6 +641,7 @@ LANG = {
         'menu_notifications_off': '\u901a\u77e5: \u30aa\u30d5',
         'menu_taskbar_on': '\u30bf\u30b9\u30af\u30d0\u30fc\u30a2\u30a4\u30b3\u30f3: \u8868\u793a',
         'menu_taskbar_off': '\u30bf\u30b9\u30af\u30d0\u30fc\u30a2\u30a4\u30b3\u30f3: \u975e\u8868\u793a',
+        'menu_simulate': '\u30d0\u30fc\u30c6\u30b9\u30c8 (10 \u79d2)',
         'menu_refresh_interval': '\u66f4\u65b0\u9593\u9694\u2026',
         'dlg_interval_title': '\u66f4\u65b0\u9593\u9694',
         'dlg_interval_label': '\u79d2\u5358\u4f4d\u306e\u9593\u9694 (\u6700\u4f4e10):',
@@ -1364,6 +1419,12 @@ class Widget:
         # safe no-ops while the icon isn't visible.
         self._taskbar = TaskbarProgress()
         self._last_session_pct = None
+        self._sim_job = None
+        self._real_session_pct = None
+        # Make Windows recognise our AUMID so toast banners actually pop
+        # (an unregistered AUMID causes Show() to succeed but Windows to
+        # silently route the toast to Action Center without a banner).
+        register_toast_aumid()
         # The taskbar entry can take a couple of seconds to register
         # after WS_EX_APPWINDOW is applied. Re-push the colour on a
         # short ramp so the bar settles into the correct state even if
@@ -1866,11 +1927,7 @@ class Widget:
         self._start_countdown()
         self._update_minsize()
 
-    # Two separate sets: toasts notify at every meaningful milestone
-    # including 95 % (the last warning before the cap), pulses skip 95
-    # so they don't fire twice in quick succession near 100.
     TOAST_THRESHOLDS = (25, 50, 75, 90, 95, 100)
-    PULSE_THRESHOLDS = (25, 50, 75, 90, 100)
 
     @staticmethod
     def _stable_reset_key(resets_at):
@@ -1880,9 +1937,8 @@ class Widget:
         and the microsecond portion drifts every fetch even though the
         underlying 5-hour session window is the same. Comparing the raw
         strings was making _check_thresholds think a new session had
-        started on every refresh, which re-fired the 25/50 toasts and
-        kept INDETERMINATE pulses cycling forever (visible to the user
-        as 'the bar stays grey at 56 %').
+        started on every refresh and re-fired the 25/50 toasts on every
+        tick.
         """
         if not resets_at:
             return None
@@ -1904,69 +1960,76 @@ class Widget:
         return s
 
     def _check_thresholds(self, percentage, resets_at):
-        """Fire a Windows toast and a taskbar progress pulse when the
-        session usage crosses one of the configured thresholds.
+        """Fire a Windows toast when the session usage crosses one of
+        the configured thresholds (25 / 50 / 75 / 90 / 95 / 100 %).
 
         State (last threshold notified, current session reset time) lives
         in config so it survives widget restarts within the same 5-hour
-        window. Counters reset automatically when a new session starts
+        window. Counter resets automatically when a new session starts
         (resets_at changes - compared as a microsecond-stripped key so
         natural API-side jitter doesn't false-trigger the reset).
+
+        An earlier version of this widget also pulsed the taskbar
+        progress bar with TBPF_INDETERMINATE for ~1.5 s at each
+        crossing. The animated stripes looked like a "loading"
+        indicator with no obvious meaning, so the pulse was removed and
+        the toast notification is the only cue now.
         """
         # New session detected: reset state.
         key = self._stable_reset_key(resets_at)
         if key and self.cfg.get('toast_session_reset_at') != key:
             self.cfg['toast_session_reset_at'] = key
             self.cfg['toast_last_threshold'] = 0
-            self.cfg['pulse_last_threshold'] = 0
             save_cfg(self.cfg)
-        notifications_on = self.cfg.get('notifications_enabled', True)
-
-        # Toasts.
+        if not self.cfg.get('notifications_enabled', True):
+            return
         last_t = self.cfg.get('toast_last_threshold', 0)
         for threshold in self.TOAST_THRESHOLDS:
             if percentage >= threshold and last_t < threshold:
                 wlog(f'TOAST  session crossed {threshold}% '
                      f'(now {percentage}%)')
-                if notifications_on:
-                    show_toast(t('toast_title'),
-                               t('toast_threshold_session').format(
-                                   pct=percentage))
+                self._fire_threshold_toast(percentage, resets_at)
                 last_t = threshold
         if last_t != self.cfg.get('toast_last_threshold', 0):
             self.cfg['toast_last_threshold'] = last_t
             save_cfg(self.cfg)
 
-        # Pulses on the taskbar progress bar - independent of toast
-        # notifications because they're a separate visual cue.
-        last_p = self.cfg.get('pulse_last_threshold', 0)
-        pulsed = False
-        for threshold in self.PULSE_THRESHOLDS:
-            if percentage >= threshold and last_p < threshold:
-                wlog(f'PULSE  session crossed {threshold}%')
-                last_p = threshold
-                pulsed = True
-        if last_p != self.cfg.get('pulse_last_threshold', 0):
-            self.cfg['pulse_last_threshold'] = last_p
-            save_cfg(self.cfg)
-        if pulsed:
-            self._pulse_taskbar()
+    def _fire_threshold_toast(self, percentage, resets_at):
+        """Build the rich toast body (% + now + reset time + countdown)
+        and ship it to Windows.
 
-    def _pulse_taskbar(self):
-        """Flash INDETERMINATE on the taskbar progress bar for ~1.5 s,
-        then snap back to the current colour. Acts as a visual cue
-        whenever a threshold is crossed."""
-        tp = getattr(self, '_taskbar', None)
-        hwnd = getattr(self, '_hwnd', None)
-        if not tp or not hwnd:
-            return
-        if not self.cfg.get('show_in_taskbar', False):
-            return
-        try:
-            tp.set_state(hwnd, TaskbarProgress.INDETERMINATE)
-            self.root.after(1500, self._push_taskbar_state)
-        except Exception:
-            pass
+        Lines:
+          [bold] Claude Usage
+          Session: 75% reached at 14:30
+          Resets at 16:45 (in 2h 15m)
+
+        If we don't have a usable resets_at the second body line falls
+        back to a simple "Session limit reached" string so the toast
+        still surfaces the milestone.
+        """
+        now = datetime.now().strftime('%H:%M')
+        reset_label = ''
+        countdown_label = ''
+        if resets_at:
+            try:
+                reset_dt = datetime.fromisoformat(resets_at)
+                reset_label = reset_dt.astimezone().strftime('%H:%M')
+                delta = reset_dt - datetime.now(timezone.utc)
+                total_min = max(0, int(delta.total_seconds() // 60))
+                hours, mins = divmod(total_min, 60)
+                if hours > 0:
+                    countdown_label = f'{hours}h {mins:02d}m'
+                else:
+                    countdown_label = f'{mins}m'
+            except (ValueError, TypeError):
+                pass
+        line1 = t('toast_line_pct').format(pct=int(percentage), now=now)
+        if reset_label and countdown_label:
+            line2 = t('toast_line_reset').format(
+                reset=reset_label, countdown=countdown_label)
+        else:
+            line2 = t('toast_line_no_reset')
+        show_toast(t('toast_title'), [line1, line2])
 
     def _update_clock(self):
         """Update the current time in title bar and essential controls."""
@@ -2322,6 +2385,7 @@ class Widget:
             ('\u23F3\uFE0E',       FT_EMOJI,     interval_label,           self._show_interval_dialog),
             ('\U0001F514\uFE0E',   FT_EMOJI,     notif_label,              self._toggle_notifications),
             ('\U0001F4CC\uFE0E',   FT_EMOJI,     taskbar_label,            self._toggle_taskbar),
+            ('\U0001F9EA',         FT_EMOJI,     t('menu_simulate'),       self._simulate_sweep),
             ('\U0001F5DD\uFE0E',   FT_EMOJI,     t('menu_renew'),          self._renew_session),
             ('\u2197\uFE0E',       FT_EMOJI,     t('menu_open_claude'),    self._open_claude_usage),
             (gh_icon,              gh_font,      t('menu_open_repo'),      self._open_repo),
@@ -2932,6 +2996,55 @@ class Widget:
         save_cfg(self.cfg)
         wlog(f'TOAST  notifications_enabled -> {new_value}')
 
+    def _simulate_sweep(self):
+        """Diagnostic: drive _last_session_pct from 0 to 100 over ~10 s.
+
+        Triggers every threshold (25 / 50 / 75 / 90 / 95 / 100 %) so the
+        user can verify that:
+          - Windows toasts fire at each milestone (notifications path)
+          - The taskbar progress bar pulses INDETERMINATE at each
+            milestone before settling into the right colour
+          - The colour transitions accent -> yellow at 75 -> red at 90
+        Saved threshold counters and reset key are wiped first so every
+        threshold has a clean shot at firing. After the sweep ends we
+        replay the last real refresh so the bar snaps back to the actual
+        usage value and the next scheduled tick takes over.
+        """
+        if getattr(self, '_sim_job', None) is not None:
+            return  # already running
+        wlog('SIM    sweep started (0 -> 100 over ~10 s)')
+        # Wipe saved threshold state with a synthetic reset_at so every
+        # crossing in the simulation actually triggers the toast/pulse.
+        synthetic_reset = (datetime.now(timezone.utc) +
+                           timedelta(hours=5)).isoformat()
+        self.cfg['toast_session_reset_at'] = self._stable_reset_key(
+            synthetic_reset)
+        self.cfg['toast_last_threshold'] = 0
+        self.cfg['pulse_last_threshold'] = 0
+        save_cfg(self.cfg)
+        self._real_session_pct = self._last_session_pct  # to restore later
+        self._sim_step = 0
+        self._sim_step_ms = 100  # 100 steps * 100 ms = 10 s
+        self._sim_resets_at = synthetic_reset
+        self._sim_job = self.root.after(0, self._sim_tick)
+
+    def _sim_tick(self):
+        n = self._sim_step
+        if n > 100:
+            wlog('SIM    sweep complete')
+            self._sim_job = None
+            # Restore real value if we have one, otherwise just push
+            # NOPROGRESS until the next refresh tick fills it back in.
+            if self._real_session_pct is not None:
+                self._last_session_pct = self._real_session_pct
+            self._push_taskbar_state()
+            return
+        self._last_session_pct = float(n)
+        self._check_thresholds(n, self._sim_resets_at)
+        self._push_taskbar_state()
+        self._sim_step = n + 1
+        self._sim_job = self.root.after(self._sim_step_ms, self._sim_tick)
+
     def _toggle_taskbar(self):
         """Toggle whether the widget shows in the Windows taskbar.
 
@@ -3135,21 +3248,17 @@ class Widget:
     def _push_taskbar_state(self):
         """Push the cached usage % to the taskbar progress overlay.
 
-        Colour mapping. ITaskbarList3 exposes three coloured states and
-        nothing else, so the under-75 band falls back to TBPF_NORMAL
-        (which Win11 paints in the system accent colour - blue with the
-        default theme, neutral grey on custom themes). The user wanted
-        the bar visible at *any* usage so the icon always carries a
-        live indicator, with the colour only escalating as the session
-        approaches its limit:
+        Colour mapping. ITaskbarList3 only exposes three coloured
+        states (NORMAL / PAUSED / ERROR), so the bands collapse to:
 
-            0-74   -> NORMAL  (accent / "neutral")
-            75-89  -> PAUSED  (yellow, warning)
-            >=90   -> ERROR   (red, danger)
+            0-54   -> NORMAL  (Win11 accent colour, defaults to blue;
+                                grey on the user's silver-themed setup)
+            55-79  -> PAUSED  (yellow, warning)
+            >=80   -> ERROR   (red, danger - same state at 100 %)
 
         The bar fill width tracks the actual percentage so even at low
-        usage you see a thin coloured wedge plus the dim "remaining"
-        portion that represents the limit still available.
+        usage the wedge position gives a rough read in addition to the
+        colour band.
         """
         tp = getattr(self, '_taskbar', None)
         hwnd = getattr(self, '_hwnd', None)
@@ -3162,14 +3271,14 @@ class Widget:
         if pct is None:
             tp.set_state(hwnd, TaskbarProgress.NOPROGRESS)
             return
-        if pct >= 90:
-            state = TaskbarProgress.ERROR     # red
+        if pct >= 80:
+            state = TaskbarProgress.ERROR     # red (incl. 100 %)
             label = 'ERROR/red'
-        elif pct >= 75:
+        elif pct >= 55:
             state = TaskbarProgress.PAUSED    # yellow
             label = 'PAUSED/yellow'
         else:
-            state = TaskbarProgress.NORMAL    # accent (default)
+            state = TaskbarProgress.NORMAL    # accent
             label = 'NORMAL/accent'
         # MSDN samples set the state BEFORE the value: SetProgressValue
         # is documented to "force the state to TBPF_NORMAL" the first
