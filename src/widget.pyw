@@ -39,7 +39,7 @@ import winreg
 import urllib.request
 import urllib.error
 import tkinter as tk
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from PIL import Image, ImageDraw, ImageTk
 
 # ─── DPI awareness ──────────────────────────────────
@@ -488,7 +488,6 @@ LANG = {
         'menu_notifications_off': 'Notifications: OFF',
         'menu_taskbar_on': 'Taskbar icon: ON',
         'menu_taskbar_off': 'Taskbar icon: OFF',
-        'menu_simulate': 'Test bar sweep (10 s)',
         'menu_refresh_interval': 'Refresh interval\u2026',
         'dlg_interval_title': 'Refresh interval',
         'dlg_interval_label': 'Interval in seconds (minimum 10):',
@@ -566,7 +565,6 @@ LANG = {
         'menu_notifications_off': 'Notifiche: disattive',
         'menu_taskbar_on': 'Icona taskbar: visibile',
         'menu_taskbar_off': 'Icona taskbar: nascosta',
-        'menu_simulate': 'Test barra (10 s)',
         'menu_refresh_interval': 'Intervallo aggiornamento\u2026',
         'dlg_interval_title': 'Intervallo aggiornamento',
         'dlg_interval_label': 'Intervallo in secondi (minimo 10):',
@@ -641,7 +639,6 @@ LANG = {
         'menu_notifications_off': '\u901a\u77e5: \u30aa\u30d5',
         'menu_taskbar_on': '\u30bf\u30b9\u30af\u30d0\u30fc\u30a2\u30a4\u30b3\u30f3: \u8868\u793a',
         'menu_taskbar_off': '\u30bf\u30b9\u30af\u30d0\u30fc\u30a2\u30a4\u30b3\u30f3: \u975e\u8868\u793a',
-        'menu_simulate': '\u30d0\u30fc\u30c6\u30b9\u30c8 (10 \u79d2)',
         'menu_refresh_interval': '\u66f4\u65b0\u9593\u9694\u2026',
         'dlg_interval_title': '\u66f4\u65b0\u9593\u9694',
         'dlg_interval_label': '\u79d2\u5358\u4f4d\u306e\u9593\u9694 (\u6700\u4f4e10):',
@@ -1419,8 +1416,6 @@ class Widget:
         # safe no-ops while the icon isn't visible.
         self._taskbar = TaskbarProgress()
         self._last_session_pct = None
-        self._sim_job = None
-        self._real_session_pct = None
         # Make Windows recognise our AUMID so toast banners actually pop
         # (an unregistered AUMID causes Show() to succeed but Windows to
         # silently route the toast to Action Center without a banner).
@@ -2406,7 +2401,6 @@ class Widget:
             ('\u23F3\uFE0E',       FT_EMOJI,     interval_label,           self._show_interval_dialog),
             ('\U0001F514\uFE0E',   FT_EMOJI,     notif_label,              self._toggle_notifications),
             ('\U0001F4CC\uFE0E',   FT_EMOJI,     taskbar_label,            self._toggle_taskbar),
-            ('\U0001F9EA',         FT_EMOJI,     t('menu_simulate'),       self._simulate_sweep),
             ('\U0001F5DD\uFE0E',   FT_EMOJI,     t('menu_renew'),          self._renew_session),
             ('\u2197\uFE0E',       FT_EMOJI,     t('menu_open_claude'),    self._open_claude_usage),
             (gh_icon,              gh_font,      t('menu_open_repo'),      self._open_repo),
@@ -3016,70 +3010,6 @@ class Widget:
         self.cfg['notifications_enabled'] = new_value
         save_cfg(self.cfg)
         wlog(f'TOAST  notifications_enabled -> {new_value}')
-
-    def _simulate_sweep(self):
-        """Diagnostic: drive _last_session_pct from 0 to 100 over ~10 s.
-
-        Each threshold (25 / 50 / 75 / 90 / 95 / 100 %) fires a real
-        Windows toast so the user can verify that:
-          - the toast pipeline reaches the OS,
-          - the taskbar bar's colour transitions accent -> yellow at 55
-            -> red at 80.
-
-        The saved threshold-tracking state is stashed before the sweep
-        starts and restored when it ends, otherwise the synthetic
-        reset_at the sweep uses would survive into the next real
-        refresh and trick `_check_thresholds` into re-firing every
-        toast crossed by the current session usage (the user reported
-        "ricevo 3 notifiche all'avvio dopo aver lanciato il test").
-        """
-        if getattr(self, '_sim_job', None) is not None:
-            return  # already running
-        wlog('SIM    sweep started (0 -> 100 over ~10 s)')
-        # Stash original threshold state so the sweep can be replayed
-        # without leaking synthetic state into the real session.
-        self._sim_orig_cfg = {
-            'toast_session_reset_at':
-                self.cfg.get('toast_session_reset_at'),
-            'toast_last_threshold':
-                self.cfg.get('toast_last_threshold', 0),
-        }
-        synthetic_reset = (datetime.now(timezone.utc) +
-                           timedelta(hours=5)).isoformat()
-        self.cfg['toast_session_reset_at'] = self._stable_reset_key(
-            synthetic_reset)
-        self.cfg['toast_last_threshold'] = 0
-        save_cfg(self.cfg)
-        self._real_session_pct = self._last_session_pct
-        self._sim_step = 0
-        self._sim_step_ms = 100  # 100 steps * 100 ms = 10 s
-        self._sim_resets_at = synthetic_reset
-        self._sim_job = self.root.after(0, self._sim_tick)
-
-    def _sim_tick(self):
-        n = self._sim_step
-        if n > 100:
-            wlog('SIM    sweep complete')
-            self._sim_job = None
-            # Restore original threshold state so the next real refresh
-            # doesn't think it's a new session.
-            stash = getattr(self, '_sim_orig_cfg', None) or {}
-            for k, v in stash.items():
-                if v is None:
-                    self.cfg.pop(k, None)
-                else:
-                    self.cfg[k] = v
-            save_cfg(self.cfg)
-            self._sim_orig_cfg = None
-            if self._real_session_pct is not None:
-                self._last_session_pct = self._real_session_pct
-            self._push_taskbar_state()
-            return
-        self._last_session_pct = float(n)
-        self._check_thresholds(n, self._sim_resets_at)
-        self._push_taskbar_state()
-        self._sim_step = n + 1
-        self._sim_job = self.root.after(self._sim_step_ms, self._sim_tick)
 
     def _toggle_taskbar(self):
         """Toggle whether the widget shows in the Windows taskbar.
