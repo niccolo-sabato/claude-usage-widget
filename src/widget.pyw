@@ -104,7 +104,7 @@ PCT_FG   = '#ffffff'
 MENU_BG  = '#2c2c2a'
 
 # ─── App ────────────────────────────────────────────
-APP_VERSION = '2.8.35'
+APP_VERSION = '2.8.36'
 
 # ─── Auto-update ────────────────────────────────────
 UPDATE_REPO = 'niccolo-sabato/claude-usage-widget'
@@ -3135,17 +3135,21 @@ class Widget:
     def _push_taskbar_state(self):
         """Push the cached usage % to the taskbar progress overlay.
 
-        Colour mapping (constrained by what ITaskbarList3 actually
-        supports - Windows only exposes 5 progress states, no custom
-        colours; "neutral grey" effectively means "no bar"):
+        Colour mapping. ITaskbarList3 exposes three coloured states and
+        nothing else, so the under-75 band falls back to TBPF_NORMAL
+        (which Win11 paints in the system accent colour - blue with the
+        default theme, neutral grey on custom themes). The user wanted
+        the bar visible at *any* usage so the icon always carries a
+        live indicator, with the colour only escalating as the session
+        approaches its limit:
 
-            0-50  -> NOPROGRESS (icon clean, no bar)
-            51-74 -> NORMAL     (green)
-            75-89 -> PAUSED     (yellow, warning)
-            >=90  -> ERROR      (red, danger)
+            0-74   -> NORMAL  (accent / "neutral")
+            75-89  -> PAUSED  (yellow, warning)
+            >=90   -> ERROR   (red, danger)
 
-        Below 50 % the icon stays pristine; the bar only appears when it
-        carries meaningful information.
+        The bar fill width tracks the actual percentage so even at low
+        usage you see a thin coloured wedge plus the dim "remaining"
+        portion that represents the limit still available.
         """
         tp = getattr(self, '_taskbar', None)
         hwnd = getattr(self, '_hwnd', None)
@@ -3155,12 +3159,9 @@ class Widget:
             tp.set_state(hwnd, TaskbarProgress.NOPROGRESS)
             return
         pct = getattr(self, '_last_session_pct', None)
-        if pct is None or pct <= 50:
+        if pct is None:
             tp.set_state(hwnd, TaskbarProgress.NOPROGRESS)
             return
-        # Bar fill width tracks the actual session usage. The empty
-        # portion is rendered by Windows as a dim line so the unused
-        # part of the limit is also visible.
         if pct >= 90:
             state = TaskbarProgress.ERROR     # red
             label = 'ERROR/red'
@@ -3168,8 +3169,8 @@ class Widget:
             state = TaskbarProgress.PAUSED    # yellow
             label = 'PAUSED/yellow'
         else:
-            state = TaskbarProgress.NORMAL    # green (51-74)
-            label = 'NORMAL/green'
+            state = TaskbarProgress.NORMAL    # accent (default)
+            label = 'NORMAL/accent'
         # MSDN samples set the state BEFORE the value: SetProgressValue
         # is documented to "force the state to TBPF_NORMAL" the first
         # time it's called on a window that has no state, and the second
