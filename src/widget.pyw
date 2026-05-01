@@ -106,7 +106,7 @@ PCT_FG   = '#ffffff'
 MENU_BG  = '#2c2c2a'
 
 # ─── App ────────────────────────────────────────────
-APP_VERSION = '2.8.37'
+APP_VERSION = '2.8.38'
 
 # ─── Auto-update ────────────────────────────────────
 UPDATE_REPO = 'niccolo-sabato/claude-usage-widget'
@@ -1975,11 +1975,32 @@ class Widget:
         indicator with no obvious meaning, so the pulse was removed and
         the toast notification is the only cue now.
         """
-        # New session detected: reset state.
+        # Sync the saved session-reset key with what the API just gave
+        # us, but DON'T blindly zero the threshold counter on a key
+        # mismatch. Two things can change `resets_at` from one fetch to
+        # the next without it being a brand-new five-hour session:
+        #   - Microsecond drift (already filtered by _stable_reset_key).
+        #   - Synthetic state left over from the diagnostic sweep test
+        #     (the user reported "ricevo 3 notifiche all'avvio" because
+        #     the sweep wrote a synthetic future timestamp into cfg and
+        #     the next real fetch tripped the old `last = 0` reset
+        #     path, re-firing every toast already crossed by the
+        #     current percentage).
+        # When we DO have to update the saved key, align the counter
+        # with the highest threshold the current percentage has
+        # already crossed - this leaves a fresh session at 0 % with
+        # `last = 0` (so 25 / 50 / ... still fire as it climbs) but
+        # keeps an in-progress session at e.g. 84 % with `last = 75`,
+        # so only 90 / 95 / 100 are still arm-able. No spurious
+        # toasts on startup either way.
         key = self._stable_reset_key(resets_at)
         if key and self.cfg.get('toast_session_reset_at') != key:
+            new_last = 0
+            for th in self.TOAST_THRESHOLDS:
+                if percentage >= th:
+                    new_last = th
             self.cfg['toast_session_reset_at'] = key
-            self.cfg['toast_last_threshold'] = 0
+            self.cfg['toast_last_threshold'] = new_last
             save_cfg(self.cfg)
         if not self.cfg.get('notifications_enabled', True):
             return
@@ -2999,30 +3020,37 @@ class Widget:
     def _simulate_sweep(self):
         """Diagnostic: drive _last_session_pct from 0 to 100 over ~10 s.
 
-        Triggers every threshold (25 / 50 / 75 / 90 / 95 / 100 %) so the
-        user can verify that:
-          - Windows toasts fire at each milestone (notifications path)
-          - The taskbar progress bar pulses INDETERMINATE at each
-            milestone before settling into the right colour
-          - The colour transitions accent -> yellow at 75 -> red at 90
-        Saved threshold counters and reset key are wiped first so every
-        threshold has a clean shot at firing. After the sweep ends we
-        replay the last real refresh so the bar snaps back to the actual
-        usage value and the next scheduled tick takes over.
+        Each threshold (25 / 50 / 75 / 90 / 95 / 100 %) fires a real
+        Windows toast so the user can verify that:
+          - the toast pipeline reaches the OS,
+          - the taskbar bar's colour transitions accent -> yellow at 55
+            -> red at 80.
+
+        The saved threshold-tracking state is stashed before the sweep
+        starts and restored when it ends, otherwise the synthetic
+        reset_at the sweep uses would survive into the next real
+        refresh and trick `_check_thresholds` into re-firing every
+        toast crossed by the current session usage (the user reported
+        "ricevo 3 notifiche all'avvio dopo aver lanciato il test").
         """
         if getattr(self, '_sim_job', None) is not None:
             return  # already running
         wlog('SIM    sweep started (0 -> 100 over ~10 s)')
-        # Wipe saved threshold state with a synthetic reset_at so every
-        # crossing in the simulation actually triggers the toast/pulse.
+        # Stash original threshold state so the sweep can be replayed
+        # without leaking synthetic state into the real session.
+        self._sim_orig_cfg = {
+            'toast_session_reset_at':
+                self.cfg.get('toast_session_reset_at'),
+            'toast_last_threshold':
+                self.cfg.get('toast_last_threshold', 0),
+        }
         synthetic_reset = (datetime.now(timezone.utc) +
                            timedelta(hours=5)).isoformat()
         self.cfg['toast_session_reset_at'] = self._stable_reset_key(
             synthetic_reset)
         self.cfg['toast_last_threshold'] = 0
-        self.cfg['pulse_last_threshold'] = 0
         save_cfg(self.cfg)
-        self._real_session_pct = self._last_session_pct  # to restore later
+        self._real_session_pct = self._last_session_pct
         self._sim_step = 0
         self._sim_step_ms = 100  # 100 steps * 100 ms = 10 s
         self._sim_resets_at = synthetic_reset
@@ -3033,8 +3061,16 @@ class Widget:
         if n > 100:
             wlog('SIM    sweep complete')
             self._sim_job = None
-            # Restore real value if we have one, otherwise just push
-            # NOPROGRESS until the next refresh tick fills it back in.
+            # Restore original threshold state so the next real refresh
+            # doesn't think it's a new session.
+            stash = getattr(self, '_sim_orig_cfg', None) or {}
+            for k, v in stash.items():
+                if v is None:
+                    self.cfg.pop(k, None)
+                else:
+                    self.cfg[k] = v
+            save_cfg(self.cfg)
+            self._sim_orig_cfg = None
             if self._real_session_pct is not None:
                 self._last_session_pct = self._real_session_pct
             self._push_taskbar_state()
