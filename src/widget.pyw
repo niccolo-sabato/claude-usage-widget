@@ -106,7 +106,7 @@ PCT_FG   = '#ffffff'
 MENU_BG  = '#2c2c2a'
 
 # ─── App ────────────────────────────────────────────
-APP_VERSION = '2.8.40'
+APP_VERSION = '2.8.41'
 
 # ─── Auto-update ────────────────────────────────────
 UPDATE_REPO = 'niccolo-sabato/claude-usage-widget'
@@ -1971,36 +1971,27 @@ class Widget:
         the toast notification is the only cue now.
         """
         # Sync the saved session-reset key. On a mismatch (genuine new
-        # five-hour session, OR the widget was off when the user crossed
-        # one or more thresholds) we want to surface ONE catch-up toast
-        # for the highest threshold already crossed by the current
-        # percentage:
-        #   - 0   stays at 0 (no thresholds yet, all will fire as the
-        #     session climbs).
-        #   - 25  fires the 25 % toast.
-        #   - 60  fires only 50 (not 25).
-        #   - 84  fires only 75 (not 25 / 50).
-        # An earlier release set the counter to the highest crossed
-        # threshold itself, which silenced legitimate first-time
-        # crossings ("oggi quando ho raggiunto il 25 % la notifica non
-        # e' comparsa" because the widget started after the user had
-        # already passed 25 %, the key changed, and the counter was
-        # bumped to 25 without firing). Setting it to the threshold
-        # *below* the highest crossed gives the user one toast for the
-        # most recent milestone instead of zero or several.
+        # five-hour session, OR the widget was off when the user
+        # crossed one or more thresholds) we align the counter with
+        # the highest threshold the current percentage has already
+        # crossed - silencing thresholds that aren't fresh anymore.
+        # If the user opens the widget at 60 % they've already passed
+        # 25 / 50 hours / minutes ago, the toasts for those would feel
+        # spurious; only 75 / 90 / 95 / 100 are still meaningful for
+        # the rest of this session.
+        # A fresh session at 0 % keeps `last = 0`, so 25 / 50 / ...
+        # fire as it climbs.
         # Microsecond drift on resets_at is already filtered out by
-        # _stable_reset_key.
+        # _stable_reset_key, so this branch only runs on a real
+        # session boundary or a cold widget startup.
         key = self._stable_reset_key(resets_at)
         if key and self.cfg.get('toast_session_reset_at') != key:
-            highest_crossed = 0
-            below = 0
+            new_last = 0
             for th in self.TOAST_THRESHOLDS:
                 if percentage >= th:
-                    if highest_crossed:
-                        below = highest_crossed
-                    highest_crossed = th
+                    new_last = th
             self.cfg['toast_session_reset_at'] = key
-            self.cfg['toast_last_threshold'] = below
+            self.cfg['toast_last_threshold'] = new_last
             save_cfg(self.cfg)
         if not self.cfg.get('notifications_enabled', True):
             return
