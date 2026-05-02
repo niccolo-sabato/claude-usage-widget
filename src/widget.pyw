@@ -106,7 +106,7 @@ PCT_FG   = '#ffffff'
 MENU_BG  = '#2c2c2a'
 
 # ─── App ────────────────────────────────────────────
-APP_VERSION = '2.8.39'
+APP_VERSION = '2.8.40'
 
 # ─── Auto-update ────────────────────────────────────
 UPDATE_REPO = 'niccolo-sabato/claude-usage-widget'
@@ -1970,32 +1970,37 @@ class Widget:
         indicator with no obvious meaning, so the pulse was removed and
         the toast notification is the only cue now.
         """
-        # Sync the saved session-reset key with what the API just gave
-        # us, but DON'T blindly zero the threshold counter on a key
-        # mismatch. Two things can change `resets_at` from one fetch to
-        # the next without it being a brand-new five-hour session:
-        #   - Microsecond drift (already filtered by _stable_reset_key).
-        #   - Synthetic state left over from the diagnostic sweep test
-        #     (the user reported "ricevo 3 notifiche all'avvio" because
-        #     the sweep wrote a synthetic future timestamp into cfg and
-        #     the next real fetch tripped the old `last = 0` reset
-        #     path, re-firing every toast already crossed by the
-        #     current percentage).
-        # When we DO have to update the saved key, align the counter
-        # with the highest threshold the current percentage has
-        # already crossed - this leaves a fresh session at 0 % with
-        # `last = 0` (so 25 / 50 / ... still fire as it climbs) but
-        # keeps an in-progress session at e.g. 84 % with `last = 75`,
-        # so only 90 / 95 / 100 are still arm-able. No spurious
-        # toasts on startup either way.
+        # Sync the saved session-reset key. On a mismatch (genuine new
+        # five-hour session, OR the widget was off when the user crossed
+        # one or more thresholds) we want to surface ONE catch-up toast
+        # for the highest threshold already crossed by the current
+        # percentage:
+        #   - 0   stays at 0 (no thresholds yet, all will fire as the
+        #     session climbs).
+        #   - 25  fires the 25 % toast.
+        #   - 60  fires only 50 (not 25).
+        #   - 84  fires only 75 (not 25 / 50).
+        # An earlier release set the counter to the highest crossed
+        # threshold itself, which silenced legitimate first-time
+        # crossings ("oggi quando ho raggiunto il 25 % la notifica non
+        # e' comparsa" because the widget started after the user had
+        # already passed 25 %, the key changed, and the counter was
+        # bumped to 25 without firing). Setting it to the threshold
+        # *below* the highest crossed gives the user one toast for the
+        # most recent milestone instead of zero or several.
+        # Microsecond drift on resets_at is already filtered out by
+        # _stable_reset_key.
         key = self._stable_reset_key(resets_at)
         if key and self.cfg.get('toast_session_reset_at') != key:
-            new_last = 0
+            highest_crossed = 0
+            below = 0
             for th in self.TOAST_THRESHOLDS:
                 if percentage >= th:
-                    new_last = th
+                    if highest_crossed:
+                        below = highest_crossed
+                    highest_crossed = th
             self.cfg['toast_session_reset_at'] = key
-            self.cfg['toast_last_threshold'] = new_last
+            self.cfg['toast_last_threshold'] = below
             save_cfg(self.cfg)
         if not self.cfg.get('notifications_enabled', True):
             return
