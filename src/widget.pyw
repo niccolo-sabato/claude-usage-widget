@@ -25,6 +25,7 @@ import sys
 import os
 import re
 import json
+import math
 import ssl
 import time
 import ctypes
@@ -71,6 +72,11 @@ if os.path.exists(_old_cfg) and not os.path.exists(_new_cfg):
     import shutil
     shutil.copy2(_old_cfg, _new_cfg)
 CFG = _new_cfg
+# Dev mode (env CLAUDE_USAGE_DEV=1): use a separate config so test runs never
+# touch the real one, and skip single-instance (below) so the source can run
+# alongside an installed copy. Invisible to normal users (env var unset).
+if os.environ.get('CLAUDE_USAGE_DEV') == '1':
+    CFG = os.path.join(DATA_DIR, 'config-dev.json')
 
 def _find_res(name):
     """Locate a bundled resource: try _RES root, then _RES/assets, then EXE_DIR/assets."""
@@ -102,11 +108,12 @@ OCHRE    = '#C8962A'
 DOT_W    = '#d0d0d0'
 DOT_W_H  = '#ffffff'
 DOT_W_D  = '#a0a09e'
+DOT_GREEN   = '#6BC275'  # pre-refresh breathing dot (matches lbl_info green)
 PCT_FG   = '#ffffff'
 MENU_BG  = '#2c2c2a'
 
 # ─── App ────────────────────────────────────────────
-APP_VERSION = '2.8.41'
+APP_VERSION = '2.8.43'
 
 # ─── Auto-update ────────────────────────────────────
 UPDATE_REPO = 'niccolo-sabato/claude-usage-widget'
@@ -125,6 +132,11 @@ MIN_H_N  = 90   # normal mode minimum height
 PAD      = 12
 BAR_H    = 16
 TITLE_H  = 28
+DOT_INSET = 13    # px from the bar's right edge to the pre-refresh dot centre,
+                  # kept clear of the rounded right cap so it never notches it
+DOT_DIAM  = 7     # pre-refresh dot diameter (matches the corner dots' footprint)
+ESS_MENU_W = 62   # hamburger pill width; reserves >= the bottom-right controls'
+                  # footprint so the per-bar reset text never collides with them
 REFRESH  = 180_000  # 3 minutes
 
 # ─── Fonts ───────────────────────────────────────────
@@ -488,6 +500,14 @@ LANG = {
         'menu_notifications_off': 'Notifications: OFF',
         'menu_taskbar_on': 'Taskbar icon: ON',
         'menu_taskbar_off': 'Taskbar icon: OFF',
+        'menu_countdown': 'Countdown',
+        'countdown_full': 'Full',
+        'countdown_hidden': 'Hide countdown',
+        'countdown_dot': 'Essential',
+        'countdown_note': 'In multi-bar mode the dot (Essential) is always used.',
+        'menu_essential_bars': 'Essential bars',
+        'menu_sync_on': 'Sync time: ON',
+        'menu_sync_off': 'Sync time: OFF',
         'menu_refresh_interval': 'Refresh interval\u2026',
         'dlg_interval_title': 'Refresh interval',
         'dlg_interval_label': 'Interval in seconds (minimum 10):',
@@ -565,6 +585,14 @@ LANG = {
         'menu_notifications_off': 'Notifiche: disattive',
         'menu_taskbar_on': 'Icona taskbar: visibile',
         'menu_taskbar_off': 'Icona taskbar: nascosta',
+        'menu_countdown': 'Conto alla rovescia',
+        'countdown_full': 'Completo',
+        'countdown_hidden': 'Nascondi conto alla rovescia',
+        'countdown_dot': 'Essenziale',
+        'countdown_note': 'In multi-barra è sempre attivo Essenziale.',
+        'menu_essential_bars': 'Barre essential',
+        'menu_sync_on': 'Orario sync: attivo',
+        'menu_sync_off': 'Orario sync: disattivo',
         'menu_refresh_interval': 'Intervallo aggiornamento\u2026',
         'dlg_interval_title': 'Intervallo aggiornamento',
         'dlg_interval_label': 'Intervallo in secondi (minimo 10):',
@@ -639,6 +667,14 @@ LANG = {
         'menu_notifications_off': '\u901a\u77e5: \u30aa\u30d5',
         'menu_taskbar_on': '\u30bf\u30b9\u30af\u30d0\u30fc\u30a2\u30a4\u30b3\u30f3: \u8868\u793a',
         'menu_taskbar_off': '\u30bf\u30b9\u30af\u30d0\u30fc\u30a2\u30a4\u30b3\u30f3: \u975e\u8868\u793a',
+        'menu_countdown': '\u30ab\u30a6\u30f3\u30c8\u30c0\u30a6\u30f3',
+        'countdown_full': '\u5b8c\u5168',
+        'countdown_hidden': '\u30ab\u30a6\u30f3\u30c8\u30c0\u30a6\u30f3\u3092\u975e\u8868\u793a',
+        'countdown_dot': '\u30a8\u30c3\u30bb\u30f3\u30b7\u30e3\u30eb',
+        'countdown_note': '\u30de\u30eb\u30c1\u30d0\u30fc\u3067\u306f\u5e38\u306b\u30a8\u30c3\u30bb\u30f3\u30b7\u30e3\u30eb\u3092\u4f7f\u7528\u3057\u307e\u3059\u3002',
+        'menu_essential_bars': '\u30a8\u30c3\u30bb\u30f3\u30b7\u30e3\u30eb\u30d0\u30fc',
+        'menu_sync_on': '\u540c\u671f\u6642\u523b: \u30aa\u30f3',
+        'menu_sync_off': '\u540c\u671f\u6642\u523b: \u30aa\u30d5',
         'menu_refresh_interval': '\u66f4\u65b0\u9593\u9694\u2026',
         'dlg_interval_title': '\u66f4\u65b0\u9593\u9694',
         'dlg_interval_label': '\u79d2\u5358\u4f4d\u306e\u9593\u9694 (\u6700\u4f4e10):',
@@ -723,8 +759,13 @@ def bar_color(pct, accent):
     return accent
 
 
-def format_reset(iso_str):
-    """Format reset time: 'reset 18:00 (3h 26min)' or 'reset Sat 11:00 (2d 5h)'."""
+def format_reset(iso_str, compact=False):
+    """Format reset time: 'reset 18:00 (3h 26min)' or 'reset Sat 11:00 (2d 5h)'.
+
+    With compact=True returns the reduced form used by the side-by-side
+    essential bars: just 'reset 3h 26min' / 'reset 2d 5h', with no absolute
+    clock time, no weekday and no parentheses, so it fits under a narrow bar.
+    """
     if not iso_str:
         return None
     try:
@@ -745,8 +786,10 @@ def format_reset(iso_str):
         cd = f'{total_h}{uh} {total_m:02d}{umin}'
     else:
         cd = f'{total_m}{umin}'
-    time_str = f'{local:%H:%M}'
     prefix = t('reset_prefix')
+    if compact:
+        return f'{prefix} {cd}'
+    time_str = f'{local:%H:%M}'
     if local.date() == now_local.date():
         return f'{prefix} {time_str} ({cd})'
     days = t('days')
@@ -881,6 +924,39 @@ _PILL_IMAGE_CACHE = {}
 def _hex_to_rgb(color):
     h = color.lstrip('#')
     return tuple(int(h[i:i+2], 16) for i in (0, 2, 4))
+
+
+def _lerp_hex(c1, c2, frac):
+    """Linear-interpolate two '#rrggbb' colors; frac in [0, 1]."""
+    r1, g1, b1 = _hex_to_rgb(c1)
+    r2, g2, b2 = _hex_to_rgb(c2)
+    r = int(r1 + (r2 - r1) * frac)
+    g = int(g1 + (g2 - g1) * frac)
+    b = int(b1 + (b2 - b1) * frac)
+    return f'#{r:02x}{g:02x}{b:02x}'
+
+
+_DOT_IMG_CACHE = {}
+
+
+def _dot_image(diameter, color):
+    """A smooth, anti-aliased filled circle as a PhotoImage, transparent
+    outside the disc. Rendered at 4x then LANCZOS-downscaled so the edges are
+    clean (a font glyph's bounding box is asymmetric, which made the dot look
+    off-centre; a rendered disc gives exact size and centring). Cached by
+    (diameter, color) since the breathing cycle reuses a small set of colors.
+    """
+    key = (diameter, color)
+    img = _DOT_IMG_CACHE.get(key)
+    if img is None:
+        ss = 4
+        d = diameter * ss
+        im = Image.new('RGBA', (d, d), (0, 0, 0, 0))
+        ImageDraw.Draw(im).ellipse((0, 0, d - 1, d - 1), fill=color)
+        im = im.resize((diameter, diameter), Image.LANCZOS)
+        img = ImageTk.PhotoImage(im)
+        _DOT_IMG_CACHE[key] = img
+    return img
 
 
 def _render_pill_image(w, h, color, radius=None):
@@ -1236,6 +1312,11 @@ class Section:
         self._color = accent
         self._compact = False
         self._cd_txt = ''  # countdown text appended to pct
+        self._dot_phase = 'off'      # 'off' | 'on' (pre-refresh breathing dot)
+        self._dot_level = 1.0        # breathing brightness 0..1 (0 = invisible)
+        self._dot_bg = BAR_BG        # colour behind the dot, for the fade-out
+        self._dot_img = None         # keeps the current dot PhotoImage from GC
+        self._reset_compact = False  # reduced reset sub-label for side-by-side bars
 
         self.frame = tk.Frame(parent, bg=BG)
         self.frame.pack(fill='x', padx=PAD, pady=(3, 0))
@@ -1275,6 +1356,30 @@ class Section:
         self.lbl_info.config(text=txt)
         self._draw(self.cv.winfo_width())
 
+    def set_dot_phase(self, phase):
+        """Show/hide the pre-refresh breathing dot ('off' | 'on').
+
+        The breathing brightness itself is driven by the Widget via
+        set_dot_level; this only flips visibility and redraws.
+        """
+        if phase == self._dot_phase:
+            return
+        self._dot_phase = phase
+        self._draw(self.cv.winfo_width())
+
+    def set_dot_level(self, level):
+        """Set breathing brightness 0..1 (0 = faded into the bar background,
+        i.e. invisible) and recolour the dot in place without a full redraw."""
+        self._dot_level = level
+        if self._dot_phase == 'on':
+            q = round(level * 12) / 12  # quantise so the image cache stays small
+            color = _lerp_hex(self._dot_bg, DOT_GREEN, q)
+            self._dot_img = _dot_image(DOT_DIAM, color)
+            try:
+                self.cv.itemconfigure('refresh_dot', image=self._dot_img)
+            except Exception:
+                pass
+
     def update(self, pct, resets_at):
         if pct is None:
             self._pct = 0
@@ -1284,7 +1389,7 @@ class Section:
             return
         self._pct = max(0, min(100, pct))
         self._color = bar_color(self._pct, self.accent)
-        cd = format_reset(resets_at)
+        cd = format_reset(resets_at, compact=self._reset_compact)
         if cd:
             self.lbl_sub.config(text=cd)
         elif self._pct == 0:
@@ -1308,6 +1413,21 @@ class Section:
             txt = pct_str
         self.cv.create_text(w / 2, BAR_H / 2 - 1, text=txt,
                             fill='#ffffff', font=FT_BAR, anchor='center')
+        # Pre-refresh breathing dot, inside the bar near the right edge but
+        # clear of the rounded cap. Same glyph + font as the corner dots so
+        # the shape and size match exactly, at the same vertical level as the
+        # pct text. It fades between the background behind it (invisible) and
+        # solid green for a real appear/disappear breathing pulse.
+        if self._dot_phase == 'on':
+            cx = w - DOT_INSET
+            cy = BAR_H / 2 - 1  # measured centre of the bar pill for this image
+            fill_w = max(BAR_H, w * self._pct / 100) if self._pct > 0 else 0
+            self._dot_bg = self._color if (self._pct > 0 and fill_w >= cx) else BAR_BG
+            q = round(self._dot_level * 12) / 12
+            color = _lerp_hex(self._dot_bg, DOT_GREEN, q)
+            self._dot_img = _dot_image(DOT_DIAM, color)
+            self.cv.create_image(cx, cy, image=self._dot_img,
+                                 anchor='center', tags='refresh_dot')
 
 
 # ═══════════════════════════════════════════════════════
@@ -1354,9 +1474,12 @@ class Widget:
         self._job = None
         self._countdown_job = None
         self._topmost_job = None
+        self._pulse_job = None
+        self._pulse_phase = 0.0
         self._countdown_secs = 0
         self._last_time = ''
         self._resets_at = []  # ISO reset times — trigger refresh when reached
+        self._last_data = None  # last fetched usage dict (for ess-bar re-render)
         self._dx = self._dy = 0
         self._expanded = False
         self._essential = False
@@ -1587,6 +1710,45 @@ class Widget:
         self.s_weekly = Section(self.extra_frame, t('all_models'), BLUE)
         self.s_sonnet = Section(self.extra_frame, t('sonnet_only'), PURPLE)
 
+        # Essential-collapsed multi-bar strip. Tk can't re-parent the originals,
+        # so this row owns its own compact Section instances, shown side-by-side
+        # only when essential AND collapsed. Fed the same data every refresh.
+        self.ess_row = tk.Frame(self.content, bg=BG)
+        self.ess_bars = {
+            'session': Section(self.ess_row, t('current_session'), CLAUDE),
+            'weekly':  Section(self.ess_row, t('all_models'), BLUE),
+            'sonnet':  Section(self.ess_row, t('sonnet_only'), PURPLE),
+        }
+        for sec in self.ess_bars.values():
+            # A bare tk.Canvas reports a large default requested width. Packed
+            # side-by-side that forces the row far wider than the window, so the
+            # extra bars get clipped off the right until you widen a lot. Pin
+            # the requested width to 1 — the real width comes from fill='x' +
+            # expand, which then splits the window evenly (halves for 2, etc.).
+            sec.cv.config(width=1)
+            # Also pin the reset sub-label's requested width to 1: otherwise a
+            # longer reset string ('reset 1h 38min' vs 'reset 2gg 9h') makes one
+            # bar's frame wider, so the bars don't split evenly. It still fills
+            # via fill='x' and clips if the bar is narrower than the text.
+            sec.lbl_sub.config(width=1)
+            sec.set_compact(True)
+            sec.frame.pack_forget()     # hidden until essential-collapsed
+        # _reset_compact is set dynamically (reduced only when >1 bar is shown).
+
+        # Hamburger menu pill — shown on the right of the side-by-side strip in
+        # multi-bar essential mode. It pushes the bars left so the per-bar reset
+        # text clears the bottom-right controls, and opens the menu on click.
+        self._ess_menu_hover = False
+        self.ess_menu = tk.Canvas(self.ess_row, width=ESS_MENU_W, height=BAR_H,
+                                  bg=BG, highlightthickness=0, bd=0, cursor='hand2')
+        self.ess_menu.bind('<Configure>', lambda e: self._draw_ess_menu(e.width))
+        self.ess_menu.bind('<Button-1>', self._show_menu)
+        self.ess_menu.bind('<Enter>', lambda e: (
+            setattr(self, '_ess_menu_hover', True), self._draw_ess_menu()))
+        self.ess_menu.bind('<Leave>', lambda e: (
+            setattr(self, '_ess_menu_hover', False), self._draw_ess_menu()))
+        self.ess_menu.pack_forget()
+
         # Bottom spacer
         self.bottom_pad = tk.Frame(self.content, bg=BG, height=6)
         self.bottom_pad.pack(fill='x')
@@ -1652,11 +1814,19 @@ class Widget:
     def _animate(self, start_y, start_h, end_y, end_h, cover, step=0):
         """Smooth upward expand/collapse with cover overlay to prevent artifacts."""
         total = 10
+        if step == 0:
+            try:
+                self.root.attributes('-alpha', 1.0)  # opaque animates smoother
+            except Exception:
+                pass
         if step > total:
             self.root.geometry(f'{self.root.winfo_width()}x{end_h}+{self.root.winfo_x()}+{end_y}')
             self.root.update_idletasks()
             cover.destroy()
-
+            try:
+                self.root.attributes('-alpha', 0.94)  # restore translucency
+            except Exception:
+                pass
             self._animating = False
             return
         t = 1 - (1 - step / total) ** 3  # ease-out cubic
@@ -1682,41 +1852,56 @@ class Widget:
         start_y = self.root.winfo_y()
         bottom = start_y + start_h
 
-        if not self._expanded:
-            self._collapsed_h = start_h
-            self._collapsed_y = start_y
+        # Cover the window during the relayout + animation so the brief paint of
+        # the new layout squished into the old height never flashes. Re-lifted
+        # after the repack so it stays above the freshly packed widgets.
+        cover = tk.Frame(self.root, bg=BG)
+        cover.place(x=-10, y=-10, relwidth=1, relheight=1, width=20, height=20)
 
         self._expanded = not self._expanded
         if self._expanded:
+            if self._essential:
+                # leave the collapsed side-by-side strip for the stacked view
+                self._exit_ess_collapsed()
             self.bottom_pad.pack_forget()
             self.extra_frame.pack(fill='x')
-            if self._essential:
-                self.bottom_pad.config(height=24)
-            else:
-                self.bottom_pad.config(height=6)
+            self.bottom_pad.config(height=24 if self._essential else 6)
             self.bottom_pad.pack(fill='x')
             self.btn_expand.config(fg=DOT_W)
             if self._essential:
                 self.s_session.set_compact(False)
                 self.s_weekly.set_compact(False)
                 self.s_sonnet.set_compact(False)
+                for sec in (self.s_session, self.s_weekly, self.s_sonnet):
+                    self._bind_drag_section(sec)
         else:
-            self.extra_frame.pack_forget()
-            self.bottom_pad.config(height=6)
             self.btn_expand.config(fg=DOT_W_D)
+            self.bottom_pad.config(height=6)
             if self._essential:
-                self.s_session.set_compact(True)
+                # back to the collapsed side-by-side strip
+                self._enter_ess_collapsed()
+            else:
+                self.extra_frame.pack_forget()
 
+        cover.lift()  # above the freshly packed widgets, so the reflow is hidden
         self.root.update_idletasks()
-        if self._expanded:
-            end_h = self.root.winfo_reqheight()
-            end_y = bottom - end_h
-        else:
-            end_h = self._collapsed_h
-            end_y = self._collapsed_y
-        # Cover content, reset to start, animate
+        if self._essential and not self._expanded:
+            # Collapsing into the side-by-side strip: the bar count may need a
+            # wider minimum than the last compute (e.g. bars added while
+            # expanded), so re-floor the width before measuring/animating.
+            self._update_minsize()
+        # Size to the freshly-laid-out content in BOTH directions, keeping the
+        # bottom edge anchored. A saved collapsed height was wrong when the mode
+        # changed between expand and collapse (e.g. expand in essential, switch
+        # to normal, then collapse): it restored essential's small height
+        # instead of normal's. winfo_reqheight() always reflects current mode.
+        end_h = self.root.winfo_reqheight()
+        end_y = bottom - end_h
+        # Reset to the start height (the cover already hides the content) and
+        # animate; _animate destroys the cover when it finishes.
         self.root.geometry(f'{self.root.winfo_width()}x{start_h}+{self.root.winfo_x()}+{start_y}')
-        self._start_anim(start_y, start_h, end_y, end_h)
+        self._animating = True
+        self._animate(start_y, start_h, end_y, end_h, cover)
 
     # ── Essential mode ─────────────────────────────
 
@@ -1734,16 +1919,13 @@ class Widget:
             if self._expanded:
                 self._expanded = False
                 self.btn_expand.config(fg=DOT_W_D)
-            self.extra_frame.pack_forget()
             self.bottom_pad.config(height=6)
-            self.s_session.set_compact(True)
             self.ess_bar.place(relx=1.0, x=-18, rely=1.0, y=-1, anchor='se')
-            self._bind_drag(self.content)
-            self._bind_drag(self.s_session.frame)
-            for child in self.s_session.frame.winfo_children():
-                if not isinstance(child, tk.Canvas):
-                    self._bind_drag(child)
+            self._enter_ess_collapsed()
         else:
+            if not self._expanded:
+                # was collapsed essential (strip shown): restore stacked bars
+                self._exit_ess_collapsed()
             self.s_session.set_compact(False)
             self.s_weekly.set_compact(False)
             self.s_sonnet.set_compact(False)
@@ -1753,6 +1935,10 @@ class Widget:
             self.sep.pack(fill='x')
             self.content.pack(fill='both', expand=True)
             self._unbind_drag(self.content)
+            # Remove the drag handlers that essential-expanded added to the
+            # original bars so normal mode drags only from the title bar.
+            for sec in (self.s_session, self.s_weekly, self.s_sonnet):
+                self._unbind_drag_section(sec)
         self.root.update_idletasks()
         end_h = self.root.winfo_reqheight()
         end_y = bottom - end_h
@@ -1767,14 +1953,8 @@ class Widget:
         self._essential = True
         self.tb.pack_forget()
         self.sep.pack_forget()
-        self.extra_frame.pack_forget()
-        self.s_session.set_compact(True)
         self.ess_bar.place(relx=1.0, x=-18, rely=1.0, y=-1, anchor='se')
-        self._bind_drag(self.content)
-        self._bind_drag(self.s_session.frame)
-        for child in self.s_session.frame.winfo_children():
-            if not isinstance(child, tk.Canvas):
-                self._bind_drag(child)
+        self._enter_ess_collapsed()
         # Apply saved position directly
         w = self.cfg.get('width', DEF_W)
         x = self.cfg.get('x', 100)
@@ -1784,6 +1964,130 @@ class Widget:
         self.root.geometry(f'{w}x{rh}+{x}+{y}')
         self.root.attributes('-alpha', 0.94)
         self._update_minsize()
+
+    # ── Essential-collapsed multi-bar strip ──────────
+
+    def _bind_drag_section(self, sec):
+        """Bind drag on a Section's frame + its non-Canvas children."""
+        self._bind_drag(sec.frame)
+        for child in sec.frame.winfo_children():
+            if not isinstance(child, tk.Canvas):
+                self._bind_drag(child)
+
+    def _unbind_drag_section(self, sec):
+        """Remove drag handlers from a Section's frame + non-Canvas children."""
+        self._unbind_drag(sec.frame)
+        for child in sec.frame.winfo_children():
+            if not isinstance(child, tk.Canvas):
+                self._unbind_drag(child)
+
+    def _draw_ess_menu(self, w=None):
+        """Draw the hamburger pill: bar-style rounded background + three lines."""
+        cv = self.ess_menu
+        w = w or cv.winfo_width()
+        if w < 2:
+            return
+        cv.delete('all')
+        bg = HOVER_BG if self._ess_menu_hover else BAR_BG
+        pill(cv, 0, 0, w, BAR_H, bg)
+        cx, cy = w / 2, BAR_H / 2 - 1
+        half = 5
+        for dy in (-3, 0, 3):
+            cv.create_line(cx - half, cy + dy, cx + half, cy + dy,
+                           fill=FG, width=1)
+
+    def _sync_ess_reset_mode(self):
+        """Reduced reset sub-label ('reset 43min') only when >1 bar is shown;
+        single-bar essential keeps the full 'reset 17:10 (43min)' form."""
+        multi = len(self._essential_bar_ids()) > 1
+        for sec in self.ess_bars.values():
+            sec._reset_compact = multi
+
+    def _update_ess_bars(self, d):
+        """Push fetched usage onto the essential-row bars with the right
+        reset-label form for the current bar count."""
+        if not d:
+            return
+        self._sync_ess_reset_mode()
+        fh = d.get('five_hour')
+        sd = d.get('seven_day')
+        ss = d.get('seven_day_sonnet')
+        self.ess_bars['session'].update(fh['utilization'] if fh else None,
+                                        fh.get('resets_at') if fh else None)
+        self.ess_bars['weekly'].update(sd['utilization'] if sd else None,
+                                        sd.get('resets_at') if sd else None)
+        self.ess_bars['sonnet'].update(ss['utilization'] if ss else None,
+                                        ss.get('resets_at') if ss else None)
+
+    def _enter_ess_collapsed(self):
+        """Lay out the selected bars side-by-side for collapsed essential mode.
+
+        The stacked originals (s_session + extra_frame) are hidden and the
+        ess_row strip is shown instead, each selected bar sharing the width
+        equally (halved for 2, thirded for 3). Drives the per-bar refresh dot
+        via the normal countdown tick; the parenthetical countdown is off here.
+        """
+        bars = self._essential_bar_ids()
+        self.s_session.frame.pack_forget()
+        self.extra_frame.pack_forget()
+        self.bottom_pad.pack_forget()
+        self.ess_menu.pack_forget()
+        for sec in self.ess_bars.values():
+            sec.frame.pack_forget()
+        n = len(bars)
+        top_pad = 3  # same top spacing for single- and multi-bar (was cramped at 1)
+        # Multi-bar: reserve the hamburger on the right first so the bars fill
+        # the remaining width on the left (and the reset text clears the
+        # bottom-right controls).
+        if n > 1:
+            self.ess_menu.pack(side='right', anchor='n', padx=(3, PAD),
+                               pady=(top_pad, 0))
+            self._draw_ess_menu(ESS_MENU_W)
+        for i, b in enumerate(bars):
+            sec = self.ess_bars[b]
+            sec.set_compact(True)
+            left = PAD if i == 0 else 3
+            if i == n - 1:
+                right = 3 if n > 1 else PAD  # small gap before the hamburger
+            else:
+                right = 0
+            sec.frame.pack(side='left', expand=True, fill='both',
+                           padx=(left, right), pady=(top_pad, 0))
+        self.ess_row.pack(fill='x')
+        self.bottom_pad.pack(fill='x')
+        self._reassert_error_order()
+        # Re-render the bars with the reset-label form for this bar count.
+        self._update_ess_bars(self._last_data)
+        # Whole strip is draggable (Canvas skipped; right-click menu still
+        # reaches the bars through the root <Button-3> binding).
+        self._bind_drag(self.content)
+        self._bind_drag(self.ess_row)
+        for b in bars:
+            self._bind_drag_section(self.ess_bars[b])
+
+    def _exit_ess_collapsed(self):
+        """Hide the side-by-side strip and restore the stacked session bar."""
+        # Stop any pulse/dot synchronously so the 50ms timer never outlives
+        # the strip (the next tick would catch it, but this is explicit).
+        self._set_pulse(False)
+        self._apply_dot_phase('off')
+        self.ess_menu.pack_forget()
+        self.ess_row.pack_forget()
+        self.bottom_pad.pack_forget()
+        self.s_session.frame.pack(fill='x', padx=PAD, pady=(3, 0))
+        self.bottom_pad.pack(fill='x')
+        self._reassert_error_order()
+
+    def _reassert_error_order(self):
+        """Keep the error panel below the bars after a content re-pack.
+
+        _error() packs err_frame last; the layout swaps here forget+repack
+        bottom_pad, which would otherwise leave a visible error message
+        sitting ABOVE the bar. Re-pin it to the bottom when it is showing.
+        """
+        if self.err_frame.winfo_ismapped():
+            self.err_frame.pack_forget()
+            self.err_frame.pack(fill='x', pady=(4, 0))
 
     def _bind_drag(self, w):
         # Drag handlers only. The menu binding lives on root (_build) so
@@ -1816,6 +2120,21 @@ class Widget:
         ess_w = self.ess_bar.winfo_reqwidth() + 18
         tb_w = self.tb.winfo_reqwidth() + 8
         needed = max(MIN_W, sub_w + ess_w, tb_w)
+        # Collapsed essential mode with multiple side-by-side bars needs more
+        # width: current min already fits 2 bars (each halved); 3 bars need
+        # +50% (one extra third) to stay readable.
+        if self._essential and not self._expanded:
+            n = len(self._essential_bar_ids())
+            if n > 1:
+                # Each bar must be wide enough to show its reduced reset text,
+                # plus the reserved hamburger column on the right.
+                # Multi-bar always shows the dot (see _countdown_mode), so each
+                # bar must fit '13% 19:11' + the dot without overlap; the sync
+                # time adds width when shown.
+                per_bar = 104 if self.cfg.get('show_sync_time', True) else 92
+                needed = max(needed, n * per_bar + ESS_MENU_W + 2 * PAD)
+                if n >= 3:
+                    needed = max(needed, int(round(MIN_W * 1.5)))
         self.root.minsize(needed, 0)
         # Force the widget to expand up to the minimum if it was previously
         # smaller (for overrideredirect windows `minsize` alone doesn't
@@ -1841,18 +2160,20 @@ class Widget:
         self._rs_y = e.y_root
         self._rs_w = self.root.winfo_width()
         self._rs_h = self.root.winfo_height()
+        # Drop the translucency for the drag: a layered (alpha < 1) window is
+        # recomposited in full every frame while resizing, which is what makes
+        # the edge and the placed controls lag. Restored on release.
+        self.root.attributes('-alpha', 1.0)
 
     def _resize_move(self, e):
-        # Honor the dynamic minimum from _update_minsize (which covers both
-        # mode's content widths) so dragging the widget narrow doesn't clip
-        # the title bar in normal mode or the controls in essential mode.
+        # Width-only resize: keep the current height (no relayout) so each drag
+        # event is cheap and the window edge tracks the cursor without lagging.
+        # Honors the dynamic minimum from _update_minsize so the content never
+        # clips when dragging narrow.
         min_w = self.root.wm_minsize()[0] or MIN_W
         w = max(min_w, self._rs_w + (e.x_root - self._rs_x))
         x, y = self.root.winfo_x(), self.root.winfo_y()
-        self.root.update_idletasks()
-        h = self.root.winfo_reqheight()
-        self.root.geometry(f'{w}x{h}+{x}+{y}')
-        self._update_region()
+        self.root.geometry(f'{w}x{self._rs_h}+{x}+{y}')
 
     # ── Data ─────────────────────────────────────────
 
@@ -1860,8 +2181,11 @@ class Widget:
         if self._countdown_job:
             self.root.after_cancel(self._countdown_job)
             self._countdown_job = None
+        self._set_pulse(False)
+        self._apply_dot_phase('off')
         self.btn_r.config(fg=BLUE)
-        self.s_session.set_countdown('\u2022\u2022\u2022')
+        for tgt in self._countdown_targets():
+            tgt.set_countdown('\u2022\u2022\u2022')
         threading.Thread(target=self._fetch, daemon=True).start()
 
     def _fetch(self):
@@ -1899,13 +2223,17 @@ class Widget:
         ss = d.get('seven_day_sonnet')
         self.s_sonnet.update(ss['utilization'] if ss else None,
                              ss.get('resets_at') if ss else None)
+        # Mirror the same data onto the essential-row bars (shown only in
+        # collapsed essential mode, but kept in sync so the switch is instant).
+        self._last_data = d
+        self._update_ess_bars(d)
         # Collect reset times for instant refresh when they arrive
         self._resets_at = []
         for section in (fh, sd, ss):
             if section and section.get('resets_at'):
                 try:
-                    t = datetime.fromisoformat(section['resets_at'])
-                    self._resets_at.append(t)
+                    reset_dt = datetime.fromisoformat(section['resets_at'])
+                    self._resets_at.append(reset_dt)
                 except (ValueError, TypeError):
                     pass
         now = f'{datetime.now():%H:%M}'
@@ -2056,6 +2384,70 @@ class Widget:
         self._countdown_secs = self.cfg.get('refresh_ms', REFRESH) // 1000
         self._tick_countdown()
 
+    # ── Countdown display helpers ───────────────────
+
+    def _essential_bar_ids(self):
+        """Selected essential bars, normalized to fixed order, session first."""
+        ids = self.cfg.get('essential_bars', ['session'])
+        out = [b for b in ('session', 'weekly', 'sonnet') if b in ids]
+        if 'session' not in out:
+            out = ['session'] + out
+        return out
+
+    def _countdown_mode(self):
+        """Effective countdown mode. Multi-bar essential always uses the dot
+        ('Essential'): the numeric countdown is too wide for narrow side-by-side
+        bars, so the menu setting only applies to single-bar / normal mode."""
+        mode = self.cfg.get('countdown_display', 'dot')
+        if (self._essential and not self._expanded
+                and len(self._essential_bar_ids()) > 1):
+            return 'dot'
+        return mode
+
+    def _all_sections(self):
+        """Every Section instance (originals + the essential-row bars)."""
+        secs = [self.s_session, self.s_weekly, self.s_sonnet]
+        ess = getattr(self, 'ess_bars', None)
+        if ess:
+            secs.extend(ess.values())
+        return secs
+
+    def _countdown_targets(self):
+        """Sections that currently display the live refresh countdown / dot."""
+        ess = getattr(self, 'ess_bars', None)
+        if ess and self._essential and not self._expanded:
+            return [ess[b] for b in self._essential_bar_ids()]
+        return [self.s_session]
+
+    def _apply_dot_phase(self, phase):
+        """Set the dot phase on the active targets; clear it everywhere else
+        so a stale dot never lingers after a mode/layout switch."""
+        targets = self._countdown_targets()
+        for sec in self._all_sections():
+            sec.set_dot_phase(phase if sec in targets else 'off')
+
+    def _set_pulse(self, active):
+        """Start/stop the breathing animation of the refresh dot(s)."""
+        if active:
+            if self._pulse_job is None:
+                self._pulse_phase = 0.0  # start faded-out, breathe in
+                self._pulse_tick()
+        elif self._pulse_job is not None:
+            self.root.after_cancel(self._pulse_job)
+            self._pulse_job = None
+
+    def _pulse_tick(self):
+        """Breathing fade for the pre-refresh dot on all targets. Slow (~3s
+        cycle) while more than 10s remain, faster (~1s) in the final 10s.
+        Cosine fade between fully invisible (0) and solid green (1) so it
+        reads as a real appear/disappear pulse."""
+        period = 1.0 if self._countdown_secs <= 10 else 3.0
+        self._pulse_phase = (self._pulse_phase + 0.05 / period) % 1.0
+        level = (1 - math.cos(2 * math.pi * self._pulse_phase)) / 2
+        for tgt in self._countdown_targets():
+            tgt.set_dot_level(level)
+        self._pulse_job = self.root.after(50, self._pulse_tick)
+
     def _tick_countdown(self):
         """Update countdown with adaptive cadence:
           s >  60: tick every 30s
@@ -2063,37 +2455,61 @@ class Widget:
           s <= 30: tick every 1s
         """
         now_utc = datetime.now(timezone.utc)
-        for t in self._resets_at:
-            if t <= now_utc:
+        for rt in self._resets_at:
+            if rt <= now_utc:
                 wlog('RESET  reset time reached, refreshing now')
                 self._resets_at = []
                 self._countdown_job = None
+                self._set_pulse(False)
+                self._apply_dot_phase('off')
                 self.refresh()
                 return
         s = self._countdown_secs
         self._update_clock()
+        mode = self._countdown_mode()
         if s > 0:
-            if s >= 60:
+            # Compose the countdown text shown on the bar / header per mode.
+            # 'dot' and 'hidden' both keep the last-update time visible; 'dot'
+            # adds the breathing dot instead of the numeric parenthetical.
+            show_time = self.cfg.get('show_sync_time', True)
+            tpref = f'{self._last_time} ' if show_time else ''
+            if mode in ('dot', 'hidden'):
+                cd_txt = self._last_time if show_time else ''
+            elif s >= 60:
                 m, sec = divmod(s, 60)
-                cd_txt = f'{self._last_time} ({m}min {sec:02d}s)'
+                cd_txt = f'{tpref}({m}min {sec:02d}s)'
             else:
-                cd_txt = f'{self._last_time} ({s}s)'
-            self.s_session.set_countdown(cd_txt)
+                cd_txt = f'{tpref}({s}s)'
+            for tgt in self._countdown_targets():
+                tgt.set_countdown(cd_txt)
+            # Pre-refresh breathing dot (dot mode): appears at <=30s and
+            # breathes; _pulse_tick speeds it up under <=10s from the live
+            # remaining seconds.
+            if mode == 'dot' and s <= 30:
+                self._apply_dot_phase('on')
+                self._set_pulse(True)
+            else:
+                self._apply_dot_phase('off')
+                self._set_pulse(False)
+            # Schedule the next tick with adaptive cadence.
             if s > 60:
                 # Snap to the next 30s tick boundary on the way down to 60.
-                skip = min(30, s - 60) if s > 60 else 30
+                skip = min(30, s - 60)
                 self._countdown_secs -= skip
                 self._countdown_job = self.root.after(skip * 1000, self._tick_countdown)
             elif s > 30:
                 # 60 -> 50 -> 40 -> 30 — one tick every 10s.
-                skip = min(10, s - 30) if s > 30 else 10
+                skip = min(10, s - 30)
                 self._countdown_secs -= skip
                 self._countdown_job = self.root.after(skip * 1000, self._tick_countdown)
             else:
                 self._countdown_secs -= 1
                 self._countdown_job = self.root.after(1000, self._tick_countdown)
         else:
-            self.s_session.set_countdown('')
+            for tgt in self._countdown_targets():
+                tgt.set_countdown('')
+            self._apply_dot_phase('off')
+            self._set_pulse(False)
             self._countdown_job = None
 
     def _clear_error(self):
@@ -2124,7 +2540,10 @@ class Widget:
             self.err_btn.bind('<Button-1>', lambda e: action_cmd())
             self.err_btn.pack(anchor='w', padx=PAD, pady=(0, 4))
         self.err_frame.pack(fill='x', pady=(4, 0))
-        self.s_session.set_countdown(t('error'))
+        self._set_pulse(False)
+        self._apply_dot_phase('off')
+        for tgt in self._countdown_targets():
+            tgt.set_countdown(t('error'))
         self.btn_r.config(fg=DIM)
         self._update_minsize()
 
@@ -2152,6 +2571,12 @@ class Widget:
 
     def _save_geometry(self, e=None):
         """Save current position, size, and mode to config."""
+        # Resting state is translucent; restore it after a resize drag (which
+        # turns the window opaque for smoothness) ends on this release.
+        try:
+            self.root.attributes('-alpha', 0.94)
+        except Exception:
+            pass
         try:
             self.cfg['x'] = self.root.winfo_x()
             self.cfg['y'] = self.root.winfo_y()
@@ -2206,9 +2631,13 @@ class Widget:
         wx = self.root.winfo_rootx() + self.root.winfo_width() - dw
         widget_bottom = self.root.winfo_rooty() + self.root.winfo_height()
         if widget_bottom + dh > vy + vh - TASKBAR_GAP:
+            # Not enough room below: open upward, flush above the widget top.
             wy = self.root.winfo_rooty() - dh - 2
         else:
-            wy = self.root.winfo_rooty() + TITLE_H + 2
+            # Open downward, flush to the widget's actual bottom edge. (Was
+            # widget_top + TITLE_H, which assumed a title bar and so misaligned
+            # in essential mode, where there is none.)
+            wy = widget_bottom + 2
         wx = max(vx + SCREEN_MARGIN, min(wx, vx + vw - dw - SCREEN_MARGIN))
         wy = max(vy + SCREEN_MARGIN, min(wy, vy + vh - dh - TASKBAR_GAP))
         return wx, wy
@@ -2376,6 +2805,13 @@ class Widget:
         taskbar_on = self.cfg.get('show_in_taskbar', False)
         taskbar_label = (t('menu_taskbar_on') if taskbar_on
                          else t('menu_taskbar_off'))
+        cd_mode = self.cfg.get('countdown_display', 'dot')
+        cd_name = {'full': t('countdown_full'),
+                   'hidden': t('countdown_hidden'),
+                   'dot': t('countdown_dot')}.get(cd_mode, t('countdown_full'))
+        countdown_label = f"{t('menu_countdown')}: {cd_name}"
+        sync_on = self.cfg.get('show_sync_time', True)
+        sync_label = t('menu_sync_on') if sync_on else t('menu_sync_off')
         # GitHub icon is a PhotoImage if rendering succeeded at startup;
         # fall back to a laptop emoji otherwise. icon_ft=None signals the
         # menu loop to render as an image rather than as text.
@@ -2397,6 +2833,9 @@ class Widget:
             ('\u23F3\uFE0E',       FT_EMOJI,     interval_label,           self._show_interval_dialog),
             ('\U0001F514\uFE0E',   FT_EMOJI,     notif_label,              self._toggle_notifications),
             ('\U0001F4CC\uFE0E',   FT_EMOJI,     taskbar_label,            self._toggle_taskbar),
+            ('\u23F1\uFE0E',       FT_EMOJI,     countdown_label,          self._show_countdown_menu),
+            ('\uD83D\uDD52\uFE0E',       FT_EMOJI,     sync_label,               self._toggle_sync_time),
+            ('\U0001F4CA\uFE0E',   FT_EMOJI,     t('menu_essential_bars'), self._show_essential_bars_menu),
             ('\U0001F5DD\uFE0E',   FT_EMOJI,     t('menu_renew'),          self._renew_session),
             ('\u2197\uFE0E',       FT_EMOJI,     t('menu_open_claude'),    self._open_claude_usage),
             (gh_icon,              gh_font,      t('menu_open_repo'),      self._open_repo),
@@ -2598,9 +3037,201 @@ class Widget:
         self.s_session.lbl.config(text=t('current_session'))
         self.s_weekly.lbl.config(text=t('all_models'))
         self.s_sonnet.lbl.config(text=t('sonnet_only'))
+        self.ess_bars['session'].lbl.config(text=t('current_session'))
+        self.ess_bars['weekly'].lbl.config(text=t('all_models'))
+        self.ess_bars['sonnet'].lbl.config(text=t('sonnet_only'))
         # Refresh to update reset text + any visible messages
         if self.cfg.get('session_key') and self.cfg.get('org_id'):
             self.refresh()
+
+    # ── Countdown display submenu ────────────────────
+
+    def _show_countdown_menu(self):
+        """Open the countdown-display submenu (deferred after close_menu)."""
+        self.root.after(10, self._show_countdown_menu_now)
+
+    def _show_countdown_menu_now(self):
+        if self._menu_win and self._menu_win.winfo_exists():
+            self._menu_win.destroy()
+        m = tk.Toplevel(self.root)
+        self._menu_win = m
+        m.overrideredirect(True)
+        m.attributes('-topmost', True)
+        m.configure(bg=MENU_BG)
+        m.geometry('+10000+10000')
+
+        header = tk.Label(m, text=t('menu_countdown'), font=FT_DLG_HINT, fg=DIM,
+                          bg=MENU_BG, anchor='w', padx=14, pady=6)
+        header.pack(fill='x')
+        tk.Frame(m, bg=BAR_BG, height=1).pack(fill='x', padx=10, pady=(0, 4))
+
+        cur = self.cfg.get('countdown_display', 'dot')
+        modes = [('full', t('countdown_full')),
+                 ('dot', t('countdown_dot'))]
+        for code, name in modes:
+            is_current = (code == cur)
+            row = tk.Frame(m, bg=MENU_BG, cursor='hand2')
+            row.pack(fill='x')
+            marker = tk.Label(row, text=('✓' if is_current else ''),
+                              font=FT_MENU, fg=CLAUDE, bg=MENU_BG,
+                              width=2, padx=4, pady=6)
+            marker.pack(side='left')
+            txt = tk.Label(row, text=name,
+                           font=(FT_MENU[0], FT_MENU[1], 'bold') if is_current else FT_MENU,
+                           fg=FG, bg=MENU_BG, anchor='w', padx=2, pady=6)
+            txt.pack(side='left', fill='x', expand=True)
+            for w in (row, marker, txt):
+                w.bind('<Enter>', lambda e, r=row, mk=marker, tx=txt: (
+                    r.config(bg=HOVER_BG), mk.config(bg=HOVER_BG), tx.config(bg=HOVER_BG)))
+                w.bind('<Leave>', lambda e, r=row, mk=marker, tx=txt: (
+                    r.config(bg=MENU_BG), mk.config(bg=MENU_BG), tx.config(bg=MENU_BG)))
+                w.bind('<Button-1>', lambda e, c=code: self._set_countdown_mode(c))
+
+        # Footnote: the setting only applies single-bar; multi-bar forces dot.
+        tk.Frame(m, bg=BAR_BG, height=1).pack(fill='x', padx=10, pady=(4, 0))
+        tk.Label(m, text=t('countdown_note'), font=FT_DLG_HINT, fg=DIM, bg=MENU_BG,
+                 anchor='w', justify='left', wraplength=210,
+                 padx=14, pady=4).pack(fill='x', pady=(2, 4))
+
+        m.update_idletasks()
+        mw = max(m.winfo_reqwidth(), 220)
+        mh = m.winfo_reqheight() + 6
+        bx, by = self._place_submenu(mw, mh)
+        m.geometry(f'{mw}x{mh}+{bx}+{by}')
+        m.after(10, lambda: dwm_round(m))
+        m.after(20, lambda: self._lift_menu(m))
+        m.bind('<Escape>', lambda e: self._close_menu())
+        self._bind_menu_autoclose(m)
+        m.focus_set()
+        return 'break'
+
+    def _set_countdown_mode(self, mode):
+        """Apply a countdown display mode, persist it, re-render immediately."""
+        self.cfg['countdown_display'] = mode
+        save_cfg(self.cfg)
+        wlog(f'CDOWN  countdown_display -> {mode}')
+        self._close_menu()
+        # Re-render the countdown / dot right away under the new mode without
+        # waiting for the next tick. Cancel the pending tick first so we don't
+        # double-schedule; _tick_countdown reuses the current remaining secs.
+        self._set_pulse(False)
+        self._apply_dot_phase('off')
+        if self._countdown_job:
+            self.root.after_cancel(self._countdown_job)
+            self._countdown_job = None
+        self._tick_countdown()
+
+    def _toggle_sync_time(self):
+        """Show/hide the last-sync time on the bars. The strip's minimum width
+        depends on this (the time needs room beside the dot), so re-layout."""
+        new = not self.cfg.get('show_sync_time', True)
+        self.cfg['show_sync_time'] = new
+        save_cfg(self.cfg)
+        wlog(f'SYNC   show_sync_time -> {new}')
+        self._close_menu()
+        if self._essential and not self._expanded:
+            self._enter_ess_collapsed()
+            self._update_minsize()
+            self._auto_height()
+        self._set_pulse(False)
+        self._apply_dot_phase('off')
+        if self._countdown_job:
+            self.root.after_cancel(self._countdown_job)
+            self._countdown_job = None
+        self._tick_countdown()
+
+    # ── Essential bars submenu ───────────────────────
+
+    def _show_essential_bars_menu(self):
+        """Open the essential-bars multi-select submenu (deferred)."""
+        self.root.after(10, self._show_essential_bars_menu_now)
+
+    def _show_essential_bars_menu_now(self):
+        if self._menu_win and self._menu_win.winfo_exists():
+            self._menu_win.destroy()
+        m = tk.Toplevel(self.root)
+        self._menu_win = m
+        m.overrideredirect(True)
+        m.attributes('-topmost', True)
+        m.configure(bg=MENU_BG)
+        m.geometry('+10000+10000')
+
+        header = tk.Label(m, text=t('menu_essential_bars'), font=FT_DLG_HINT, fg=DIM,
+                          bg=MENU_BG, anchor='w', padx=14, pady=6)
+        header.pack(fill='x')
+        tk.Frame(m, bg=BAR_BG, height=1).pack(fill='x', padx=10, pady=(0, 4))
+
+        # Multi-select: session is always on (locked); weekly / sonnet toggle.
+        rows = [('session', t('current_session'), True),
+                ('weekly', t('all_models'), False),
+                ('sonnet', t('sonnet_only'), False)]
+        for code, name, locked in rows:
+            self._ess_bar_row(m, code, name, locked)
+
+        m.update_idletasks()
+        mw = max(m.winfo_reqwidth(), 240)
+        mh = m.winfo_reqheight() + 6
+        bx, by = self._place_submenu(mw, mh)
+        m.geometry(f'{mw}x{mh}+{bx}+{by}')
+        m.after(10, lambda: dwm_round(m))
+        m.after(20, lambda: self._lift_menu(m))
+        m.bind('<Escape>', lambda e: self._close_menu())
+        self._bind_menu_autoclose(m)
+        m.focus_set()
+        return 'break'
+
+    def _ess_bar_row(self, m, code, name, locked):
+        selected = code in self._essential_bar_ids()
+        row = tk.Frame(m, bg=MENU_BG, cursor='arrow' if locked else 'hand2')
+        row.pack(fill='x')
+        marker = tk.Label(row, text=('✓' if selected else ''),
+                          font=FT_MENU, fg=(DIM if locked else CLAUDE), bg=MENU_BG,
+                          width=2, padx=4, pady=6)
+        marker.pack(side='left')
+        txt = tk.Label(row, text=name,
+                       font=(FT_MENU[0], FT_MENU[1], 'bold') if selected else FT_MENU,
+                       fg=(DIM if locked else FG), bg=MENU_BG, anchor='w', padx=2, pady=6)
+        txt.pack(side='left', fill='x', expand=True)
+        for w in (row, marker, txt):
+            w.bind('<Enter>', lambda e, r=row, mk=marker, tx=txt: (
+                r.config(bg=HOVER_BG), mk.config(bg=HOVER_BG), tx.config(bg=HOVER_BG)))
+            w.bind('<Leave>', lambda e, r=row, mk=marker, tx=txt: (
+                r.config(bg=MENU_BG), mk.config(bg=MENU_BG), tx.config(bg=MENU_BG)))
+            if not locked:
+                w.bind('<Button-1>',
+                       lambda e, c=code, mk=marker, tx=txt: self._toggle_essential_bar(c, mk, tx))
+
+    def _toggle_essential_bar(self, code, marker, txt):
+        """Toggle a bar in/out of the essential set; re-apply layout live."""
+        ids = self._essential_bar_ids()
+        if code in ids:
+            ids = [b for b in ids if b != code]
+        else:
+            ids.append(code)
+        ids = [b for b in ('session', 'weekly', 'sonnet') if b in ids]
+        if 'session' not in ids:
+            ids = ['session'] + ids
+        self.cfg['essential_bars'] = ids
+        save_cfg(self.cfg)
+        wlog(f'ESSBARS essential_bars -> {ids}')
+        # Repaint this row's marker in place (submenu stays open).
+        selected = code in ids
+        marker.config(text=('✓' if selected else ''))
+        txt.config(font=(FT_MENU[0], FT_MENU[1], 'bold') if selected else FT_MENU)
+        # Live re-apply when the collapsed essential strip is currently visible.
+        if self._essential and not self._expanded:
+            self._enter_ess_collapsed()
+            self._update_minsize()
+            self._auto_height()
+            # Re-tick so countdown text + dot phase recompute for the new bar
+            # set immediately (otherwise an added bar stays dot-less for up to
+            # one cadence step while the others already show it).
+            self._set_pulse(False)
+            self._apply_dot_phase('off')
+            if self._countdown_job:
+                self.root.after_cancel(self._countdown_job)
+                self._countdown_job = None
+            self._tick_countdown()
 
     # ── Refresh interval dialog ──────────────────────
 
@@ -3321,6 +3952,8 @@ class Widget:
             self.root.after_cancel(self._countdown_job)
         if self._topmost_job:
             self.root.after_cancel(self._topmost_job)
+        if self._pulse_job:
+            self.root.after_cancel(self._pulse_job)
         # Clear any progress overlay before tearing the COM wrapper down.
         try:
             tp = getattr(self, '_taskbar', None)
@@ -3354,7 +3987,7 @@ def _single_instance():
 
 
 if __name__ == '__main__':
-    _mutex = _single_instance()
+    _mutex = None if os.environ.get('CLAUDE_USAGE_DEV') == '1' else _single_instance()
 
     # Catch unhandled exceptions globally (including tkinter callbacks)
     def _excepthook(exc_type, exc_value, exc_tb):
