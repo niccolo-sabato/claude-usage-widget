@@ -113,7 +113,7 @@ PCT_FG   = '#ffffff'
 MENU_BG  = '#2c2c2a'
 
 # ─── App ────────────────────────────────────────────
-APP_VERSION = '2.8.43'
+APP_VERSION = '2.8.44'
 
 # ─── Auto-update ────────────────────────────────────
 UPDATE_REPO = 'niccolo-sabato/claude-usage-widget'
@@ -132,8 +132,8 @@ MIN_H_N  = 90   # normal mode minimum height
 PAD      = 12
 BAR_H    = 16
 TITLE_H  = 28
-DOT_INSET = 13    # px from the bar's right edge to the pre-refresh dot centre,
-                  # kept clear of the rounded right cap so it never notches it
+DOT_INSET = BAR_H // 2   # dot centre sits on the centre of the bar's right rounded
+                         # cap (the ideal circle that completes the end semicircle)
 DOT_DIAM  = 7     # pre-refresh dot diameter (matches the corner dots' footprint)
 ESS_MENU_W = 62   # hamburger pill width; reserves >= the bottom-right controls'
                   # footprint so the per-bar reset text never collides with them
@@ -1413,10 +1413,10 @@ class Section:
             txt = pct_str
         self.cv.create_text(w / 2, BAR_H / 2 - 1, text=txt,
                             fill='#ffffff', font=FT_BAR, anchor='center')
-        # Pre-refresh breathing dot, inside the bar near the right edge but
-        # clear of the rounded cap. Same glyph + font as the corner dots so
-        # the shape and size match exactly, at the same vertical level as the
-        # pct text. It fades between the background behind it (invisible) and
+        # Pre-refresh breathing dot, centred on the bar's right rounded cap
+        # (the centre of the ideal circle that completes the end semicircle).
+        # Same glyph + size as the corner dots, at the pct text's vertical
+        # level. It fades between the background behind it (invisible) and
         # solid green for a real appear/disappear breathing pulse.
         if self._dot_phase == 'on':
             cx = w - DOT_INSET
