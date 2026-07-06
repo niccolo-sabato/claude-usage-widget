@@ -46,6 +46,7 @@ This is the feature that sets the widget apart. In **essential mode** it collaps
 - **Stays out of the way of every other window.** The widget is a floating tool, hidden by default from the taskbar button list and from Win+Tab, so it never steals focus and never appears in the alt-tab rotation. It uses Win32 `WS_EX_NOACTIVATE`, so clicking the widget never moves your foreground window.
 - **Always on top, even over the taskbar.** Topmost is re-asserted continuously, plus on focus and visibility events, so it never slips behind another app or the taskbar's own panel.
 - **Position is always saved.** Drag it once to wherever you want it (above the taskbar, on a second monitor, in a corner) and it stays there across restarts, refreshes and updates. Auto-saved on every successful refresh as a backstop against force-kills.
+- **Survives monitor changes.** If you unplug a monitor, dock, or rearrange your displays, the widget stays on screen instead of vanishing, and returns to its spot when the original monitor comes back.
 - **Smooth expand / collapse.** The optional extra bars grow **upward**, never down, so the widget's bottom edge stays anchored exactly where you placed it.
 
 ## A compact display, set up your way
@@ -149,25 +150,14 @@ The widget connects to Claude.ai using the same browser session you are already 
 
 ### Settings menu
 
-Open it with **≡**, the **☰** button, or by right-clicking the bar in essential mode.
+Open it with **≡**, the **☰** button, or by right-clicking the bar in essential mode. Quick actions sit at the top; the rest is grouped into categories that open in a side panel.
 
-![The settings menu](docs/images/menu.png)
-
-- **Refresh** now
-- **Normal / Essential** mode toggle
-- **Refresh interval** (10 to 3600 s)
-- **Notifications** ON / OFF (toast at threshold crossings)
-- **Taskbar icon** ON / OFF (shows the icon and the Win11 progress overlay)
-- **Countdown**: Essential (pulsing dot) or Full (numeric)
-- **Sync time** ON / OFF (last-update timestamp)
-- **Essential bars**: choose which bars share the collapsed row
-- **Session key** update
-- **Go to Claude Usage** (opens the Claude.ai usage page)
-- **Open GitHub repo**
-- **Open config.json**
-- **Language** (EN / IT / JA)
-- **Check for updates**
-- **Quit**
+- **Refresh** and the **Normal / Essential** mode toggle (top level)
+- **Display**: countdown as a pulsing dot or a numeric value, the sync-time timestamp on/off, and which bars share the collapsed essential row
+- **Data & alerts**: refresh interval (10 to 3600 s), threshold notifications, taskbar icon and Win11 progress overlay
+- **Account**: update the session key, open the Claude.ai usage page
+- **General**: language (EN / IT / JA), check for updates, open the GitHub repo, open `config.json`
+- **Quit** (top level)
 
 ## Configuration
 

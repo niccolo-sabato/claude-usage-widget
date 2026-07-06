@@ -113,7 +113,7 @@ PCT_FG   = '#ffffff'
 MENU_BG  = '#2c2c2a'
 
 # ─── App ────────────────────────────────────────────
-APP_VERSION = '2.8.44'
+APP_VERSION = '2.8.45'
 
 # ─── Auto-update ────────────────────────────────────
 UPDATE_REPO = 'niccolo-sabato/claude-usage-widget'
@@ -138,6 +138,10 @@ DOT_DIAM  = 7     # pre-refresh dot diameter (matches the corner dots' footprint
 ESS_MENU_W = 62   # hamburger pill width; reserves >= the bottom-right controls'
                   # footprint so the per-bar reset text never collides with them
 REFRESH  = 180_000  # 3 minutes
+GEOMETRY_WATCH_MS = 2000  # self-heal poll interval: detect live monitor-layout
+                          # changes and reposition the widget (home / rescue)
+ICON_CELL_W = 34   # fixed icon-column width in menus so labels align across fonts
+ICON_CELL_H = 26
 
 # ─── Fonts ───────────────────────────────────────────
 FT       = ('Segoe UI', 9)
@@ -174,7 +178,7 @@ PRIMARY_HV = '#E08060'   # primary pill hover
 FOCUS_RING = '#C8652E'   # darker Claude for focused entry outline
 CLOSE_HV   = '#3a1818'   # title bar close button hover tint
 
-# Pill button padding presets — every dialog/menu button uses these so sizes
+# Pill button padding presets - every dialog/menu button uses these so sizes
 # stay visually consistent across the app.
 PILL_PAD_PRIMARY_X   = 22  # baseline (96 DPI); scaled at use-site by dpi_scale
 PILL_PAD_PRIMARY_Y   = 8
@@ -490,6 +494,10 @@ LANG = {
         'toast_line_no_reset': 'Session limit reached',
         # Menu
         'menu_refresh': 'Refresh',
+        'menu_cat_display': 'Display',
+        'menu_cat_data': 'Data & alerts',
+        'menu_cat_account': 'Account',
+        'menu_cat_general': 'General',
         'menu_mode_normal': 'Normal mode',
         'menu_mode_essential': 'Essential mode',
         'menu_renew': 'Session key\u2026',
@@ -548,7 +556,7 @@ LANG = {
         'dlg_error_prefix': 'Error',
         'dlg_connect': 'Connect',
         'dlg_cancel': 'Cancel',
-        # Kept for legacy references — consolidated into dlg_step_* above
+        # Kept for legacy references - consolidated into dlg_step_* above
         'dlg_howto': 'Where do I find my session key?',
         'dlg_paste_here': 'Paste your session key below',
     },
@@ -575,6 +583,10 @@ LANG = {
         'toast_line_reset': 'Reset alle {reset} (tra {countdown})',
         'toast_line_no_reset': 'Limite sessione raggiunto',
         'menu_refresh': 'Aggiorna',
+        'menu_cat_display': 'Visualizzazione',
+        'menu_cat_data': 'Dati e avvisi',
+        'menu_cat_account': 'Account',
+        'menu_cat_general': 'Generale',
         'menu_mode_normal': 'Modalit\u00e0 normale',
         'menu_mode_essential': 'Modalit\u00e0 essential',
         'menu_renew': 'Session key\u2026',
@@ -657,6 +669,10 @@ LANG = {
         'toast_line_reset': '\u30ea\u30bb\u30c3\u30c8 {reset} (\u3042\u3068 {countdown})',
         'toast_line_no_reset': '\u30bb\u30c3\u30b7\u30e7\u30f3\u4e0a\u9650\u306b\u5230\u9054',
         'menu_refresh': '\u66f4\u65b0',
+        'menu_cat_display': '\u8868\u793a',
+        'menu_cat_data': '\u30c7\u30fc\u30bf\u3068\u901a\u77e5',
+        'menu_cat_account': '\u30a2\u30ab\u30a6\u30f3\u30c8',
+        'menu_cat_general': '\u4e00\u822c',
         'menu_mode_normal': '\u901a\u5e38\u30e2\u30fc\u30c9',
         'menu_mode_essential': '\u30b7\u30f3\u30d7\u30eb\u30e2\u30fc\u30c9',
         'menu_renew': '\u30bb\u30c3\u30b7\u30e7\u30f3\u30ad\u30fc\u2026',
@@ -797,7 +813,7 @@ def format_reset(iso_str, compact=False):
 
 
 def pill(cv, x, y, w, h, color):
-    """Draw a pill-shaped bar — ovals + rect, outline=fill to seal seams."""
+    """Draw a pill-shaped bar - ovals + rect, outline=fill to seal seams."""
     r = h / 2
     cv.create_oval(x, y, x + h, y + h, fill=color, outline=color, width=1)
     cv.create_oval(x + w - h, y, x + w, y + h, fill=color, outline=color, width=1)
@@ -824,7 +840,7 @@ def strip_boilerplate_sections(markdown_str):
 
     GitHub release bodies typically end with an install section that's
     relevant when reading the release page on GitHub but redundant in the
-    in-app update dialog — the user is already acting on the update via the
+    in-app update dialog - the user is already acting on the update via the
     Install button. We cut the text at the first header whose title matches
     one of the known install/download keywords.
     """
@@ -866,13 +882,13 @@ def render_markdown_into(text_widget, markdown_str, *, base_font, fg, header_fg)
     """Render a subset of Markdown (headers, bullets, bold, code, strike)
     into a pre-configured tk.Text widget using styled tags.
 
-    Not a full parser — covers the patterns that appear in GitHub release
+    Not a full parser - covers the patterns that appear in GitHub release
     notes we write (## Title, ### Install, `ClaudeUsage-Setup.exe`, **bold**,
     `- list items`). Everything else renders as plain text.
     """
     fam, size = base_font[0], base_font[1]
 
-    # Tag styles — tight spacing so a typical release note fits without
+    # Tag styles - tight spacing so a typical release note fits without
     # scrolling in the update dialog.
     text_widget.tag_configure('md_h',
                               font=(fam, size + 1, 'bold'),
@@ -881,7 +897,7 @@ def render_markdown_into(text_widget, markdown_str, *, base_font, fg, header_fg)
     text_widget.tag_configure('md_bold',
                               font=(fam, size, 'bold'),
                               foreground=header_fg)
-    # Code spans: monospace + subtle accent color — no background tint.
+    # Code spans: monospace + subtle accent color - no background tint.
     # The darker highlight read as random noise next to regular sentences.
     text_widget.tag_configure('md_code',
                               font=('Consolas', max(size - 1, 8)),
@@ -1069,6 +1085,120 @@ def dwm_round(win, shadow=True):
                 hwnd, ctypes.byref(m))
     except Exception:
         pass
+
+
+# ═══════════════════════════════════════════════════════
+# Per-monitor geometry (Win32)
+# ═══════════════════════════════════════════════════════
+# Tk's winfo_vroot* only expose the bounding box of all monitors, which stays
+# rectangular even when the physical layout is L-shaped. A saved position can
+# then sit in an empty gap between monitors: inside the bounding box yet off
+# every real screen, so the window is invisible. These helpers query
+# the actual monitors so the check matches what Windows can really display.
+
+class _RECT(ctypes.Structure):
+    _fields_ = [('left', ctypes.c_long), ('top', ctypes.c_long),
+                ('right', ctypes.c_long), ('bottom', ctypes.c_long)]
+
+
+class _POINT(ctypes.Structure):
+    _fields_ = [('x', ctypes.c_long), ('y', ctypes.c_long)]
+
+
+class _MONITORINFOEXW(ctypes.Structure):
+    _fields_ = [('cbSize', ctypes.c_ulong), ('rcMonitor', _RECT),
+                ('rcWork', _RECT), ('dwFlags', ctypes.c_ulong),
+                ('szDevice', ctypes.c_wchar * 32)]
+
+
+_MONITOR_DEFAULTTONULL = 0
+_MONITOR_DEFAULTTOPRIMARY = 1
+_MONITOR_DEFAULTTONEAREST = 2
+_MONITORENUMPROC = ctypes.WINFUNCTYPE(
+    ctypes.c_int, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p)
+try:
+    ctypes.windll.user32.MonitorFromRect.restype = ctypes.c_void_p
+    ctypes.windll.user32.MonitorFromRect.argtypes = [ctypes.c_void_p, ctypes.c_uint]
+    ctypes.windll.user32.GetMonitorInfoW.restype = ctypes.c_int
+    ctypes.windll.user32.GetMonitorInfoW.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+except Exception:
+    pass
+
+
+def _monitor_of(x, y, w, h, flag):
+    """(device, rcMonitor, rcWork) of the monitor the given rect sits on, with
+    the two rects as (l, t, r, b) tuples. With _MONITOR_DEFAULTTONULL returns
+    None when the rect intersects no connected monitor; _MONITOR_DEFAULTTONEAREST
+    and _MONITOR_DEFAULTTOPRIMARY always return a monitor."""
+    try:
+        r = _RECT(int(x), int(y), int(x + w), int(y + h))
+        hmon = ctypes.windll.user32.MonitorFromRect(ctypes.byref(r), flag)
+        if not hmon:
+            return None
+        mi = _MONITORINFOEXW()
+        mi.cbSize = ctypes.sizeof(_MONITORINFOEXW)
+        if not ctypes.windll.user32.GetMonitorInfoW(hmon, ctypes.byref(mi)):
+            return None
+        m, wk = mi.rcMonitor, mi.rcWork
+        return (mi.szDevice,
+                (m.left, m.top, m.right, m.bottom),
+                (wk.left, wk.top, wk.right, wk.bottom))
+    except Exception:
+        return None
+
+
+def _enum_monitors():
+    """List every connected monitor as (device, (l, t, r, b) bounds)."""
+    mons = []
+
+    def _cb(hmon, hdc, lprc, data):
+        try:
+            mi = _MONITORINFOEXW()
+            mi.cbSize = ctypes.sizeof(_MONITORINFOEXW)
+            if ctypes.windll.user32.GetMonitorInfoW(hmon, ctypes.byref(mi)):
+                m = mi.rcMonitor
+                mons.append((mi.szDevice, (m.left, m.top, m.right, m.bottom)))
+        except Exception:
+            pass
+        return 1
+
+    try:
+        ctypes.windll.user32.EnumDisplayMonitors(
+            None, None, _MONITORENUMPROC(_cb), 0)
+    except Exception:
+        pass
+    return mons
+
+
+def _monitor_signature():
+    """A hashable snapshot of the connected monitors (device + bounds) so a
+    live layout or resolution change can be detected between polls."""
+    return tuple(sorted(_enum_monitors()))
+
+
+def _place_on_screen(x, y, w, h, min_visible=20):
+    """Keep a saved window position visible after a monitor-layout change.
+
+    Returns (x, y, moved). If at least `min_visible` px of the rect show on a
+    connected monitor (full bounds, taskbar area included, so a widget parked
+    on the taskbar is left where it is), the position is returned unchanged.
+    Otherwise it is clamped into the work area of the monitor it overlaps, or
+    the primary monitor if it overlaps none (moved=True), so it lands fully on
+    screen; the user can drag it back.
+    """
+    on = _monitor_of(x, y, w, h, _MONITOR_DEFAULTTONULL)
+    if on:
+        _dev, (ml, mt, mr, mb), _wk = on
+        if (min(x + w, mr) - max(x, ml) >= min_visible and
+                min(y + h, mb) - max(y, mt) >= min_visible):
+            return x, y, False
+    fallback = _monitor_of(x, y, w, h, _MONITOR_DEFAULTTOPRIMARY)
+    if not fallback:
+        return x, y, False
+    _dev, _m, (wl, wt, wr, wb) = fallback
+    nx = max(wl, min(int(x), wr - w))
+    ny = max(wt, min(int(y), wb - h))
+    return nx, ny, True
 
 
 # ═══════════════════════════════════════════════════════
@@ -1478,13 +1608,18 @@ class Widget:
         self._pulse_phase = 0.0
         self._countdown_secs = 0
         self._last_time = ''
-        self._resets_at = []  # ISO reset times — trigger refresh when reached
+        self._resets_at = []  # ISO reset times - trigger refresh when reached
         self._last_data = None  # last fetched usage dict (for ess-bar re-render)
         self._dx = self._dy = 0
         self._expanded = False
         self._essential = False
         self._rs_x = self._rs_y = self._rs_w = self._rs_h = 0
         self._menu_win = None
+        self._menu_click_job = None   # outside-click watcher while a menu is open
+        self._menu_btn_down = False
+        self._flyout_win = None       # category side-flyout Toplevel
+        self._flyout_cat = None
+        self._flyout_anchor = None
 
         self.root.title('Claude Usage')
         self.root.overrideredirect(True)
@@ -1502,7 +1637,7 @@ class Widget:
         # they work without an idletasks pump. By calling geometry('+x+y')
         # here, the very first map (triggered by the idletasks below)
         # places the window at the saved position instead of at the
-        # default Tk spawn spot — no startup flash.
+        # default Tk spawn spot - no startup flash.
         #
         # update_idletasks() must still run BEFORE _make_wintab_visible():
         # the helper reads winfo_id() to set WS_EX_TOOLWINDOW (hides from
@@ -1512,21 +1647,28 @@ class Widget:
         # a normal app window (flash on taskbar interaction).
         w = self.cfg.get('width', DEF_W)
         h = self.cfg.get('height', 41)
-        x = self.cfg.get('x', 100)
-        y = self.cfg.get('y', 100)
-        vrx = self.root.winfo_vrootx()
-        vry = self.root.winfo_vrooty()
-        vrw = self.root.winfo_vrootwidth()
-        vrh = self.root.winfo_vrootheight()
-        wlog(f'INIT   vroot=({vrx},{vry}) {vrw}x{vrh} '
-             f'saved=({x},{y}) {w}x{h}')
-        MIN_VISIBLE = 20
-        if x + w < vrx + MIN_VISIBLE or x > vrx + vrw - MIN_VISIBLE:
-            wlog(f'INIT   x={x} (w={w}) outside vroot -> reset to 100')
-            x = 100
-        if y + h < vry + MIN_VISIBLE or y > vry + vrh - MIN_VISIBLE:
-            wlog(f'INIT   y={y} (h={h}) outside vroot -> reset to 100')
-            y = 100
+        # Prefer the monitor-anchored position (survives resolution / layout
+        # changes); fall back to the raw saved coords. Either way _place_on_screen
+        # is the final safety net: Tk's vroot bounding box can't see the
+        # L-shaped gaps between monitors that leave a saved spot off every real
+        # screen and invisible, so we validate against the actual
+        # monitors instead.
+        anchored = self._resolve_anchor(w, h)
+        if anchored:
+            x, y = anchored
+            src = 'anchor'
+        else:
+            x, y = self.cfg.get('x', 100), self.cfg.get('y', 100)
+            src = 'saved'
+        ox, oy = x, y
+        x, y, moved = _place_on_screen(x, y, w, h)
+        # Keep cfg canonical/on-screen so later appliers (e.g. _restore_essential)
+        # never re-apply a stale off-screen position.
+        self.cfg['x'], self.cfg['y'] = x, y
+        if moved:
+            wlog(f'INIT   {src} ({ox},{oy}) off all monitors -> rescued to ({x},{y})')
+        else:
+            wlog(f'INIT   {src}=({x},{y}) {w}x{h} on screen')
         self.root.geometry(f'+{x}+{y}')
 
         self.root.update_idletasks()
@@ -1579,12 +1721,12 @@ class Widget:
 
         self.root.after(50, lambda: dwm_round(self.root, shadow=False))
         # Topmost recovery, three layers, all running on the Tk thread:
-        #  1. WS_EX_NOACTIVATE on the window itself — eliminates the
+        #  1. WS_EX_NOACTIVATE on the window itself - eliminates the
         #     worst-case taskbar flash (focus transfer from widget to
         #     taskbar). Set in _make_wintab_visible.
-        #  2. <Visibility> binding — Tk fires this when the window is
+        #  2. <Visibility> binding - Tk fires this when the window is
         #     covered/uncovered, instant SetWindowPos recovery.
-        #  3. 10ms keep_topmost timer — safety net for cases Visibility
+        #  3. 10ms keep_topmost timer - safety net for cases Visibility
         #     misses (Tk's Visibility on Win32 isn't always reliable).
         # FocusOut is intentionally NOT bound: NOACTIVATE keeps the
         # widget out of the focus rotation, so the event would never fire.
@@ -1613,6 +1755,11 @@ class Widget:
         # Windows lazily initialize both; subsequent opens are instant.
         self.root.after(200, self._prewarm_menu)
 
+        # Self-heal on live monitor changes: bring the widget home when its
+        # monitor is re-added, or rescue it onto the primary if it vanished.
+        self._mon_sig = _monitor_signature()
+        self.root.after(GEOMETRY_WATCH_MS, self._geometry_watchdog)
+
         self.root.protocol('WM_DELETE_WINDOW', self._quit)
 
         # Protect against external termination (PowerToys, Task Manager, etc.)
@@ -1639,7 +1786,7 @@ class Widget:
         self.tb.pack_propagate(False)
         self.tb.bind('<Button-1>', self._drag_start)
         self.tb.bind('<B1-Motion>', self._drag_move)
-        self.tb.bind('<ButtonRelease-1>', self._save_geometry)
+        self.tb.bind('<ButtonRelease-1>', self._save_geometry_user)
 
         if self._bar_icon:
             ico = tk.Label(self.tb, image=self._bar_icon, bg=BG_TITLE, padx=4)
@@ -1649,13 +1796,13 @@ class Widget:
         ico.pack(side='left', padx=(6, 0))
         ico.bind('<Button-1>', self._drag_start)
         ico.bind('<B1-Motion>', self._drag_move)
-        ico.bind('<ButtonRelease-1>', self._save_geometry)
+        ico.bind('<ButtonRelease-1>', self._save_geometry_user)
 
         title = tk.Label(self.tb, text='Claude Usage', font=FT_B, fg=FG, bg=BG_TITLE)
         title.pack(side='left', padx=(2, 0))
         title.bind('<Button-1>', self._drag_start)
         title.bind('<B1-Motion>', self._drag_move)
-        title.bind('<ButtonRelease-1>', self._save_geometry)
+        title.bind('<ButtonRelease-1>', self._save_geometry_user)
 
         # Close (rightmost)
         self.btn_x = tk.Label(self.tb, text=' \u2715 ', font=FT_EMOJI,
@@ -1675,11 +1822,11 @@ class Widget:
 
         # Right-click anywhere inside the widget opens the menu. Binding lives
         # on the root because every child's bindtag chain passes through it,
-        # so this catches clicks on the canvas bar and on header labels too —
+        # so this catches clicks on the canvas bar and on header labels too -
         # places per-widget bindings used to miss in essential mode.
         self.root.bind('<Button-3>', self._show_menu)
 
-        # Refresh button — Segoe MDL2 refresh glyph at a compact size so it
+        # Refresh button - Segoe MDL2 refresh glyph at a compact size so it
         # matches the original ↻ footprint without the thin-arrow look.
         self.btn_r = tk.Label(self.tb, text=f' {ICON_REFRESH} ', font=FT_MDL2_TB,
                               fg=DIM, bg=BG_TITLE, cursor='hand2')
@@ -1693,7 +1840,7 @@ class Widget:
         self.lbl_time.pack(side='right', padx=(0, 2))
         self.lbl_time.bind('<Button-1>', self._drag_start)
         self.lbl_time.bind('<B1-Motion>', self._drag_move)
-        self.lbl_time.bind('<ButtonRelease-1>', self._save_geometry)
+        self.lbl_time.bind('<ButtonRelease-1>', self._save_geometry_user)
 
         # Separator
         self.sep = tk.Frame(self.main, bg=BAR_BG, height=1)
@@ -1723,7 +1870,7 @@ class Widget:
             # A bare tk.Canvas reports a large default requested width. Packed
             # side-by-side that forces the row far wider than the window, so the
             # extra bars get clipped off the right until you widen a lot. Pin
-            # the requested width to 1 — the real width comes from fill='x' +
+            # the requested width to 1 - the real width comes from fill='x' +
             # expand, which then splits the window evenly (halves for 2, etc.).
             sec.cv.config(width=1)
             # Also pin the reset sub-label's requested width to 1: otherwise a
@@ -1735,7 +1882,7 @@ class Widget:
             sec.frame.pack_forget()     # hidden until essential-collapsed
         # _reset_compact is set dynamically (reduced only when >1 bar is shown).
 
-        # Hamburger menu pill — shown on the right of the side-by-side strip in
+        # Hamburger menu pill - shown on the right of the side-by-side strip in
         # multi-bar essential mode. It pushes the bars left so the per-bar reset
         # text clears the bottom-right controls, and opens the menu on click.
         self._ess_menu_hover = False
@@ -1753,9 +1900,9 @@ class Widget:
         self.bottom_pad = tk.Frame(self.content, bg=BG, height=6)
         self.bottom_pad.pack(fill='x')
 
-        # ── Overlay elements (place() on main — always at window corners) ──
+        # ── Overlay elements (place() on main - always at window corners) ──
 
-        # Expand dot — bottom-left
+        # Expand dot - bottom-left
         self.btn_expand = tk.Label(self.main, text='\u25cf', font=FT_DOT,
                                    fg=DOT_W_D, bg=BG, cursor='hand2',
                                    bd=0, highlightthickness=0, padx=0, pady=0)
@@ -1765,19 +1912,19 @@ class Widget:
         self.btn_expand.bind('<Leave>', lambda e: self.btn_expand.config(
             fg=DOT_W if self._expanded else DOT_W_D))
 
-        # Resize dot — bottom-right (ALWAYS stays here)
+        # Resize dot - bottom-right (ALWAYS stays here)
         self.btn_resize = tk.Label(self.main, text='\u25cf', font=FT_DOT,
                                    fg=OCHRE, bg=BG, cursor='hand2',
                                    bd=0, highlightthickness=0, padx=0, pady=0)
         self.btn_resize.place(relx=1.0, x=-6, rely=1.0, y=-4, anchor='se')
         self.btn_resize.bind('<Button-1>', self._resize_start)
         self.btn_resize.bind('<B1-Motion>', self._resize_move)
-        self.btn_resize.bind('<ButtonRelease-1>', self._save_geometry)
+        self.btn_resize.bind('<ButtonRelease-1>', self._save_geometry_user)
         self.btn_resize.bind('<Double-Button-1>', lambda e: self._toggle_essential())
         self.btn_resize.bind('<Enter>', lambda e: self.btn_resize.config(fg='#E06030'))
         self.btn_resize.bind('<Leave>', lambda e: self.btn_resize.config(fg=OCHRE))
 
-        # Essential mode controls — dynamic stack, right-aligned
+        # Essential mode controls - dynamic stack, right-aligned
         # Visual order left to right: ✕ ↻ HH:MM [resize dot]
         self.ess_bar = tk.Frame(self.main, bg=BG)
         self.ess_close = tk.Label(self.ess_bar, text='\u2715', font=FT_EMOJI,
@@ -1948,7 +2095,7 @@ class Widget:
         self._start_anim(start_y, start_h, end_y, end_h)
 
     def _restore_essential(self):
-        """Restore essential mode on startup — no animation, direct layout."""
+        """Restore essential mode on startup - no animation, direct layout."""
         wlog(f'MODE   toggle essential: {self._essential} -> {not self._essential}')
         self._essential = True
         self.tb.pack_forget()
@@ -2092,11 +2239,11 @@ class Widget:
     def _bind_drag(self, w):
         # Drag handlers only. The menu binding lives on root (_build) so
         # right-click opens it no matter where in the widget the user clicks
-        # — including over the Canvas bar, where per-widget Button-3 bindings
+        # - including over the Canvas bar, where per-widget Button-3 bindings
         # previously didn't fire because Canvas is skipped in the drag bind.
         w.bind('<Button-1>', self._drag_start)
         w.bind('<B1-Motion>', self._drag_move)
-        w.bind('<ButtonRelease-1>', self._save_geometry)
+        w.bind('<ButtonRelease-1>', self._save_geometry_user)
 
     def _unbind_drag(self, w):
         w.unbind('<Button-1>')
@@ -2498,7 +2645,7 @@ class Widget:
                 self._countdown_secs -= skip
                 self._countdown_job = self.root.after(skip * 1000, self._tick_countdown)
             elif s > 30:
-                # 60 -> 50 -> 40 -> 30 — one tick every 10s.
+                # 60 -> 50 -> 40 -> 30 - one tick every 10s.
                 skip = min(10, s - 30)
                 self._countdown_secs -= skip
                 self._countdown_job = self.root.after(skip * 1000, self._tick_countdown)
@@ -2569,8 +2716,25 @@ class Widget:
         y = self.root.winfo_y() + e.y - self._dy
         self.root.geometry(f'+{x}+{y}')
 
-    def _save_geometry(self, e=None):
-        """Save current position, size, and mode to config."""
+    def _on_anchor_monitor(self):
+        """True if the widget currently sits on its anchor's monitor, or has no
+        anchor yet. False when it is displaced onto a different monitor (a
+        temporary off-screen rescue), so the home anchor is kept and the widget
+        can return home once its monitor is back."""
+        a = self.cfg.get('anchor')
+        if not isinstance(a, dict):
+            return True
+        cur = _monitor_of(self.cfg['x'], self.cfg['y'],
+                          self.cfg['width'], self.cfg['height'],
+                          _MONITOR_DEFAULTTONULL)
+        return cur is not None and cur[0] == a.get('device')
+
+    def _save_geometry(self, e=None, update_anchor=None):
+        """Save current position, size and mode. The 'home' anchor is refreshed
+        only when the widget is on its own anchor monitor (or has none yet):
+        a deliberate drag/resize passes update_anchor=True; a save taken while
+        the widget sits rescued on another monitor leaves the anchor untouched
+        so it can return home later."""
         # Resting state is translucent; restore it after a resize drag (which
         # turns the window opaque for smoothness) ends on this release.
         try:
@@ -2584,9 +2748,114 @@ class Widget:
             self.cfg['height'] = self.root.winfo_height()
             self.cfg['expanded'] = self._expanded
             self.cfg['essential'] = self._essential
+            if update_anchor is None:
+                update_anchor = self._on_anchor_monitor()
+            if update_anchor:
+                anchor = self._compute_anchor(
+                    self.cfg['x'], self.cfg['y'],
+                    self.cfg['width'], self.cfg['height'])
+                if anchor:
+                    self.cfg['anchor'] = anchor
             save_cfg(self.cfg)
         except Exception as ex:
             wlog(f'SAVE   save_geometry error: {ex}')
+
+    def _save_geometry_user(self, e=None):
+        """Drag/resize release: persist geometry AND refresh the home anchor
+        (the user deliberately moved or resized the widget)."""
+        self._save_geometry(e, update_anchor=True)
+
+    def _geometry_watchdog(self):
+        """Keep the widget where the user put it across live monitor changes.
+
+        Repositions only when the set of connected monitors changes, so it never
+        fights manual dragging. On a layout change: if the home monitor is back,
+        return the widget to its anchored spot; if the home spot is now off every
+        screen, rescue it onto the primary. Between layout changes only an
+        all-off-screen safety net can act (which normal use never triggers).
+        Either way the home anchor is preserved (save with update_anchor=False),
+        so a temporary rescue never erases where the user placed it."""
+        try:
+            x, y = self.root.winfo_x(), self.root.winfo_y()
+            w, h = self.root.winfo_width(), self.root.winfo_height()
+            sig = _monitor_signature()
+            if sig != self._mon_sig:
+                self._mon_sig = sig
+                target = self._resolve_anchor(w, h) or (x, y)
+                nx, ny, _moved = _place_on_screen(target[0], target[1], w, h)
+                if (nx, ny) != (x, y):
+                    wlog(f'WATCH  layout changed -> move ({x},{y}) to ({nx},{ny})')
+                    self.cfg['x'], self.cfg['y'] = nx, ny
+                    self.root.geometry(f'+{nx}+{ny}')
+                    self.root.update_idletasks()
+                    self._save_geometry()
+            else:
+                nx, ny, moved = _place_on_screen(x, y, w, h)
+                if moved:
+                    wlog(f'WATCH  off all monitors ({x},{y}) -> rescued to ({nx},{ny})')
+                    self.cfg['x'], self.cfg['y'] = nx, ny
+                    self.root.geometry(f'+{nx}+{ny}')
+                    self.root.update_idletasks()
+                    self._save_geometry()
+        except Exception as ex:
+            wlog(f'WATCH  geometry_watchdog error: {ex}')
+        finally:
+            self.root.after(GEOMETRY_WATCH_MS, self._geometry_watchdog)
+
+    # ── Monitor-anchored position (survives layout / resolution changes) ──
+
+    def _compute_anchor(self, x, y, w, h):
+        """Describe the position relative to the nearest corner of the monitor
+        it sits on, so it can be reproduced after a resolution or layout change.
+        Uses monitor bounds (taskbar area included) so a widget parked on the
+        taskbar keeps its edge placement."""
+        info = _monitor_of(x, y, w, h, _MONITOR_DEFAULTTONEAREST)
+        if not info:
+            return None
+        device, (ml, mt, mr, mb), _wk = info
+        left = (x + w / 2) < (ml + mr) / 2
+        top = (y + h / 2) < (mt + mb) / 2
+        dx = int(x - ml) if left else int(mr - (x + w))
+        dy = int(y - mt) if top else int(mb - (y + h))
+        return {'device': device, 'mon': [ml, mt, mr, mb],
+                'corner': ('t' if top else 'b') + ('l' if left else 'r'),
+                'dx': dx, 'dy': dy}
+
+    def _find_anchor_monitor(self, a):
+        """Locate the saved anchor monitor among the connected ones: by device
+        name first, then by identical bounds. Returns (l, t, r, b) or None."""
+        mons = _enum_monitors()
+        dev = a.get('device')
+        if dev:
+            for device, mon in mons:
+                if device == dev:
+                    return mon
+        bounds = tuple(a.get('mon') or ())
+        if bounds:
+            for _device, mon in mons:
+                if tuple(mon) == bounds:
+                    return mon
+        return None
+
+    def _resolve_anchor(self, w, h):
+        """Turn a saved anchor into an (x, y) on a currently-connected monitor,
+        or None when there is no anchor or the anchor monitor is gone (then the
+        raw saved coords + _place_on_screen take over)."""
+        a = self.cfg.get('anchor')
+        if not isinstance(a, dict):
+            return None
+        mon = self._find_anchor_monitor(a)
+        if not mon:
+            return None
+        ml, mt, mr, mb = mon
+        corner = a.get('corner', 'bl')
+        dx = int(a.get('dx', 0))
+        dy = int(a.get('dy', 0))
+        top = corner[:1] == 't'
+        left = corner[1:2] == 'l'
+        x = (ml + dx) if left else (mr - dx - w)
+        y = (mt + dy) if top else (mb - dy - h)
+        return int(x), int(y)
 
     # ── Shared dialog / popup helpers ───────────────
 
@@ -2719,7 +2988,7 @@ class Widget:
         # Apply rounded corners early on the off-screen window so the
         # DWM attribute is in place before the dialog is first painted at
         # its visible position. Re-applied below after the final move to
-        # be safe — Windows occasionally drops the corner preference if
+        # be safe - Windows occasionally drops the corner preference if
         # the window is moved before being mapped.
         dlg.after(50, lambda: dwm_round(dlg))
 
@@ -2794,111 +3063,38 @@ class Widget:
         wlog('MENU   toplevel created')
 
         mode_label = t('menu_mode_normal') if self._essential else t('menu_mode_essential')
-        lang_names = {'en': 'English', 'it': 'Italiano', 'ja': '\u65e5\u672c\u8a9e'}
-        cur_lang = lang_names.get(_current_lang, 'English')
-        lang_label = f"{t('menu_language')}: {cur_lang}"
-        cur_secs = self.cfg.get('refresh_ms', REFRESH) // 1000
-        interval_label = f"{t('menu_refresh_interval')} ({cur_secs}s)"
-        notif_on = self.cfg.get('notifications_enabled', True)
-        notif_label = (t('menu_notifications_on') if notif_on
-                       else t('menu_notifications_off'))
-        taskbar_on = self.cfg.get('show_in_taskbar', False)
-        taskbar_label = (t('menu_taskbar_on') if taskbar_on
-                         else t('menu_taskbar_off'))
-        cd_mode = self.cfg.get('countdown_display', 'dot')
-        cd_name = {'full': t('countdown_full'),
-                   'hidden': t('countdown_hidden'),
-                   'dot': t('countdown_dot')}.get(cd_mode, t('countdown_full'))
-        countdown_label = f"{t('menu_countdown')}: {cd_name}"
-        sync_on = self.cfg.get('show_sync_time', True)
-        sync_label = t('menu_sync_on') if sync_on else t('menu_sync_off')
-        # GitHub icon is a PhotoImage if rendering succeeded at startup;
-        # fall back to a laptop emoji otherwise. icon_ft=None signals the
-        # menu loop to render as an image rather than as text.
-        gh_icon, gh_font = ((self._gh_icon, None) if self._gh_icon
-                            else ('\U0001F4BB︎', FT_EMOJI))
-        # Use the original icon set (arrows + color emojis) at FT_EMOJI_11.
-        # FE0E forces text-style presentation on BMP glyphs that Windows
-        # would otherwise render as color emoji at a different weight.
-        # SMP emojis (key, globe) render natively; arrow glyphs stay
-        # monochrome. Not pixel-perfect uniform size but this is the
-        # icon set chosen.
-        items = [
-            (ICON_REFRESH,         FT_MDL2_MENU, t('menu_refresh'),        self.refresh),
-            # ↕ is a BMP text glyph; at the same point size as the SMP color
-            # emojis below it renders thinner. Bumping to FT_EMOJI_11 makes
-            # it visually match the key/globe weight.
-            ('\u21F5\uFE0E',       FT_EMOJI_11,  mode_label,               self._toggle_essential),
-            None,
-            ('\u23F3\uFE0E',       FT_EMOJI,     interval_label,           self._show_interval_dialog),
-            ('\U0001F514\uFE0E',   FT_EMOJI,     notif_label,              self._toggle_notifications),
-            ('\U0001F4CC\uFE0E',   FT_EMOJI,     taskbar_label,            self._toggle_taskbar),
-            ('\u23F1\uFE0E',       FT_EMOJI,     countdown_label,          self._show_countdown_menu),
-            ('\uD83D\uDD52\uFE0E',       FT_EMOJI,     sync_label,               self._toggle_sync_time),
-            ('\U0001F4CA\uFE0E',   FT_EMOJI,     t('menu_essential_bars'), self._show_essential_bars_menu),
-            ('\U0001F5DD\uFE0E',   FT_EMOJI,     t('menu_renew'),          self._renew_session),
-            ('\u2197\uFE0E',       FT_EMOJI,     t('menu_open_claude'),    self._open_claude_usage),
-            (gh_icon,              gh_font,      t('menu_open_repo'),      self._open_repo),
-            ('{ }',                FT_EMOJI,     t('menu_open_config'),    self._open_config),
-            ('\U0001F30D\uFE0E',   FT_EMOJI,     lang_label,               self._show_language_menu),
-            None,
-            ('\u2B06\uFE0E',       FT_EMOJI,     t('menu_check_updates'),  self._check_updates_manual),
-            ('\u2715',             FT_EMOJI,     t('menu_quit'),           self._quit),
-            None,
-            (None, None, f'v{APP_VERSION}', None),
-        ]
 
-        ROW_PADY = 5
-        # Fixed-pixel icon column. `width=N` on a tk.Label is N characters of
-        # THAT LABEL's font, so different icon fonts (MDL2, Segoe UI Emoji at
-        # different sizes) gave different pixel widths — which is why the
-        # text started at different X positions row-to-row. Wrapping each
-        # icon in a fixed-pixel Frame makes the icon column identical for
-        # every row regardless of which font the icon uses.
-        ICON_CELL_W = 34
-        ICON_CELL_H = 26
-        for item in items:
-            if item is None:
-                tk.Frame(m, bg=BAR_BG, height=1).pack(fill='x', padx=12, pady=4)
-                continue
-            icon, icon_ft, text, cmd = item
-            if cmd is None:
-                tk.Label(m, text=text, font=FT_DLG_HINT, fg=DIM, bg=MENU_BG,
-                         anchor='w', padx=14, pady=4).pack(fill='x')
-                continue
-            row = tk.Frame(m, bg=MENU_BG, cursor='hand2')
-            row.pack(fill='x')
-            icon_cell = tk.Frame(row, bg=MENU_BG, width=ICON_CELL_W, height=ICON_CELL_H)
-            icon_cell.pack(side='left', pady=ROW_PADY)
-            icon_cell.pack_propagate(False)  # enforce fixed pixel W x H
-            # An icon is normally a string + font tuple, but rows can also
-            # ship a tk.PhotoImage when a glyph isn't available (e.g. the
-            # GitHub Octocat). Detected by icon_ft being None.
-            if icon_ft is None and isinstance(icon, tk.PhotoImage):
-                ico_lbl = tk.Label(icon_cell, image=icon, bg=MENU_BG,
-                                   bd=0, highlightthickness=0)
-            else:
-                ico_lbl = tk.Label(icon_cell, text=icon, font=icon_ft,
-                                   fg=FG, bg=MENU_BG)
-            ico_lbl.pack(expand=True)
-            txt_lbl = tk.Label(row, text=text, font=FT_MENU, fg=FG, bg=MENU_BG,
-                               anchor='w', pady=ROW_PADY)
-            txt_lbl.pack(side='left', fill='x', expand=True, padx=(0, 14))
-            for w in (row, icon_cell, ico_lbl, txt_lbl):
-                w.bind('<Enter>', lambda e, r=row, c=icon_cell, i=ico_lbl, t=txt_lbl: (
-                    r.config(bg=HOVER_BG), c.config(bg=HOVER_BG),
-                    i.config(bg=HOVER_BG), t.config(bg=HOVER_BG)))
-                w.bind('<Leave>', lambda e, r=row, c=icon_cell, i=ico_lbl, t=txt_lbl: (
-                    r.config(bg=MENU_BG), c.config(bg=MENU_BG),
-                    i.config(bg=MENU_BG), t.config(bg=MENU_BG)))
-                w.bind('<Button-1>', lambda e, c=cmd: (c(), self._close_menu()))
+        # Quick actions at the top, then one row per category. Each category
+        # opens a side flyout with its settings (Adobe-style cascading menu),
+        # keeping this main column short and scannable.
+        self._menu_row(m, t('menu_refresh'), lambda: self._menu_do(self.refresh),
+                       icon=ICON_REFRESH, icon_ft=FT_MDL2_MENU)
+        self._menu_row(m, mode_label, lambda: self._menu_do(self._toggle_essential),
+                       icon='\u21F5\uFE0E', icon_ft=FT_EMOJI_11)
+        self._menu_sep(m)
+        cats = (
+            ('display', '\uECA5', FT_MDL2_MENU, t('menu_cat_display')),
+            ('data',    '\U0001F514\uFE0E', FT_EMOJI, t('menu_cat_data')),
+            ('account', '\U0001F5DD\uFE0E', FT_EMOJI, t('menu_cat_account')),
+            ('general', '\u2699\uFE0E',     FT_EMOJI, t('menu_cat_general')),
+        )
+        for key, icon, ift, label in cats:
+            r = self._menu_row(m, label, None, icon=icon, icon_ft=ift,
+                               trailing='\u203A')
+            self._bind_subtree(r, '<Button-1>',
+                               lambda e, k=key, rr=r: self._open_flyout(k, rr))
+        self._menu_sep(m)
+        self._menu_row(m, t('menu_quit'), lambda: self._menu_do(self._quit),
+                       icon='\u2715', icon_ft=FT_EMOJI)
+        tk.Label(m, text=f'v{APP_VERSION}', font=FT_DLG_HINT, fg=DIM, bg=MENU_BG,
+                 anchor='w', padx=14, pady=4).pack(fill='x')
 
         m.update_idletasks()
         mw = max(m.winfo_reqwidth(), 220)
         mh = m.winfo_reqheight() + 4  # small bottom breathing room
         bx, by = self._place_submenu(mw, mh)
         wlog(f'MENU   size={mw}x{mh} pos=({bx},{by})')
-        # Single geometry call — both size and position applied atomically so
+        # Single geometry call - both size and position applied atomically so
         # the window never renders with a stale size at its off-screen slot.
         m.geometry(f'{mw}x{mh}+{bx}+{by}')
         m.after(10, lambda: dwm_round(m))
@@ -2912,11 +3108,219 @@ class Widget:
         # and toggle the menu shut).
         return 'break'
 
+    # ── Menu building blocks ─────────────────────────
+
+    @staticmethod
+    def _bind_subtree(w, seq, fn):
+        w.bind(seq, fn)
+        for c in w.winfo_children():
+            Widget._bind_subtree(c, seq, fn)
+
+    def _menu_sep(self, parent):
+        tk.Frame(parent, bg=BAR_BG, height=1).pack(fill='x', padx=12, pady=4)
+
+    def _menu_section(self, parent, text):
+        tk.Label(parent, text=text, font=FT_DLG_HINT, fg=DIM, bg=MENU_BG,
+                 anchor='w', padx=14, pady=2).pack(fill='x', pady=(6, 0))
+
+    def _menu_do(self, fn):
+        """Terminal menu action: close the whole menu, then run the command."""
+        self._close_menu()
+        fn()
+
+    def _menu_row(self, parent, text, command=None, *, icon=None, icon_ft=None,
+                  marker=None, marker_fg=None, trailing=None):
+        """One menu / flyout row. `icon` is a glyph (with icon_ft) or a
+        PhotoImage; `marker` is a leading radio/check glyph; `trailing` is a
+        right-aligned glyph (category arrow / state). Binds hover, and click to
+        `command` when given."""
+        row = tk.Frame(parent, bg=MENU_BG, cursor='hand2' if command else 'arrow')
+        row.pack(fill='x')
+        cells = [row]
+        if marker is not None:
+            mk = tk.Label(row, text=marker, font=FT_MENU, width=2, padx=2, pady=5,
+                          fg=(marker_fg or CLAUDE), bg=MENU_BG)
+            mk.pack(side='left')
+            cells.append(mk)
+        if icon is not None:
+            cell = tk.Frame(row, bg=MENU_BG, width=ICON_CELL_W, height=ICON_CELL_H)
+            cell.pack(side='left', pady=2)
+            cell.pack_propagate(False)
+            if icon_ft is None and isinstance(icon, tk.PhotoImage):
+                il = tk.Label(cell, image=icon, bg=MENU_BG, bd=0, highlightthickness=0)
+            else:
+                il = tk.Label(cell, text=icon, font=icon_ft, fg=FG, bg=MENU_BG)
+            il.pack(expand=True)
+            cells += [cell, il]
+        lead = 0 if (marker is not None or icon is not None) else 14
+        tl = tk.Label(row, text=text, font=FT_MENU, fg=FG, bg=MENU_BG,
+                      anchor='w', pady=5)
+        tl.pack(side='left', fill='x', expand=True, padx=(lead, 12))
+        cells.append(tl)
+        if trailing is not None:
+            tr = tk.Label(row, text=trailing, font=FT_MENU, fg=DIM, bg=MENU_BG, pady=5)
+            tr.pack(side='right', padx=(0, 12))
+            cells.append(tr)
+
+        def paint(bg):
+            for c in cells:
+                try:
+                    c.config(bg=bg)
+                except tk.TclError:
+                    pass
+        for c in cells:
+            c.bind('<Enter>', lambda e: paint(HOVER_BG))
+            c.bind('<Leave>', lambda e: paint(MENU_BG))
+            if command:
+                c.bind('<Button-1>', lambda e, cm=command: cm())
+        return row
+
+    # ── Category side flyouts ────────────────────────
+
+    def _open_flyout(self, cat, anchor):
+        """Open (or toggle) the side flyout for a category next to its row."""
+        if (self._flyout_cat == cat and self._flyout_win
+                and self._flyout_win.winfo_exists()):
+            self._close_flyout()
+            return
+        self._close_flyout()
+        self._flyout_cat = cat
+        self._flyout_anchor = anchor
+        m = tk.Toplevel(self.root)
+        self._flyout_win = m
+        m.overrideredirect(True)
+        m.attributes('-topmost', True)
+        m.configure(bg=MENU_BG)
+        m.geometry('+10000+10000')
+        self._populate_flyout(cat, m)
+        m.update_idletasks()
+        mw = max(m.winfo_reqwidth(), 200)
+        mh = m.winfo_reqheight() + 6
+        fx, fy = self._place_flyout(mw, mh, anchor)
+        m.geometry(f'{mw}x{mh}+{fx}+{fy}')
+        m.after(10, lambda: dwm_round(m))
+        m.after(20, lambda: self._lift_menu(m))
+
+    def _close_flyout(self):
+        m = self._flyout_win
+        if m and m.winfo_exists():
+            m.destroy()
+        self._flyout_win = None
+        self._flyout_cat = None
+
+    def _rebuild_flyout(self):
+        """Repopulate the open flyout in place after a stateful toggle."""
+        m = self._flyout_win
+        cat = self._flyout_cat
+        if not m or not m.winfo_exists() or not cat:
+            return
+        for c in m.winfo_children():
+            c.destroy()
+        self._populate_flyout(cat, m)
+        m.update_idletasks()
+        mw = max(m.winfo_reqwidth(), 200)
+        mh = m.winfo_reqheight() + 6
+        fx, fy = self._place_flyout(mw, mh, self._flyout_anchor)
+        m.geometry(f'{mw}x{mh}+{fx}+{fy}')
+        self._lift_menu(m)
+
+    def _flyout_set(self, fn):
+        """Apply a stateful change from a flyout, then refresh it so the new
+        state (radio dot / ON-OFF label) shows without closing the flyout."""
+        fn()
+        self._rebuild_flyout()
+
+    def _place_flyout(self, fw, fh, anchor):
+        """Place a flyout beside the MAIN menu, aligned to its right edge with a
+        small gap (or its left edge if there is no room on the right), and
+        vertically level with the clicked category row. Clamped into the work
+        area."""
+        GAP = 2
+        menu = self._menu_win
+        try:
+            ay = anchor.winfo_rooty()
+        except Exception:
+            ay = 100
+        try:
+            mlx = menu.winfo_rootx()
+            mrx = mlx + menu.winfo_width()
+        except Exception:
+            mlx, mrx = 100, 300
+        info = _monitor_of(mlx, ay, max(1, mrx - mlx), fh, _MONITOR_DEFAULTTONEAREST)
+        wl, wt, wr, wb = info[2] if info else (0, 0, 1920, 1080)
+        x = mrx + GAP                    # sit just to the right of the menu
+        if x + fw > wr:                  # no room on the right -> left of the menu
+            x = mlx - fw - GAP
+        x = max(wl, min(x, wr - fw))
+        y = max(wt, min(ay - 4, wb - fh))
+        return int(x), int(y)
+
+    def _populate_flyout(self, cat, m):
+        if cat == 'display':
+            cd = self.cfg.get('countdown_display', 'dot')
+            self._menu_section(m, t('menu_countdown'))
+            self._menu_row(m, t('countdown_dot'),
+                           lambda: self._flyout_set(lambda: self._set_countdown_mode('dot', close=False)),
+                           marker=('●' if cd == 'dot' else '○'))
+            self._menu_row(m, t('countdown_full'),
+                           lambda: self._flyout_set(lambda: self._set_countdown_mode('full', close=False)),
+                           marker=('●' if cd == 'full' else '○'))
+            self._menu_sep(m)
+            sync_on = self.cfg.get('show_sync_time', True)
+            self._menu_row(m, (t('menu_sync_on') if sync_on else t('menu_sync_off')),
+                           lambda: self._flyout_set(lambda: self._toggle_sync_time(close=False)),
+                           icon='\U0001F552︎', icon_ft=FT_EMOJI)
+            self._menu_sep(m)
+            self._menu_section(m, t('menu_essential_bars'))
+            for code, name, locked in (('session', t('current_session'), True),
+                                       ('weekly', t('all_models'), False),
+                                       ('sonnet', t('sonnet_only'), False)):
+                self._ess_bar_row(m, code, name, locked)
+        elif cat == 'data':
+            cur = self.cfg.get('refresh_ms', REFRESH) // 1000
+            self._menu_row(m, f"{t('menu_refresh_interval')} ({cur}s)",
+                           lambda: self._menu_do(self._show_interval_dialog),
+                           icon='⏳︎', icon_ft=FT_EMOJI)
+            self._menu_sep(m)
+            notif = self.cfg.get('notifications_enabled', True)
+            self._menu_row(m, (t('menu_notifications_on') if notif else t('menu_notifications_off')),
+                           lambda: self._flyout_set(self._toggle_notifications),
+                           icon='\U0001F514︎', icon_ft=FT_EMOJI)
+            tb = self.cfg.get('show_in_taskbar', False)
+            self._menu_row(m, (t('menu_taskbar_on') if tb else t('menu_taskbar_off')),
+                           lambda: self._flyout_set(self._toggle_taskbar),
+                           icon='\U0001F4CC︎', icon_ft=FT_EMOJI)
+        elif cat == 'account':
+            self._menu_row(m, t('menu_renew'),
+                           lambda: self._menu_do(self._renew_session),
+                           icon='\U0001F5DD︎', icon_ft=FT_EMOJI)
+            self._menu_row(m, t('menu_open_claude'),
+                           lambda: self._menu_do(self._open_claude_usage),
+                           icon='↗︎', icon_ft=FT_EMOJI)
+        elif cat == 'general':
+            self._menu_section(m, t('menu_language'))
+            for code, name in (('en', 'English'), ('it', 'Italiano'), ('ja', '日本語')):
+                self._menu_row(m, name,
+                               lambda c=code: self._menu_do(lambda: self._set_language(c)),
+                               marker=('●' if code == _current_lang else '○'))
+            self._menu_sep(m)
+            self._menu_row(m, t('menu_check_updates'),
+                           lambda: self._menu_do(self._check_updates_manual),
+                           icon='⬆︎', icon_ft=FT_EMOJI)
+            gh_icon, gh_font = ((self._gh_icon, None) if self._gh_icon
+                                else ('\U0001F4BB︎', FT_EMOJI))
+            self._menu_row(m, t('menu_open_repo'),
+                           lambda: self._menu_do(self._open_repo),
+                           icon=gh_icon, icon_ft=gh_font)
+            self._menu_row(m, t('menu_open_config'),
+                           lambda: self._menu_do(self._open_config),
+                           icon='{ }', icon_ft=FT_EMOJI)
+
     def _bind_menu_autoclose(self, m):
         """Close the menu when it loses focus (click-outside, Alt-tab, etc.).
 
         _show_menu dismisses the update banner before creating the menu, so
-        we no longer have a competing topmost window stealing focus — the
+        we no longer have a competing topmost window stealing focus - the
         FocusOut pattern that worked up to v2.7.5 is safe again.
         A short `after(150)` grace period protects against transient focus
         bounces during Toplevel setup.
@@ -2931,6 +3335,55 @@ class Widget:
 
         m.bind('<FocusOut>', on_focus_out)
 
+        # NOACTIVATE means Tk never sees focus move to another application, so
+        # FocusOut only fires for clicks on our own window. Poll the global
+        # mouse state to also dismiss the menu when the user clicks a different
+        # app (the reported bug: the menu stayed open on outside-app clicks).
+        if self._menu_click_job is None:
+            self._menu_btn_down = self._any_mouse_down()
+            self._menu_click_job = self.root.after(40, self._watch_menu_click)
+
+    @staticmethod
+    def _any_mouse_down():
+        u = ctypes.windll.user32
+        return bool(u.GetAsyncKeyState(0x01) & 0x8000 or
+                    u.GetAsyncKeyState(0x02) & 0x8000)
+
+    def _watch_menu_click(self):
+        """While a menu is open, close it on a mouse click outside BOTH the menu
+        and the widget (i.e. on another application). Clicks on the widget or
+        inside the menu are left to Tk's own handlers, so the hamburger / right
+        click toggle never races with this watcher."""
+        m = self._menu_win
+        if not m or not m.winfo_exists():
+            self._menu_click_job = None
+            self._menu_btn_down = False
+            return
+        try:
+            down = self._any_mouse_down()
+            if down and not self._menu_btn_down:
+                pt = _POINT()
+                ctypes.windll.user32.GetCursorPos(ctypes.byref(pt))
+                if not (self._point_in_widget(m, pt.x, pt.y) or
+                        self._point_in_widget(self._flyout_win, pt.x, pt.y) or
+                        self._point_in_widget(self.root, pt.x, pt.y)):
+                    self._menu_btn_down = down
+                    self._close_menu()
+                    return
+            self._menu_btn_down = down
+        except Exception:
+            pass
+        self._menu_click_job = self.root.after(40, self._watch_menu_click)
+
+    @staticmethod
+    def _point_in_widget(w, x, y):
+        try:
+            wx, wy = w.winfo_rootx(), w.winfo_rooty()
+            return (wx <= x < wx + w.winfo_width() and
+                    wy <= y < wy + w.winfo_height())
+        except Exception:
+            return False
+
     def _close_if_unfocused(self):
         """Close the menu only if focus hasn't returned to it in the meantime."""
         m = self._menu_win
@@ -2941,12 +3394,12 @@ class Widget:
             if focused is None:
                 self._close_menu()
                 return
-            # focus_displayof may return a child of the menu — walk up to see
+            # focus_displayof may return a child of the menu - walk up to see
             # if the focused widget is inside our Toplevel.
             t = focused
             while t is not None:
                 if t is m:
-                    return  # still inside menu — keep open
+                    return  # still inside menu - keep open
                 t = t.master
             self._close_menu()
         except Exception:
@@ -2965,67 +3418,18 @@ class Widget:
             pass
 
     def _close_menu(self):
+        self._close_flyout()
         m = self._menu_win
         if m and m.winfo_exists():
             m.destroy()
             wlog('MENU   closed')
         self._menu_win = None
-
-    # ── Language submenu ─────────────────────────────
-
-    def _show_language_menu(self):
-        """Open language selection submenu (deferred to run after close_menu)."""
-        self.root.after(10, self._show_language_menu_now)
-
-    def _show_language_menu_now(self):
-        if self._menu_win and self._menu_win.winfo_exists():
-            self._menu_win.destroy()
-        m = tk.Toplevel(self.root)
-        self._menu_win = m
-        m.overrideredirect(True)
-        m.attributes('-topmost', True)
-        m.configure(bg=MENU_BG)
-        m.geometry('+10000+10000')  # off-screen during setup
-
-        # Header so the submenu reads as a single purpose, not a floating list
-        header = tk.Label(m, text=t('menu_language'), font=FT_DLG_HINT, fg=DIM,
-                          bg=MENU_BG, anchor='w', padx=14, pady=6)
-        header.pack(fill='x')
-        tk.Frame(m, bg=BAR_BG, height=1).pack(fill='x', padx=10, pady=(0, 4))
-
-        langs = [('en', 'English'), ('it', 'Italiano'), ('ja', '\u65e5\u672c\u8a9e')]
-        for code, name in langs:
-            is_current = (code == _current_lang)
-            row = tk.Frame(m, bg=MENU_BG, cursor='hand2')
-            row.pack(fill='x')
-            # Checkmark slot — reserves space so every row aligns
-            marker = tk.Label(row, text=('\u2713' if is_current else ''),
-                              font=FT_MENU, fg=CLAUDE, bg=MENU_BG,
-                              width=2, padx=4, pady=6)
-            marker.pack(side='left')
-            txt = tk.Label(row, text=name,
-                           font=(FT_MENU[0], FT_MENU[1], 'bold') if is_current else FT_MENU,
-                           fg=FG, bg=MENU_BG, anchor='w', padx=2, pady=6)
-            txt.pack(side='left', fill='x', expand=True)
-            for w in (row, marker, txt):
-                w.bind('<Enter>', lambda e, r=row, mk=marker, tx=txt: (
-                    r.config(bg=HOVER_BG), mk.config(bg=HOVER_BG), tx.config(bg=HOVER_BG)))
-                w.bind('<Leave>', lambda e, r=row, mk=marker, tx=txt: (
-                    r.config(bg=MENU_BG), mk.config(bg=MENU_BG), tx.config(bg=MENU_BG)))
-                w.bind('<Button-1>', lambda e, c=code: self._set_language(c))
-
-        # Force a minimum width so the submenu never feels cramped
-        m.update_idletasks()
-        mw = max(m.winfo_reqwidth(), 200)
-        mh = m.winfo_reqheight() + 6  # small bottom padding
-        bx, by = self._place_submenu(mw, mh)
-        m.geometry(f'{mw}x{mh}+{bx}+{by}')
-        m.after(10, lambda: dwm_round(m))
-        m.after(20, lambda: self._lift_menu(m))
-        m.bind('<Escape>', lambda e: self._close_menu())
-        self._bind_menu_autoclose(m)
-        m.focus_set()
-        return 'break'
+        if self._menu_click_job is not None:
+            try:
+                self.root.after_cancel(self._menu_click_job)
+            except Exception:
+                pass
+            self._menu_click_job = None
 
     def _set_language(self, code):
         """Apply new language, save to config, retranslate visible UI."""
@@ -3044,73 +3448,13 @@ class Widget:
         if self.cfg.get('session_key') and self.cfg.get('org_id'):
             self.refresh()
 
-    # ── Countdown display submenu ────────────────────
-
-    def _show_countdown_menu(self):
-        """Open the countdown-display submenu (deferred after close_menu)."""
-        self.root.after(10, self._show_countdown_menu_now)
-
-    def _show_countdown_menu_now(self):
-        if self._menu_win and self._menu_win.winfo_exists():
-            self._menu_win.destroy()
-        m = tk.Toplevel(self.root)
-        self._menu_win = m
-        m.overrideredirect(True)
-        m.attributes('-topmost', True)
-        m.configure(bg=MENU_BG)
-        m.geometry('+10000+10000')
-
-        header = tk.Label(m, text=t('menu_countdown'), font=FT_DLG_HINT, fg=DIM,
-                          bg=MENU_BG, anchor='w', padx=14, pady=6)
-        header.pack(fill='x')
-        tk.Frame(m, bg=BAR_BG, height=1).pack(fill='x', padx=10, pady=(0, 4))
-
-        cur = self.cfg.get('countdown_display', 'dot')
-        modes = [('full', t('countdown_full')),
-                 ('dot', t('countdown_dot'))]
-        for code, name in modes:
-            is_current = (code == cur)
-            row = tk.Frame(m, bg=MENU_BG, cursor='hand2')
-            row.pack(fill='x')
-            marker = tk.Label(row, text=('✓' if is_current else ''),
-                              font=FT_MENU, fg=CLAUDE, bg=MENU_BG,
-                              width=2, padx=4, pady=6)
-            marker.pack(side='left')
-            txt = tk.Label(row, text=name,
-                           font=(FT_MENU[0], FT_MENU[1], 'bold') if is_current else FT_MENU,
-                           fg=FG, bg=MENU_BG, anchor='w', padx=2, pady=6)
-            txt.pack(side='left', fill='x', expand=True)
-            for w in (row, marker, txt):
-                w.bind('<Enter>', lambda e, r=row, mk=marker, tx=txt: (
-                    r.config(bg=HOVER_BG), mk.config(bg=HOVER_BG), tx.config(bg=HOVER_BG)))
-                w.bind('<Leave>', lambda e, r=row, mk=marker, tx=txt: (
-                    r.config(bg=MENU_BG), mk.config(bg=MENU_BG), tx.config(bg=MENU_BG)))
-                w.bind('<Button-1>', lambda e, c=code: self._set_countdown_mode(c))
-
-        # Footnote: the setting only applies single-bar; multi-bar forces dot.
-        tk.Frame(m, bg=BAR_BG, height=1).pack(fill='x', padx=10, pady=(4, 0))
-        tk.Label(m, text=t('countdown_note'), font=FT_DLG_HINT, fg=DIM, bg=MENU_BG,
-                 anchor='w', justify='left', wraplength=210,
-                 padx=14, pady=4).pack(fill='x', pady=(2, 4))
-
-        m.update_idletasks()
-        mw = max(m.winfo_reqwidth(), 220)
-        mh = m.winfo_reqheight() + 6
-        bx, by = self._place_submenu(mw, mh)
-        m.geometry(f'{mw}x{mh}+{bx}+{by}')
-        m.after(10, lambda: dwm_round(m))
-        m.after(20, lambda: self._lift_menu(m))
-        m.bind('<Escape>', lambda e: self._close_menu())
-        self._bind_menu_autoclose(m)
-        m.focus_set()
-        return 'break'
-
-    def _set_countdown_mode(self, mode):
+    def _set_countdown_mode(self, mode, close=True):
         """Apply a countdown display mode, persist it, re-render immediately."""
         self.cfg['countdown_display'] = mode
         save_cfg(self.cfg)
         wlog(f'CDOWN  countdown_display -> {mode}')
-        self._close_menu()
+        if close:
+            self._close_menu()
         # Re-render the countdown / dot right away under the new mode without
         # waiting for the next tick. Cancel the pending tick first so we don't
         # double-schedule; _tick_countdown reuses the current remaining secs.
@@ -3121,14 +3465,15 @@ class Widget:
             self._countdown_job = None
         self._tick_countdown()
 
-    def _toggle_sync_time(self):
+    def _toggle_sync_time(self, close=True):
         """Show/hide the last-sync time on the bars. The strip's minimum width
         depends on this (the time needs room beside the dot), so re-layout."""
         new = not self.cfg.get('show_sync_time', True)
         self.cfg['show_sync_time'] = new
         save_cfg(self.cfg)
         wlog(f'SYNC   show_sync_time -> {new}')
-        self._close_menu()
+        if close:
+            self._close_menu()
         if self._essential and not self._expanded:
             self._enter_ess_collapsed()
             self._update_minsize()
@@ -3139,46 +3484,6 @@ class Widget:
             self.root.after_cancel(self._countdown_job)
             self._countdown_job = None
         self._tick_countdown()
-
-    # ── Essential bars submenu ───────────────────────
-
-    def _show_essential_bars_menu(self):
-        """Open the essential-bars multi-select submenu (deferred)."""
-        self.root.after(10, self._show_essential_bars_menu_now)
-
-    def _show_essential_bars_menu_now(self):
-        if self._menu_win and self._menu_win.winfo_exists():
-            self._menu_win.destroy()
-        m = tk.Toplevel(self.root)
-        self._menu_win = m
-        m.overrideredirect(True)
-        m.attributes('-topmost', True)
-        m.configure(bg=MENU_BG)
-        m.geometry('+10000+10000')
-
-        header = tk.Label(m, text=t('menu_essential_bars'), font=FT_DLG_HINT, fg=DIM,
-                          bg=MENU_BG, anchor='w', padx=14, pady=6)
-        header.pack(fill='x')
-        tk.Frame(m, bg=BAR_BG, height=1).pack(fill='x', padx=10, pady=(0, 4))
-
-        # Multi-select: session is always on (locked); weekly / sonnet toggle.
-        rows = [('session', t('current_session'), True),
-                ('weekly', t('all_models'), False),
-                ('sonnet', t('sonnet_only'), False)]
-        for code, name, locked in rows:
-            self._ess_bar_row(m, code, name, locked)
-
-        m.update_idletasks()
-        mw = max(m.winfo_reqwidth(), 240)
-        mh = m.winfo_reqheight() + 6
-        bx, by = self._place_submenu(mw, mh)
-        m.geometry(f'{mw}x{mh}+{bx}+{by}')
-        m.after(10, lambda: dwm_round(m))
-        m.after(20, lambda: self._lift_menu(m))
-        m.bind('<Escape>', lambda e: self._close_menu())
-        self._bind_menu_autoclose(m)
-        m.focus_set()
-        return 'break'
 
     def _ess_bar_row(self, m, code, name, locked):
         selected = code in self._essential_bar_ids()
@@ -3297,7 +3602,7 @@ class Widget:
 
         Normally throttled to once every `UPDATE_CHECK_INTERVAL_S` seconds
         (24h) to be polite to the GitHub API. Can be overridden by setting
-        `always_check_updates: true` in config.json — useful during development
+        `always_check_updates: true` in config.json - useful during development
         on the maintainer's machine where every launch should re-check.
         """
         if not self.cfg.get('update_check_enabled', True):
@@ -3354,7 +3659,7 @@ class Widget:
         """Two-row notification floating above the widget.
 
         Row 1: icon + message centered.  Row 2: action pills centered.
-        The banner has a fixed width so both rows truly sit in the middle —
+        The banner has a fixed width so both rows truly sit in the middle -
         without it, pack(side='left') clusters everything to the left and
         the layout looks lopsided.
         """
@@ -3366,11 +3671,11 @@ class Widget:
         bar.configure(bg=ORANGE)
         bar.geometry('+10000+10000')  # off-screen until final placement
 
-        # Tight wrap — just enough padding to keep text off the rounded edges.
+        # Tight wrap - just enough padding to keep text off the rounded edges.
         wrap = tk.Frame(bar, bg=ORANGE, padx=10, pady=8)
         wrap.pack()
 
-        # Row 1 — icon + message.
+        # Row 1 - icon + message.
         top = tk.Frame(wrap, bg=ORANGE)
         top.pack()
         tk.Label(top, text='\u2B06', font=FT_EMOJI_11,
@@ -3379,7 +3684,7 @@ class Widget:
         tk.Label(top, text=msg, font=FT_DLG_H,
                  fg='#1e1e1c', bg=ORANGE).pack(side='left')
 
-        # Row 2 — compact pill actions.
+        # Row 2 - compact pill actions.
         actions = tk.Frame(wrap, bg=ORANGE)
         actions.pack(pady=(8, 0))
 
@@ -3459,7 +3764,7 @@ class Widget:
         self._dismiss_update_banner()
 
     def _show_info_toast(self, message):
-        """Transient feedback toast aligned to the widget — used for manual checks."""
+        """Transient feedback toast aligned to the widget - used for manual checks."""
         dlg = tk.Toplevel(self.root)
         dlg.overrideredirect(True)
         dlg.attributes('-topmost', True)
@@ -3606,7 +3911,7 @@ class Widget:
             return
         wlog('UPDATE  installer launched (/VERYSILENT), exiting widget')
         self._save_geometry()
-        # Give the OS a beat to start the installer before we vanish — the
+        # Give the OS a beat to start the installer before we vanish - the
         # UAC prompt needs to appear while our process still has focus.
         self.root.after(400, self._quit)
 
@@ -3684,13 +3989,13 @@ class Widget:
                      bg=BG, anchor='w', justify='left',
                      wraplength=dw - 40).pack(fill='x', pady=(0, 14))
 
-        # Step 1 — guide
+        # Step 1 - guide
         tk.Label(body, text=t('dlg_step_guide'), font=FT_DLG_H, fg=FG, bg=BG,
                  anchor='w').pack(fill='x')
         self._secondary_pill(body, t('dlg_open_guide'), self._open_guide,
                              icon='\U0001F4D6').pack(anchor='w', pady=(8, 16))
 
-        # Step 2 — paste
+        # Step 2 - paste
         tk.Label(body, text=t('dlg_step_paste'), font=FT_DLG_H, fg=FG, bg=BG,
                  anchor='w').pack(fill='x')
 
@@ -3900,7 +4205,7 @@ class Widget:
         wouldn't be pushed under the widget. That was brittle: if the menu
         was never closed (user didn't click or press Escape), the widget
         stopped being re-raised and would eventually slip behind the taskbar.
-        Now we raise the widget first and then the menu on top of it — both
+        Now we raise the widget first and then the menu on top of it - both
         stay topmost and the menu keeps visual priority.
         """
         try:
@@ -3976,7 +4281,7 @@ def _single_instance():
     try:
         mutex = ctypes.windll.kernel32.CreateMutexW(None, True, 'ClaudeUsageWidget_SingleInstance')
         if ctypes.windll.kernel32.GetLastError() == 183:  # ERROR_ALREADY_EXISTS
-            # Another instance is running — bring it to front and exit
+            # Another instance is running - bring it to front and exit
             hwnd = ctypes.windll.user32.FindWindowW(None, 'Claude Usage')
             if hwnd:
                 ctypes.windll.user32.SetForegroundWindow(hwnd)
