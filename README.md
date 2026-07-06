@@ -152,6 +152,8 @@ The widget connects to Claude.ai using the same browser session you are already 
 
 Open it with **≡**, the **☰** button, or by right-clicking the bar in essential mode. Quick actions sit at the top; the rest is grouped into categories that open in a side panel.
 
+![The settings menu](docs/images/menu.png)
+
 - **Refresh** and the **Normal / Essential** mode toggle (top level)
 - **Display**: countdown as a pulsing dot or a numeric value, the sync-time timestamp on/off, and which bars share the collapsed essential row
 - **Data & alerts**: refresh interval (10 to 3600 s), threshold notifications, taskbar icon and Win11 progress overlay
