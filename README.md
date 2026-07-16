@@ -7,17 +7,21 @@
 [![Latest release](https://img.shields.io/github/v/release/niccolo-sabato/claude-usage-widget)](https://github.com/niccolo-sabato/claude-usage-widget/releases/latest)
 [![Downloads](https://img.shields.io/github/downloads/niccolo-sabato/claude-usage-widget/total.svg)](https://github.com/niccolo-sabato/claude-usage-widget/releases)
 
-![The widget living in a free spot of the Windows 11 taskbar](docs/images/taskbar.png)
+![The widget on the Windows 11 taskbar showing a single session bar](docs/images/taskbar-single.png)
 
-*The whole point: a single thin bar that drops into a free spot of your taskbar and shows your Claude session limit at a glance, without stealing a single pixel from the windows you actually work in.*
+![The widget on the Windows 11 taskbar showing the session and weekly bars](docs/images/taskbar-double.png)
+
+*A thin bar that drops into a free spot of your taskbar and shows your Claude usage at a glance, without stealing a single pixel from the windows you actually work in. Show one bar for the smallest footprint, or two or three side by side.*
 
 A lightweight desktop tool that shows your **Claude.ai session limit, weekly limit and Sonnet limit** as live progress bars so you never get cut off mid-conversation. It is **designed to sit on a free spot of the Windows 11 taskbar** in its compact **essential mode**: low profile, never overflows the screen, never blocks your work. The position you choose is remembered across restarts, so once you place it you never have to touch it again.
 
 ## Features at a glance
 
 - **Lives on the taskbar** in a compact essential mode, or as a full window when you want the detail
-- **Three live usage bars:** session (5h), weekly (7d) and Sonnet (7d), each with a reset countdown
-- **Multi-bar essential row:** show one, two or three bars side by side and pick which ones from the menu
+- **Three live usage bars:** session (5h), weekly (7d) and the per-model weekly limit, each with a reset countdown
+- **Pick the bars you want:** show one, two or three at once, side by side or stacked; the same choice applies to both modes
+- **Multiple accounts:** save several Claude logins, switch instantly, each with its own name and colour
+- **Bar colours your way:** a fixed colour per bar (with an in-app picker), or a dynamic palette that tracks the usage level
 - **Refresh countdown** shown as a quiet pulsing dot or as a numeric value, your choice
 - **Threshold toast notifications** when session usage crosses 25 / 50 / 75 / 90 / 95 / 100 %
 - **Win11 taskbar progress overlay** under the app icon, colour-coded by usage
@@ -33,10 +37,10 @@ This widget keeps that information one glance away:
 
 - **Session bar (5 hours):** how much of the rolling 5-hour window you have burned
 - **Weekly bar (7 days):** how much of your weekly quota you have used across all models
-- **Sonnet bar (7 days):** Sonnet-specific usage for Pro / Max plan users
+- **Per-model bar (7 days):** the weekly limit for the model Claude.ai scopes it to; the bar is labelled with that model's name
 - **Reset countdown:** exactly when each bar refreshes (`reset 22:10 (52min)`)
 
-Colour codes track urgency: orange below 75 %, yellow 75-89 %, red 90 % and above. You learn to pace long conversations and avoid surprises.
+Each bar has its own fixed colour so you can tell them apart at a glance, and you can change any of them from a built-in colour picker. Prefer a colour that tracks urgency instead? Switch on the **dynamic** palette and every bar is coloured by its usage level: blue when low, amber in the middle, red when high.
 
 ## Built to live on the Windows 11 taskbar
 
@@ -55,18 +59,18 @@ Essential mode is flexible. Show just the session bar for the smallest footprint
 
 ![Essential mode with the session and weekly bars side by side](docs/images/essential-multibar.png)
 
-- **Pick the bars you want.** The **Essential bars** menu lets you choose which bars appear in the collapsed row (session is always shown; weekly and Sonnet are optional). Bar widths adapt automatically and the minimum window width grows to keep everything readable.
+- **Pick the bars you want.** The **Bars to show** menu lets you choose which bars appear (any of session, weekly and the per-model bar; at least one is always shown). Bar widths adapt automatically and the window widens only as much as needed, growing to the left so the menu button stays put.
 - **Hamburger menu** on the multi-bar row: a small button opens the settings menu and keeps the reset labels clear of the bottom-right controls.
 - **Reduced reset labels** under every bar (`reset 51min`, `reset 2d 8h`) so you always know when each one refreshes, even in the tightest layout.
-- **Refresh countdown, your way.** The time to the next data refresh is shown as a quiet pulsing dot on the session bar (default), or as a numeric value if you switch **Countdown** to **Full**. A **Sync time** toggle shows or hides the timestamp of the last update.
+- **Refresh countdown, your way.** The time to the next data refresh is shown as a quiet pulsing dot on the session bar (default), or as a numeric value if you switch **Countdown** to **Numeric**. A **Sync time** toggle shows or hides the timestamp of the last update.
 
 ## A full view when you want the detail
 
-Need everything at once? Double-click the orange corner dot (or pick **Normal mode** from the menu) and the widget expands into a standard window with a title bar, all three usage bars, section labels and reset times.
+Want a proper window? Double-click the orange corner dot (or pick **Normal mode** from the menu) and the widget becomes a standard window with a title bar, section labels and reset times. It stacks the same bars you selected, so your choice carries across both modes.
 
-![Standard mode with all three usage bars expanded](docs/images/normal-expanded.png)
+![Standard mode with the usage bars stacked](docs/images/normal-expanded.png)
 
-Switch back to essential mode the same way. Whichever mode you choose is remembered, and the extra bars always grow upward so the widget never jumps away from its taskbar spot.
+Switch back to essential mode the same way. Whichever mode you choose is remembered, and the window always grows upward so it never jumps away from its taskbar spot.
 
 ## Download
 
@@ -102,17 +106,24 @@ The widget connects to Claude.ai using the same browser session you are already 
 
 ### Display
 - **Essential mode** for the taskbar: compact, no title bar, one or several bars side by side, all controls condensed at the bottom right
-- **Standard mode** for desktop placement: full title bar, three bars with labels and section dividers
+- **Standard mode** for desktop placement: full title bar, the selected bars stacked with labels and section dividers
+- **Bars to show** picker: choose which bars appear; the same choice drives both modes
+- **Bar colours**: a fixed colour per bar chosen from an in-app picker (four presets plus a full colour wheel), or a dynamic palette that colours every bar by its usage level
 - **Countdown as a pulsing green dot** (default) or as a numeric value, your choice
 - **Sync time** display toggle for the last-update timestamp
-- **Essential bars** picker to choose which bars share the collapsed row
 - Native Windows 11 design language: DWM rounded corners, translucent background, anti-aliased pill buttons rendered with a 4x supersample
 - DPI-aware: tested at 100 %, 125 %, 150 %, 175 % and 200 % scaling; dialogs auto-size so nothing is clipped on high-DPI displays
+
+### Accounts
+- **Save multiple Claude logins** and switch between them instantly; the widget refreshes to the selected account right away
+- Each account shows its **name, email and plan**, with a coloured avatar; add, rename or remove them from the Account panel
+- The active account's session key is edited per account, so you always know which login you are updating
 
 ### Authentication and setup
 - Companion **[Claude Session Key](https://chromewebstore.google.com/detail/claude-session-key/ppofmhjkjfinjpidlidepeonimpjmadj) extension** copies your session key with one click; works on Chrome, Edge, Brave and any Chromium browser
 - Built-in setup guide with manual fallback (browser settings or DevTools) if you would rather not install the extension
-- **Multi-organization support**: if you belong to more than one Claude org (personal + work), the widget uses `/api/bootstrap` to track the org Claude.ai itself routes to, not just the first one in the API response
+- **Multiple accounts**: save more than one Claude login and switch between them in a click; each keeps its own session key, name, email and plan
+- **Multi-organization support**: if an account belongs to more than one Claude org (personal + work), the widget uses `/api/bootstrap` to track the org Claude.ai itself routes to, not just the first one in the API response
 
 ### Localization
 - Three languages: **English, Italian (Italiano), Japanese (日本語)**
@@ -143,10 +154,10 @@ The widget connects to Claude.ai using the same browser session you are already 
 ### Corner dots and hamburger
 | Control | Gesture | Action |
 |---|---|---|
-| White dot (left) | Click | Expand / collapse extra bars |
+| White dot (left, essential mode) | Click | Expand the compact row into the full stacked view |
 | Orange dot (right) | Drag horizontal | Resize widget width |
 | Orange dot (right) | Double-click | Toggle essential / standard mode |
-| ☰ (multi-bar essential) | Click | Open the settings menu |
+| ☰ (essential mode) | Click | Open the settings menu |
 
 ### Settings menu
 
@@ -155,9 +166,9 @@ Open it with **≡**, the **☰** button, or by right-clicking the bar in essent
 ![The settings menu](docs/images/menu.png)
 
 - **Refresh** and the **Normal / Essential** mode toggle (top level)
-- **Display**: countdown as a pulsing dot or a numeric value, the sync-time timestamp on/off, and which bars share the collapsed essential row
+- **Display**: countdown as a pulsing dot or a numeric value, the sync-time timestamp on/off, fixed or dynamic bar colours, and which bars to show (each with a colour swatch). Hover any option for a short explanation.
 - **Data & alerts**: refresh interval (10 to 3600 s), threshold notifications, taskbar icon and Win11 progress overlay
-- **Account**: update the session key, open the Claude.ai usage page
+- **Account**: manage your accounts (add, switch, rename, remove, update each session key), open the Claude.ai usage page
 - **General**: language (EN / IT / JA), check for updates, open the GitHub repo, open `config.json`
 - **Quit** (top level)
 
@@ -167,12 +178,15 @@ The widget manages its own config at `%LOCALAPPDATA%\Claude Usage\config.json`. 
 
 ```jsonc
 {
-  "session_key": "sk-ant-sid01-...",     // managed automatically
+  "accounts": [ /* saved logins, managed from the Account panel */ ],
+  "active_account": "…",                 // id of the selected account
   "language": "en",                      // "en" | "it" | "ja"
   "refresh_ms": 180000,                  // auto-refresh cadence
   "countdown_display": "dot",            // "dot" (pulsing) | "full" (numeric)
   "show_sync_time": true,                // show the last-update timestamp
-  "essential_bars": ["session"],         // bars shown in the collapsed row
+  "essential_bars": ["session"],         // bars to show, in both modes
+  "bar_dynamic": false,                  // colour bars by usage level instead of per bar
+  "bar_colors": {},                      // per-bar colour overrides from the picker
   "always_check_updates": false,         // skip the 24h update-check throttle
   "debug_tk_scaling": null               // simulate higher DPI for layout testing
 }
@@ -193,7 +207,7 @@ The widget is a single-file Python source (`src/widget.pyw`) using tkinter for t
 ## Known behaviors
 
 - **Windows 10:** square corners (DWM rounded corners require Windows 11)
-- **Session expiry:** Claude.ai session keys typically last about 30 days or until you log out. The widget shows a clear notice when this happens; use **≡ > Session key**
+- **Session expiry:** Claude.ai session keys typically last about 30 days or until you log out. The widget shows a clear notice when this happens; update the key from **≡ > Account**
 - **TLS via curl:** the widget uses bundled `curl` (schannel + Windows CA store) instead of Python's `urllib`, because Cloudflare in front of claude.ai fingerprints the TLS handshake (JA3) and blocks Python's OpenSSL stack
 
 ## Contributing

@@ -25,6 +25,8 @@ import sys
 import os
 import re
 import json
+import uuid
+import colorsys
 import math
 import ssl
 import time
@@ -40,6 +42,7 @@ import winreg
 import urllib.request
 import urllib.error
 import tkinter as tk
+import tkinter.font as tkfont
 from datetime import datetime, timezone
 from PIL import Image, ImageDraw, ImageTk
 
@@ -112,8 +115,31 @@ DOT_GREEN   = '#6BC275'  # pre-refresh breathing dot (matches lbl_info green)
 PCT_FG   = '#ffffff'
 MENU_BG  = '#2c2c2a'
 
+# ─── Bar palette (fixed per bar) ─────────────────────
+# Fill = used portion, track = unused portion, aligned to Claude.ai's usage UI.
+# The track is a dark shade of the fill, shown only once the bar has usage; an
+# empty bar keeps the neutral gray (BAR_BG). The optional dynamic palette
+# (dynamic_fill) overrides these with a colour driven by the usage level.
+BAR_FILL_SESSION  = '#fab219'   # amber - current session
+BAR_TRACK_SESSION = '#311a00'
+BAR_FILL_WEEKLY   = '#2a78d6'   # blue - weekly, all models
+BAR_TRACK_WEEKLY  = '#032042'
+BAR_FILL_HIGH     = '#d03b3b'   # red - high-usage tone, used for the third bar
+BAR_TRACK_HIGH    = '#3c0e0e'
+# Purple is our own accent (not in Claude's UI); track derived with the same
+# darkening as the pairs above. One of the picker presets.
+BAR_FILL_PURPLE   = '#9b72cf'
+BAR_TRACK_PURPLE  = '#2a1d3a'
+
+# Default fill per bar (overridable per bar via the colour picker) and the
+# quick-pick presets the swatch offers.
+BAR_DEFAULT_FILL = {'session': BAR_FILL_SESSION,
+                    'weekly':  BAR_FILL_WEEKLY,
+                    'sonnet':  BAR_FILL_HIGH}
+BAR_PRESETS = [BAR_FILL_SESSION, BAR_FILL_WEEKLY, BAR_FILL_HIGH, BAR_FILL_PURPLE]
+
 # ─── App ────────────────────────────────────────────
-APP_VERSION = '2.8.45'
+APP_VERSION = '2.8.46'
 
 # ─── Auto-update ────────────────────────────────────
 UPDATE_REPO = 'niccolo-sabato/claude-usage-widget'
@@ -144,22 +170,74 @@ ICON_CELL_W = 34   # fixed icon-column width in menus so labels align across fon
 ICON_CELL_H = 26
 
 # ─── Fonts ───────────────────────────────────────────
-FT       = ('Segoe UI', 9)
-FT_B     = ('Segoe UI', 9, 'bold')
-FT_S     = ('Segoe UI', 8)
-FT_BTN   = ('Segoe UI', 11)
+# Text fonts are Tk named fonts, built by init_fonts() once the root exists
+# and bound to the FT_* names below. Named fonts can be retargeted at runtime:
+# _set_language() swaps the family and every widget already using them
+# repaints, so a language change needs no restart.
+#
+# The Japanese family is not a cosmetic choice. Segoe UI carries no CJK
+# glyphs, so Windows substitutes a gothic face glyph by glyph and, when a bold
+# weight is asked for, emboldens it synthetically: at UI sizes that smears kana
+# into an unreadable blob. Yu Gothic UI is the system Japanese UI family and
+# ships real regular and bold faces.
+_FONT_SPECS = {
+    'FT':           ('Segoe UI', 9),
+    'FT_B':         ('Segoe UI', 9, 'bold'),
+    'FT_S':         ('Segoe UI', 8),
+    'FT_BTN':       ('Segoe UI', 11),
+    'FT_BAR':       ('Segoe UI', 9, 'bold'),    # Bar percentage + reset text
+    'FT_DLG_TITLE': ('Segoe UI Semibold', 10),  # Dialog title bars
+    'FT_DLG_H':     ('Segoe UI', 11, 'bold'),   # Section headers inside dialogs
+    'FT_DLG_BODY':  ('Segoe UI', 10),           # Body text, entries
+    'FT_DLG_HINT':  ('Segoe UI', 9),            # Hints / status lines
+    'FT_DLG_BTN':   ('Segoe UI', 10),           # Secondary pill button text
+    'FT_DLG_BTN_B': ('Segoe UI', 10, 'bold'),   # Primary pill button text
+    'FT_MENU':      ('Segoe UI', 10),           # Menu row text
+    'FT_MENU_B':    ('Segoe UI', 10, 'bold'),   # Menu row text, selected
+}
+
+# Latin family -> family holding the same role that has Japanese glyphs.
+JP_FAMILY = {
+    'Segoe UI':          'Yu Gothic UI',
+    'Segoe UI Semibold': 'Yu Gothic UI Semibold',
+}
+
+
+def _family_for(family, lang):
+    return JP_FAMILY.get(family, family) if lang == 'ja' else family
+
+
+def init_fonts(root, lang):
+    """Create the named fonts. Run after the root exists, before any widget."""
+    for name, spec in _FONT_SPECS.items():
+        globals()[name] = tkfont.Font(
+            root=root, name='cu_' + name, exists=False,
+            family=_family_for(spec[0], lang), size=spec[1],
+            weight=spec[2] if len(spec) > 2 else 'normal')
+
+
+def apply_font_lang(lang):
+    """Point the named fonts at the family that has glyphs for `lang`."""
+    for name, spec in _FONT_SPECS.items():
+        globals()[name].configure(family=_family_for(spec[0], lang))
+
+
+# Icon fonts stay plain tuples: their families are picked for glyph coverage,
+# so they never follow the UI language.
 FT_EMOJI = ('Segoe UI Emoji', 10)
-FT_DOT   = ('Segoe UI', 10)
-FT_BAR   = ('Segoe UI', 9, 'bold')
+# Geometry glyphs: dots, radio/check markers, category arrows. These are UI
+# furniture, not text, so they must not follow the language either. The
+# Japanese families draw the same codepoints full-width, which visibly inflates
+# the corner dots and widens the fixed-width marker cells.
+FT_DOT  = ('Segoe UI', 10)   # corner expand / resize dots
+FT_MARK = ('Segoe UI', 10)   # menu radio, check and category-arrow glyphs
+# The language menu lists each language under its own name, so the Japanese
+# row stays Japanese even while the UI is English or Italian. Segoe UI has no
+# CJK glyphs: Windows substitutes a face for kana but drops kanji outright,
+# which rendered that row blank. Pin it to a family that has them.
+FT_MENU_JP = ('Yu Gothic UI', 10)
 
 # ─── Dialog / menu design system ─────────────────────
-FT_DLG_TITLE = ('Segoe UI Semibold', 10)   # Dialog title bars
-FT_DLG_H     = ('Segoe UI', 11, 'bold')    # Section headers inside dialogs
-FT_DLG_BODY  = ('Segoe UI', 10)            # Body text, entries
-FT_DLG_HINT  = ('Segoe UI', 9)             # Hints / status lines
-FT_DLG_BTN   = ('Segoe UI', 10)            # Secondary pill button text
-FT_DLG_BTN_B = ('Segoe UI', 10, 'bold')    # Primary pill button text
-FT_MENU      = ('Segoe UI', 10)            # Menu row text
 FT_EMOJI_11  = ('Segoe UI Emoji', 11)      # Emoji icons in dialogs/menus
 # Segoe MDL2 Assets ships with Windows 10/11 and exposes a curated set of
 # monochrome icons at a uniform visual weight via private-use codepoints.
@@ -170,6 +248,10 @@ FT_MDL2_TB   = ('Segoe MDL2 Assets', 9)    # tight title bar / essential-mode si
 FT_MDL2_MENU = ('Segoe MDL2 Assets', 10)   # same point size as FT_EMOJI for the menu row
 
 ICON_REFRESH = '\uE72C'   # Segoe MDL2 Refresh glyph
+ICON_KEY    = '\uE192'    # Segoe MDL2 Permissions (key) - edit account key
+ICON_EDIT   = '\uE70F'    # Segoe MDL2 Edit (pencil) - rename account
+ICON_DELETE = '\uE74D'    # Segoe MDL2 Delete (trash) - remove account
+ICON_ADD    = '\uE710'    # Segoe MDL2 Add (plus) - add account
 
 # Surface / state colors used by dialogs and menus (complement the theme)
 SOFT_BG    = '#2e2e2c'   # secondary pill button / card surface
@@ -473,6 +555,7 @@ LANG = {
         'current_session': 'Current Session',
         'all_models': 'All models (7d)',
         'sonnet_only': 'Sonnet only (7d)',
+        'model_scoped': '{model} only (7d)',
         'not_available': 'not available',
         'not_used': 'not used',
         'soon': 'soon',
@@ -503,19 +586,40 @@ LANG = {
         'menu_renew': 'Session key\u2026',
         'menu_open_config': 'Open config.json',
         'menu_open_claude': 'Go to Claude Usage',
+        'menu_accounts': 'Accounts\u2026',
+        'dlg_accounts_title': 'Accounts',
+        'dlg_add_account': 'Add account',
+        'dlg_bar_color': 'Bar colour',
+        'dlg_presets': 'Presets',
+        'dlg_account_name': 'Account name',
+        'dlg_rename': 'Rename',
+        'dlg_remove': 'Remove',
+        'dlg_remove_confirm': 'Remove this account? The widget keeps its other accounts.',
+        'dlg_update_key': 'Update session key',
+        'dlg_no_accounts': 'No accounts yet.',
+        'dlg_active': 'Active',
+        'dlg_save': 'Save',
         'menu_open_repo': 'Open GitHub repo',
         'menu_notifications_on': 'Notifications: ON',
         'menu_notifications_off': 'Notifications: OFF',
         'menu_taskbar_on': 'Taskbar icon: ON',
         'menu_taskbar_off': 'Taskbar icon: OFF',
         'menu_countdown': 'Countdown',
-        'countdown_full': 'Full',
+        'countdown_full': 'Numeric',
         'countdown_hidden': 'Hide countdown',
-        'countdown_dot': 'Essential',
+        'countdown_dot': 'Dot',
         'countdown_note': 'In multi-bar mode the dot (Essential) is always used.',
-        'menu_essential_bars': 'Essential bars',
-        'menu_sync_on': 'Sync time: ON',
-        'menu_sync_off': 'Sync time: OFF',
+        'menu_essential_bars': 'Bars to show',
+        'menu_sync_on': 'Sync time in bar: ON',
+        'menu_colors_fixed': 'Bar colours: fixed',
+        'menu_colors_dynamic': 'Bar colours: by usage',
+        'menu_sync_off': 'Sync time in bar: OFF',
+        'tip_countdown_dot': 'A pulsing dot signals when the next refresh is near.',
+        'tip_countdown_full': 'Show the exact time left until the limit resets.',
+        'tip_sync': 'Show the time of the last refresh next to each bar.',
+        'tip_colors': 'Fixed: each bar keeps its own colour. By usage: every bar is coloured by its consumption (blue, amber, red).',
+        'tip_notifications': 'Windows notification when session usage crosses a threshold.',
+        'tip_taskbar': 'Show a taskbar button with a usage progress overlay.',
         'menu_refresh_interval': 'Refresh interval\u2026',
         'dlg_interval_title': 'Refresh interval',
         'dlg_interval_label': 'Interval in seconds (minimum 10):',
@@ -564,6 +668,7 @@ LANG = {
         'current_session': 'Sessione Corrente',
         'all_models': 'Tutti i modelli (7gg)',
         'sonnet_only': 'Solo Sonnet (7gg)',
+        'model_scoped': 'Solo {model} (7gg)',
         'not_available': 'non disponibile',
         'not_used': 'non utilizzato',
         'soon': 'tra poco',
@@ -592,19 +697,40 @@ LANG = {
         'menu_renew': 'Session key\u2026',
         'menu_open_config': 'Apri config.json',
         'menu_open_claude': 'Vai a Claude Usage',
+        'menu_accounts': 'Account\u2026',
+        'dlg_accounts_title': 'Account',
+        'dlg_add_account': 'Aggiungi account',
+        'dlg_bar_color': 'Colore barra',
+        'dlg_presets': 'Preset',
+        'dlg_account_name': 'Nome account',
+        'dlg_rename': 'Rinomina',
+        'dlg_remove': 'Rimuovi',
+        'dlg_remove_confirm': 'Rimuovere questo account? Gli altri account restano.',
+        'dlg_update_key': 'Aggiorna session key',
+        'dlg_no_accounts': 'Nessun account.',
+        'dlg_active': 'Attivo',
+        'dlg_save': 'Salva',
         'menu_open_repo': 'Apri repo GitHub',
         'menu_notifications_on': 'Notifiche: attive',
         'menu_notifications_off': 'Notifiche: disattive',
         'menu_taskbar_on': 'Icona taskbar: visibile',
         'menu_taskbar_off': 'Icona taskbar: nascosta',
         'menu_countdown': 'Conto alla rovescia',
-        'countdown_full': 'Completo',
+        'countdown_full': 'Numerico',
         'countdown_hidden': 'Nascondi conto alla rovescia',
-        'countdown_dot': 'Essenziale',
+        'countdown_dot': 'Puntino',
         'countdown_note': 'In multi-barra è sempre attivo Essenziale.',
-        'menu_essential_bars': 'Barre essential',
-        'menu_sync_on': 'Orario sync: attivo',
-        'menu_sync_off': 'Orario sync: disattivo',
+        'menu_essential_bars': 'Barre da mostrare',
+        'menu_sync_on': 'Orario sync nella barra: attivo',
+        'menu_colors_fixed': 'Colori barre: fissi',
+        'menu_colors_dynamic': 'Colori barre: per consumo',
+        'menu_sync_off': 'Orario sync nella barra: disattivo',
+        'tip_countdown_dot': 'Un puntino che pulsa segnala quando manca poco al prossimo aggiornamento.',
+        'tip_countdown_full': 'Mostra il tempo esatto che manca al reset del limite.',
+        'tip_sync': 'Mostra accanto a ogni barra quando e stato fatto l ultimo aggiornamento.',
+        'tip_colors': 'Fissi: ogni barra tiene il suo colore. Per consumo: ogni barra e colorata in base al consumo (blu, giallo, rosso).',
+        'tip_notifications': 'Notifica di Windows quando il consumo della sessione supera una soglia.',
+        'tip_taskbar': 'Mostra un pulsante nella taskbar con la barra di avanzamento del consumo.',
         'menu_refresh_interval': 'Intervallo aggiornamento\u2026',
         'dlg_interval_title': 'Intervallo aggiornamento',
         'dlg_interval_label': 'Intervallo in secondi (minimo 10):',
@@ -650,12 +776,15 @@ LANG = {
         'current_session': '\u73fe\u5728\u306e\u30bb\u30c3\u30b7\u30e7\u30f3',
         'all_models': '\u5168\u30e2\u30c7\u30eb (7\u65e5)',
         'sonnet_only': 'Sonnet\u306e\u307f (7\u65e5)',
+        'model_scoped': '{model}\u306e\u307f (7\u65e5)',
         'not_available': '\u5229\u7528\u4e0d\u53ef',
         'not_used': '\u672a\u4f7f\u7528',
         'soon': '\u307e\u3082\u306a\u304f',
         'reset_prefix': '\u30ea\u30bb\u30c3\u30c8',
         'days': ['\u6708', '\u706b', '\u6c34', '\u6728', '\u91d1', '\u571f', '\u65e5'],
-        'unit_d': '\u65e5', 'unit_h': '\u6642\u9593', 'unit_min': '\u5206',
+        # Latin unit markers rather than the kanji forms: those are full-width
+        # and push the reset label past the end of the bar, where it clips.
+        'unit_d': 'd', 'unit_h': 'h', 'unit_min': 'm',
         'setup_required': 'Claude.ai \u306b\u63a5\u7d9a\u3059\u308b\u306b\u306f\u30bb\u30c3\u30b7\u30e7\u30f3\u30ad\u30fc\u304c\u5fc5\u8981\u3067\u3059\u3002',
         'session_expired': '\u30bb\u30c3\u30b7\u30e7\u30f3\u6709\u52b9\u671f\u5207\u308c\u3002\u30bb\u30c3\u30b7\u30e7\u30f3\u30ad\u30fc\u3092\u66f4\u65b0\u3057\u3066\u304f\u3060\u3055\u3044\u3002',
         'error': '\u30a8\u30e9\u30fc',
@@ -678,19 +807,40 @@ LANG = {
         'menu_renew': '\u30bb\u30c3\u30b7\u30e7\u30f3\u30ad\u30fc\u2026',
         'menu_open_config': 'config.json\u3092\u958b\u304f',
         'menu_open_claude': 'Claude Usage\u306b\u79fb\u52d5',
+        'menu_accounts': '\u30a2\u30ab\u30a6\u30f3\u30c8\u2026',
+        'dlg_accounts_title': '\u30a2\u30ab\u30a6\u30f3\u30c8',
+        'dlg_add_account': '\u30a2\u30ab\u30a6\u30f3\u30c8\u3092\u8ffd\u52a0',
+        'dlg_bar_color': '\u30d0\u30fc\u306e\u8272',
+        'dlg_presets': '\u30d7\u30ea\u30bb\u30c3\u30c8',
+        'dlg_account_name': '\u30a2\u30ab\u30a6\u30f3\u30c8\u540d',
+        'dlg_rename': '\u540d\u524d\u3092\u5909\u66f4',
+        'dlg_remove': '\u524a\u9664',
+        'dlg_remove_confirm': '\u3053\u306e\u30a2\u30ab\u30a6\u30f3\u30c8\u3092\u524a\u9664\u3057\u307e\u3059\u304b\uff1f\u4ed6\u306e\u30a2\u30ab\u30a6\u30f3\u30c8\u306f\u6b8b\u308a\u307e\u3059\u3002',
+        'dlg_update_key': '\u30bb\u30c3\u30b7\u30e7\u30f3\u30ad\u30fc\u3092\u66f4\u65b0',
+        'dlg_no_accounts': '\u30a2\u30ab\u30a6\u30f3\u30c8\u304c\u3042\u308a\u307e\u305b\u3093\u3002',
+        'dlg_active': '\u4f7f\u7528\u4e2d',
+        'dlg_save': '\u4fdd\u5b58',
         'menu_open_repo': 'GitHub\u30ea\u30dd\u30b8\u30c8\u30ea\u3092\u958b\u304f',
         'menu_notifications_on': '\u901a\u77e5: \u30aa\u30f3',
         'menu_notifications_off': '\u901a\u77e5: \u30aa\u30d5',
         'menu_taskbar_on': '\u30bf\u30b9\u30af\u30d0\u30fc\u30a2\u30a4\u30b3\u30f3: \u8868\u793a',
         'menu_taskbar_off': '\u30bf\u30b9\u30af\u30d0\u30fc\u30a2\u30a4\u30b3\u30f3: \u975e\u8868\u793a',
         'menu_countdown': '\u30ab\u30a6\u30f3\u30c8\u30c0\u30a6\u30f3',
-        'countdown_full': '\u5b8c\u5168',
+        'countdown_full': '\u6570\u5024',
         'countdown_hidden': '\u30ab\u30a6\u30f3\u30c8\u30c0\u30a6\u30f3\u3092\u975e\u8868\u793a',
-        'countdown_dot': '\u30a8\u30c3\u30bb\u30f3\u30b7\u30e3\u30eb',
+        'countdown_dot': '\u30c9\u30c3\u30c8',
         'countdown_note': '\u30de\u30eb\u30c1\u30d0\u30fc\u3067\u306f\u5e38\u306b\u30a8\u30c3\u30bb\u30f3\u30b7\u30e3\u30eb\u3092\u4f7f\u7528\u3057\u307e\u3059\u3002',
-        'menu_essential_bars': '\u30a8\u30c3\u30bb\u30f3\u30b7\u30e3\u30eb\u30d0\u30fc',
-        'menu_sync_on': '\u540c\u671f\u6642\u523b: \u30aa\u30f3',
-        'menu_sync_off': '\u540c\u671f\u6642\u523b: \u30aa\u30d5',
+        'menu_essential_bars': '\u8868\u793a\u3059\u308b\u30d0\u30fc',
+        'menu_sync_on': '\u30d0\u30fc\u5185\u306e\u540c\u671f\u6642\u523b: \u30aa\u30f3',
+        'menu_colors_fixed': '\u30d0\u30fc\u8272: \u56fa\u5b9a',
+        'menu_colors_dynamic': '\u30d0\u30fc\u8272: \u6d88\u8cbb\u91cf',
+        'menu_sync_off': '\u30d0\u30fc\u5185\u306e\u540c\u671f\u6642\u523b: \u30aa\u30d5',
+        'tip_countdown_dot': '\u6b21\u306e\u66f4\u65b0\u304c\u8fd1\u3065\u304f\u3068\u70b9\u6ec5\u3059\u308b\u30c9\u30c3\u30c8\u3067\u77e5\u3089\u305b\u307e\u3059\u3002',
+        'tip_countdown_full': '\u5236\u9650\u306e\u30ea\u30bb\u30c3\u30c8\u307e\u3067\u306e\u6b63\u78ba\u306a\u6b8b\u308a\u6642\u9593\u3092\u8868\u793a\u3057\u307e\u3059\u3002',
+        'tip_sync': '\u5404\u30d0\u30fc\u306e\u6a2a\u306b\u6700\u5f8c\u306e\u66f4\u65b0\u6642\u523b\u3092\u8868\u793a\u3057\u307e\u3059\u3002',
+        'tip_colors': '\u56fa\u5b9a: \u5404\u30d0\u30fc\u304c\u72ec\u81ea\u306e\u8272\u3092\u4fdd\u3061\u307e\u3059\u3002\u6d88\u8cbb\u91cf: \u3059\u3079\u3066\u306e\u30d0\u30fc\u304c\u6d88\u8cbb\u91cf\u306b\u5fdc\u3058\u3066\u8272\u5206\u3051\u3055\u308c\u307e\u3059 (\u9752\u3001\u9ec4\u3001\u8d64)\u3002',
+        'tip_notifications': '\u30bb\u30c3\u30b7\u30e7\u30f3\u4f7f\u7528\u91cf\u304c\u3057\u304d\u3044\u5024\u3092\u8d85\u3048\u308b\u3068Windows\u901a\u77e5\u3092\u8868\u793a\u3057\u307e\u3059\u3002',
+        'tip_taskbar': '\u30bf\u30b9\u30af\u30d0\u30fc\u306b\u4f7f\u7528\u72b6\u6cc1\u3092\u91cd\u306d\u305f\u30dc\u30bf\u30f3\u3092\u8868\u793a\u3057\u307e\u3059\u3002',
         'menu_refresh_interval': '\u66f4\u65b0\u9593\u9694\u2026',
         'dlg_interval_title': '\u66f4\u65b0\u9593\u9694',
         'dlg_interval_label': '\u79d2\u5358\u4f4d\u306e\u9593\u9694 (\u6700\u4f4e10):',
@@ -758,6 +908,10 @@ def load_cfg():
         if cfg.get('refresh_ms') == 300_000:
             cfg['refresh_ms'] = REFRESH
             save_cfg(cfg)
+        # Wrap a legacy single key into the accounts list on first run.
+        if 'accounts' not in cfg:
+            account_migrate(cfg)
+            save_cfg(cfg)
         return cfg
     return {}
 
@@ -767,12 +921,120 @@ def save_cfg(data):
         json.dump(data, f, indent=2)
 
 
-def bar_color(pct, accent):
-    if pct >= 90:
-        return RED
-    if pct >= 75:
-        return ORANGE
-    return accent
+# ─── Accounts ───────────────────────────────────────
+# Multiple Claude.ai logins live under cfg['accounts']; cfg['active_account']
+# holds the id of the selected one. The active account's key/org are mirrored
+# back onto the top-level cfg['session_key']/cfg['org_id'] so fetch_usage and
+# the refresh loop keep reading a single, stable location.
+
+def _new_id():
+    return uuid.uuid4().hex
+
+
+def account_migrate(cfg):
+    """Ensure cfg carries an accounts list. A pre-multi-account config has a
+    top-level session_key: wrap it as the first (active) account."""
+    if cfg.get('accounts'):
+        return
+    accounts = []
+    if cfg.get('session_key'):
+        accounts.append({
+            'id': _new_id(),
+            'name': cfg.get('account_name') or 'Account 1',
+            'session_key': cfg['session_key'],
+            'org_id': cfg.get('org_id', ''),
+            'email': cfg.get('email', ''),
+            'plan': cfg.get('plan', ''),
+        })
+    cfg['accounts'] = accounts
+    cfg['active_account'] = accounts[0]['id'] if accounts else None
+
+
+def active_account(cfg):
+    """The selected account dict, or None when no account is configured."""
+    aid = cfg.get('active_account')
+    for a in cfg.get('accounts', []):
+        if a.get('id') == aid:
+            return a
+    return None
+
+
+def mirror_active(cfg):
+    """Copy the active account's key/org onto the top-level mirror."""
+    a = active_account(cfg)
+    if a:
+        cfg['session_key'] = a.get('session_key', '')
+        cfg['org_id'] = a.get('org_id', '')
+
+
+def set_active_key(cfg, key, org_id=None):
+    """Write a (possibly rotated) key onto the active account and the mirror."""
+    a = active_account(cfg)
+    if a:
+        a['session_key'] = key
+        if org_id is not None:
+            a['org_id'] = org_id
+    cfg['session_key'] = key
+    if org_id is not None:
+        cfg['org_id'] = org_id
+
+
+# Bubble tints for account avatars, keyed by a stable hash of the account id.
+_BUBBLE_COLORS = ['#DA7756', '#5B9BD5', '#9B72CF', '#4CA98A', '#C9803B', '#B5687F']
+
+
+def account_initials(name):
+    """One or two uppercase initials from an account name for its avatar."""
+    parts = [p for p in re.split(r'\s+', (name or '').strip()) if p]
+    if not parts:
+        return '?'
+    if len(parts) == 1:
+        return parts[0][:2].upper()
+    return (parts[0][0] + parts[1][0]).upper()
+
+
+def bubble_color(acc_id):
+    """Deterministic avatar tint so an account keeps its colour across runs."""
+    try:
+        n = int((acc_id or '0')[:8], 16)
+    except ValueError:
+        n = 0
+    return _BUBBLE_COLORS[n % len(_BUBBLE_COLORS)]
+
+
+def _hex_to_rgb(h):
+    h = h.lstrip('#')
+    return tuple(int(h[i:i + 2], 16) for i in (0, 2, 4))
+
+
+def _rgb_to_hex(rgb):
+    return '#%02x%02x%02x' % tuple(max(0, min(255, round(c))) for c in rgb)
+
+
+def derive_track(fill_hex):
+    """Dark 'unused' track colour for a bar fill, reproducing the darkening of
+    Claude's official fill/track pairs: keep the hue, push saturation up a
+    touch (x1.123, clamped) and drop value to a fixed low 0.229."""
+    r, g, b = [c / 255 for c in _hex_to_rgb(fill_hex)]
+    h, s, v = colorsys.rgb_to_hsv(r, g, b)
+    r, g, b = colorsys.hsv_to_rgb(h, min(1.0, s * 1.123), 0.229)
+    return _rgb_to_hex((r * 255, g * 255, b * 255))
+
+
+# Dynamic (percentage-driven) palette: every bar shares the same scale, so the
+# colour reads the consumption level rather than which bar it is.
+DYN_LOW  = '#2a78d6'   # blue  - low usage
+DYN_MID  = '#fab219'   # amber - mid usage
+DYN_HIGH = '#d03b3b'   # red   - high usage
+
+
+def dynamic_fill(pct):
+    """Fill colour for the dynamic palette, stepped by usage percentage."""
+    if pct >= 85:
+        return DYN_HIGH
+    if pct >= 50:
+        return DYN_MID
+    return DYN_LOW
 
 
 def format_reset(iso_str, compact=False):
@@ -886,7 +1148,7 @@ def render_markdown_into(text_widget, markdown_str, *, base_font, fg, header_fg)
     notes we write (## Title, ### Install, `ClaudeUsage-Setup.exe`, **bold**,
     `- list items`). Everything else renders as plain text.
     """
-    fam, size = base_font[0], base_font[1]
+    fam, size = base_font.cget('family'), base_font.cget('size')
 
     # Tag styles - tight spacing so a typical release note fits without
     # scrolling in the update dialog.
@@ -1221,37 +1483,63 @@ def _curl_get(url, session_key):
     Edge/Chrome use - so the JA3 matches a real browser. Schannel also
     uses the system CA store, so cert validation matches the browser.
     """
+    # Capture bytes, not text: the API responses are UTF-8, but Python's
+    # text mode would decode with the Windows locale (cp1252) and raise on any
+    # non-latin1 byte (accented names, Japanese org names, emoji), silently
+    # failing the whole call.
     result = subprocess.run(
         ['curl', '-s',
          '-H', f'Cookie: sessionKey={session_key}',
          '-H', f'User-Agent: {_BROWSER_UA}',
          '-H', 'anthropic-client-platform: web_claude_ai',
          url],
-        capture_output=True, text=True, timeout=20,
+        capture_output=True, timeout=20,
         creationflags=subprocess.CREATE_NO_WINDOW
     )
     if result.returncode != 0:
-        raise RuntimeError(f'curl: {result.stderr.strip()}')
-    body = result.stdout.strip()
+        raise RuntimeError(f'curl: {result.stderr.decode("utf-8", "replace").strip()}')
+    body = result.stdout.decode('utf-8', 'replace').strip()
     if not body:
         raise RuntimeError(t('empty_response'))
     return body
 
 
-def fetch_org_id(session_key):
-    """Resolve the user's org_id from the session key.
+def plan_label(tier):
+    """Human label for an org's rate_limit_tier ('default_claude_max_5x' ->
+    'Max 5x'). Falls back to a title-cased form of any unknown tier."""
+    if not tier:
+        return ''
+    s = tier.lower()
+    if 'max_20x' in s:
+        return 'Max 20x'
+    if 'max_5x' in s:
+        return 'Max 5x'
+    if 'max' in s:
+        return 'Max'
+    if 'team' in s:
+        return 'Team'
+    if 'enterprise' in s:
+        return 'Enterprise'
+    if 'pro' in s:
+        return 'Pro'
+    if 'free' in s or s == 'default':
+        return 'Free'
+    return s.replace('default_', '').replace('claude_', '').replace('_', ' ').title()
 
-    Strategy:
+
+def fetch_account_info(session_key):
+    """Resolve org_id plus the account identity (email, name, plan) from a
+    session key.
+
+    Org selection strategy:
       1. List the user's orgs via /api/organizations.
       2. If there is exactly one, use it.
-      3. If there are multiple, ask /api/bootstrap which one was last
-         active in the browser (account.lastActiveOrgId). This matches
-         what the official Claude.ai web UI shows the user.
-      4. Fallback to the first org if bootstrap fails.
+      3. If there are multiple, ask /api/bootstrap which one was last active
+         in the browser (account.lastActiveOrgId), matching what Claude.ai
+         shows the user. Fall back to the first org if bootstrap fails.
 
-    Without the bootstrap step a user with multiple orgs (personal +
-    work) would always see usage for whichever org happens to be first
-    in the API response, not the one they're actively using.
+    The same bootstrap call carries the account's email and name, and the
+    chosen org carries the rate-limit tier we turn into a plan label.
     """
     body = _curl_get('https://claude.ai/api/organizations', session_key)
     try:
@@ -1261,23 +1549,61 @@ def fetch_org_id(session_key):
     if not isinstance(orgs, list) or not orgs:
         raise RuntimeError(t('no_org'))
 
-    if len(orgs) == 1:
-        return orgs[0].get('uuid') or orgs[0].get('id')
-
-    # Multi-org: prefer the org Claude.ai itself currently routes to.
+    email = name = ''
+    active_id = None
     try:
-        boot_body = _curl_get('https://claude.ai/api/bootstrap', session_key)
-        boot = json.loads(boot_body)
-        active_id = (boot.get('account') or {}).get('lastActiveOrgId')
-        if active_id:
-            for o in orgs:
-                if o.get('uuid') == active_id or o.get('id') == active_id:
-                    return active_id
-            return active_id  # bootstrap is authoritative even if not in list
+        boot = json.loads(_curl_get('https://claude.ai/api/bootstrap', session_key))
+        acct = boot.get('account') or {}
+        email = acct.get('email_address') or ''
+        name = acct.get('full_name') or acct.get('display_name') or ''
+        active_id = acct.get('lastActiveOrgId')
     except Exception as e:
         wlog(f'BOOT   bootstrap fallback failed: {e}')
 
-    return orgs[0].get('uuid') or orgs[0].get('id')
+    chosen = None
+    if len(orgs) == 1:
+        chosen = orgs[0]
+        org_id = chosen.get('uuid') or chosen.get('id')
+    elif active_id:
+        for o in orgs:
+            if o.get('uuid') == active_id or o.get('id') == active_id:
+                chosen = o
+                break
+        org_id = active_id  # bootstrap is authoritative even if not in the list
+    else:
+        chosen = orgs[0]
+        org_id = chosen.get('uuid') or chosen.get('id')
+
+    plan = plan_label((chosen or {}).get('rate_limit_tier'))
+    return {'org_id': org_id, 'email': email, 'name': name, 'plan': plan}
+
+
+def fetch_org_id(session_key):
+    """Back-compat shim: just the org_id from fetch_account_info."""
+    return fetch_account_info(session_key)['org_id']
+
+
+def scoped_model(d):
+    """Third-bar data: the weekly per-model limit.
+
+    Claude.ai moved this from d['seven_day_sonnet'] into the d['limits'] list,
+    whose per-model entry carries scope.model.display_name (currently 'Fable',
+    previously 'Sonnet'). Read that entry when present so the bar follows
+    whatever model the weekly limit is scoped to, and fall back to the legacy
+    sonnet bucket otherwise.
+
+    Returns (percent, resets_at, model_name). model_name is None on the legacy
+    path so the caller keeps its own localized label.
+    """
+    for lim in (d.get('limits') or []):
+        model = (lim.get('scope') or {}).get('model') or {}
+        name = model.get('display_name')
+        if name:
+            return lim.get('percent'), lim.get('resets_at'), name
+    ss = d.get('seven_day_sonnet')
+    if ss:
+        return ss.get('utilization'), ss.get('resets_at'), None
+    return None, None, None
 
 
 def fetch_usage(cfg):
@@ -1290,14 +1616,16 @@ def fetch_usage(cfg):
          '-H', f'User-Agent: {_BROWSER_UA}',
          '-H', 'anthropic-client-platform: web_claude_ai',
          url],
-        capture_output=True, text=True, timeout=20,
+        capture_output=True, timeout=20,
         creationflags=subprocess.CREATE_NO_WINDOW
     )
     if result.returncode != 0:
-        raise RuntimeError(f'curl: {result.stderr.strip()}')
-    parts = result.stdout.split('\r\n\r\n', 1)
+        raise RuntimeError(f'curl: {result.stderr.decode("utf-8", "replace").strip()}')
+    # UTF-8, not the Windows locale: see _curl_get.
+    stdout = result.stdout.decode('utf-8', 'replace')
+    parts = stdout.split('\r\n\r\n', 1)
     if len(parts) < 2:
-        parts = result.stdout.split('\n\n', 1)
+        parts = stdout.split('\n\n', 1)
     headers = parts[0] if len(parts) == 2 else ''
     body = parts[-1].strip()
     if not body:
@@ -1311,7 +1639,9 @@ def fetch_usage(cfg):
             raise RuntimeError(f'HTTP {code}')
     km = re.search(r'sessionKey=([^;\s]+)', headers)
     if km and km.group(1) != cfg.get('session_key'):
-        cfg['session_key'] = km.group(1)
+        # Claude.ai rotated the key: persist it on the active account too, not
+        # just the mirror, so the account list keeps a working key.
+        set_active_key(cfg, km.group(1))
         save_cfg(cfg)
     try:
         return json.loads(body)
@@ -1436,10 +1766,15 @@ def download_installer(url, dest_path, on_progress=None, chunk_size=65536):
 class Section:
     """One usage bar: header (label + pct) + bar canvas + sub-label."""
 
-    def __init__(self, parent, label, accent):
-        self.accent = accent
+    def __init__(self, parent, label, fill, track):
+        # fill = used portion; track = unused portion (shown only when pct > 0,
+        # otherwise the bar keeps the neutral gray).
+        self._fill = fill
+        self._track = track
+        self._dynamic = False        # percentage-driven palette (set by widget)
         self._pct = 0
-        self._color = accent
+        self._color = fill
+        self._trackc = track         # the track colour actually drawn
         self._compact = False
         self._cd_txt = ''  # countdown text appended to pct
         self._dot_phase = 'off'      # 'off' | 'on' (pre-refresh breathing dot)
@@ -1518,7 +1853,12 @@ class Section:
             self._draw(self.cv.winfo_width())
             return
         self._pct = max(0, min(100, pct))
-        self._color = bar_color(self._pct, self.accent)
+        if self._dynamic:
+            self._color = dynamic_fill(self._pct)
+            self._trackc = derive_track(self._color)
+        else:
+            self._color = self._fill
+            self._trackc = self._track
         cd = format_reset(resets_at, compact=self._reset_compact)
         if cd:
             self.lbl_sub.config(text=cd)
@@ -1528,11 +1868,38 @@ class Section:
             self.lbl_sub.config(text='')
         self._draw(self.cv.winfo_width())
 
+    def set_dynamic(self, on):
+        """Switch this bar between the percentage-driven palette and its own
+        fixed colour, recomputing the drawn colours for the current value."""
+        if on == self._dynamic:
+            return
+        self._dynamic = on
+        if self._dynamic:
+            self._color = dynamic_fill(self._pct)
+            self._trackc = derive_track(self._color)
+        else:
+            self._color = self._fill
+            self._trackc = self._track
+        self._draw(self.cv.winfo_width())
+
+    def set_colors(self, fill, track):
+        """Change this bar's fixed fill/track (from the colour picker) and
+        repaint. No effect on what is drawn while dynamic mode is active, but
+        the values are kept for when it is turned off."""
+        self._fill = fill
+        self._track = track
+        if not self._dynamic:
+            self._color = fill
+            self._trackc = track
+            self._draw(self.cv.winfo_width())
+
     def _draw(self, w):
         if w < 2:
             return
         self.cv.delete('all')
-        pill(self.cv, 0, 0, w, BAR_H, BAR_BG)
+        # Track: neutral gray while the bar is empty, its dark colour once used.
+        track = self._trackc if self._pct > 0 else BAR_BG
+        pill(self.cv, 0, 0, w, BAR_H, track)
         if self._pct > 0:
             fw = max(BAR_H, w * self._pct / 100)
             pill(self.cv, 0, 0, fw, BAR_H, self._color)
@@ -1568,9 +1935,17 @@ class Widget:
 
     def __init__(self):
         self.cfg = load_cfg()
+        # Keep the top-level key/org in sync with the active account (config
+        # could have been hand-edited, or an account removed).
+        mirror_active(self.cfg)
+        # Label for the weekly per-model bar. Claude.ai names the model in the
+        # usage payload (see scoped_model); persist the last-seen name so the
+        # bar reads correctly before the first fetch of a new session.
+        self._model_label = self.cfg.get('model_label', 'Sonnet')
         # Load language from config, default English
         set_lang(self.cfg.get('language', 'en'))
         self.root = tk.Tk()
+        init_fonts(self.root, _current_lang)
         # Surface callback-level exceptions in the log. Tkinter normally
         # prints these to stderr, which is invisible for a pythonw/exe app,
         # so a typo inside an event handler (e.g. a bad screen distance)
@@ -1733,13 +2108,20 @@ class Widget:
         self._keep_topmost()
         self.root.bind('<Visibility>', lambda e: self._force_topmost())
 
-        # Restore essential mode if it was active when last closed.
+        # Restore essential mode if it was active when last closed; otherwise
+        # lay out the selected bars stacked for normal mode.
         if self.cfg.get('essential', False):
             self.root.after(100, self._restore_essential)
+        else:
+            self._pack_stacked()
+            self._update_expand_visibility()
+            self._auto_height()
 
         if self.cfg.get('session_key') and self.cfg.get('org_id'):
             self.refresh()
             self._schedule()
+            # Fill a migrated account's identity (name/email/plan) once.
+            self.root.after(1500, self._backfill_identity)
         else:
             self._error(t('setup_required'),
                         action_label=t('action_setup_now'),
@@ -1850,21 +2232,27 @@ class Widget:
         self.content = tk.Frame(self.main, bg=BG)
         self.content.pack(fill='both', expand=True)
 
-        self.s_session = Section(self.content, t('current_session'), CLAUDE)
+        self.s_session = Section(self.content, t('current_session'),
+                                 *self._bar_ft('session'))
 
         # Expandable sections
         self.extra_frame = tk.Frame(self.content, bg=BG)
-        self.s_weekly = Section(self.extra_frame, t('all_models'), BLUE)
-        self.s_sonnet = Section(self.extra_frame, t('sonnet_only'), PURPLE)
+        self.s_weekly = Section(self.extra_frame, t('all_models'),
+                                *self._bar_ft('weekly'))
+        self.s_sonnet = Section(self.extra_frame, self._sonnet_label(),
+                                *self._bar_ft('sonnet'))
 
         # Essential-collapsed multi-bar strip. Tk can't re-parent the originals,
         # so this row owns its own compact Section instances, shown side-by-side
         # only when essential AND collapsed. Fed the same data every refresh.
         self.ess_row = tk.Frame(self.content, bg=BG)
         self.ess_bars = {
-            'session': Section(self.ess_row, t('current_session'), CLAUDE),
-            'weekly':  Section(self.ess_row, t('all_models'), BLUE),
-            'sonnet':  Section(self.ess_row, t('sonnet_only'), PURPLE),
+            'session': Section(self.ess_row, t('current_session'),
+                               *self._bar_ft('session')),
+            'weekly':  Section(self.ess_row, t('all_models'),
+                               *self._bar_ft('weekly')),
+            'sonnet':  Section(self.ess_row, self._sonnet_label(),
+                               *self._bar_ft('sonnet')),
         }
         for sec in self.ess_bars.values():
             # A bare tk.Canvas reports a large default requested width. Packed
@@ -1882,9 +2270,15 @@ class Widget:
             sec.frame.pack_forget()     # hidden until essential-collapsed
         # _reset_compact is set dynamically (reduced only when >1 bar is shown).
 
-        # Hamburger menu pill - shown on the right of the side-by-side strip in
-        # multi-bar essential mode. It pushes the bars left so the per-bar reset
-        # text clears the bottom-right controls, and opens the menu on click.
+        # Apply the saved palette mode to every bar now that they all exist.
+        if self.cfg.get('bar_dynamic', False):
+            for sec in self._all_sections():
+                sec._dynamic = True
+
+        # Hamburger menu pill - shown on the right of the side-by-side strip
+        # whenever essential mode is collapsed. It pushes the bars left so the
+        # per-bar reset text clears the bottom-right controls, and opens the
+        # menu on click.
         self._ess_menu_hover = False
         self.ess_menu = tk.Canvas(self.ess_row, width=ESS_MENU_W, height=BAR_H,
                                   bg=BG, highlightthickness=0, bd=0, cursor='hand2')
@@ -1995,6 +2389,10 @@ class Widget:
     def _toggle_expand(self):
         if getattr(self, '_animating', False):
             return
+        # Expand is an essential-mode affordance only; normal mode already
+        # shows the selected bars stacked (the dot is hidden there).
+        if not self._essential:
+            return
         start_h = self.root.winfo_height()
         start_y = self.root.winfo_y()
         bottom = start_y + start_h
@@ -2007,28 +2405,18 @@ class Widget:
 
         self._expanded = not self._expanded
         if self._expanded:
-            if self._essential:
-                # leave the collapsed side-by-side strip for the stacked view
-                self._exit_ess_collapsed()
-            self.bottom_pad.pack_forget()
-            self.extra_frame.pack(fill='x')
-            self.bottom_pad.config(height=24 if self._essential else 6)
-            self.bottom_pad.pack(fill='x')
+            # Expanding is 'see everything': show all bars stacked, with a bit
+            # more bottom room for the essential-mode overlay controls.
+            self.bottom_pad.config(height=24)
+            self._pack_stacked(all_bars=True)
             self.btn_expand.config(fg=DOT_W)
-            if self._essential:
-                self.s_session.set_compact(False)
-                self.s_weekly.set_compact(False)
-                self.s_sonnet.set_compact(False)
-                for sec in (self.s_session, self.s_weekly, self.s_sonnet):
-                    self._bind_drag_section(sec)
+            for sec in (self.s_session, self.s_weekly, self.s_sonnet):
+                self._bind_drag_section(sec)
         else:
             self.btn_expand.config(fg=DOT_W_D)
             self.bottom_pad.config(height=6)
-            if self._essential:
-                # back to the collapsed side-by-side strip
-                self._enter_ess_collapsed()
-            else:
-                self.extra_frame.pack_forget()
+            # back to the collapsed side-by-side strip
+            self._enter_ess_collapsed()
 
         cover.lift()  # above the freshly packed widgets, so the reflow is hidden
         self.root.update_idletasks()
@@ -2070,22 +2458,20 @@ class Widget:
             self.ess_bar.place(relx=1.0, x=-18, rely=1.0, y=-1, anchor='se')
             self._enter_ess_collapsed()
         else:
-            if not self._expanded:
-                # was collapsed essential (strip shown): restore stacked bars
-                self._exit_ess_collapsed()
-            self.s_session.set_compact(False)
-            self.s_weekly.set_compact(False)
-            self.s_sonnet.set_compact(False)
+            self._expanded = False
             self.ess_bar.place_forget()
             self.content.pack_forget()
             self.tb.pack(fill='x')
             self.sep.pack(fill='x')
             self.content.pack(fill='both', expand=True)
+            self.bottom_pad.config(height=6)
+            # Normal mode shows the selected bars stacked (same selection as
+            # essential), and drags from the title bar only.
+            self._pack_stacked()
             self._unbind_drag(self.content)
-            # Remove the drag handlers that essential-expanded added to the
-            # original bars so normal mode drags only from the title bar.
             for sec in (self.s_session, self.s_weekly, self.s_sonnet):
                 self._unbind_drag_section(sec)
+        self._update_expand_visibility()
         self.root.update_idletasks()
         end_h = self.root.winfo_reqheight()
         end_y = bottom - end_h
@@ -2102,6 +2488,7 @@ class Widget:
         self.sep.pack_forget()
         self.ess_bar.place(relx=1.0, x=-18, rely=1.0, y=-1, anchor='se')
         self._enter_ess_collapsed()
+        self._update_expand_visibility()
         # Apply saved position directly
         w = self.cfg.get('width', DEF_W)
         x = self.cfg.get('x', 100)
@@ -2111,6 +2498,7 @@ class Widget:
         self.root.geometry(f'{w}x{rh}+{x}+{y}')
         self.root.attributes('-alpha', 0.94)
         self._update_minsize()
+        self._restore_ess_width()
 
     # ── Essential-collapsed multi-bar strip ──────────
 
@@ -2150,6 +2538,22 @@ class Widget:
         for sec in self.ess_bars.values():
             sec._reset_compact = multi
 
+    def _sonnet_label(self):
+        """Localized label for the weekly per-model bar, with the current
+        model name (from the usage payload, persisted between sessions)."""
+        return t('model_scoped').format(model=self._model_label)
+
+    def _apply_model_label(self, name):
+        """Update the per-model bar label to `name` (when the payload gives one)
+        and repaint both the normal and essential-row labels."""
+        if name and name != self._model_label:
+            self._model_label = name
+            self.cfg['model_label'] = name
+            save_cfg(self.cfg)
+        lbl = self._sonnet_label()
+        self.s_sonnet.lbl.config(text=lbl)
+        self.ess_bars['sonnet'].lbl.config(text=lbl)
+
     def _update_ess_bars(self, d):
         """Push fetched usage onto the essential-row bars with the right
         reset-label form for the current bar count."""
@@ -2158,21 +2562,21 @@ class Widget:
         self._sync_ess_reset_mode()
         fh = d.get('five_hour')
         sd = d.get('seven_day')
-        ss = d.get('seven_day_sonnet')
+        sp, sr, _ = scoped_model(d)
         self.ess_bars['session'].update(fh['utilization'] if fh else None,
                                         fh.get('resets_at') if fh else None)
         self.ess_bars['weekly'].update(sd['utilization'] if sd else None,
                                         sd.get('resets_at') if sd else None)
-        self.ess_bars['sonnet'].update(ss['utilization'] if ss else None,
-                                        ss.get('resets_at') if ss else None)
+        self.ess_bars['sonnet'].update(sp, sr)
 
     def _enter_ess_collapsed(self):
         """Lay out the selected bars side-by-side for collapsed essential mode.
 
         The stacked originals (s_session + extra_frame) are hidden and the
         ess_row strip is shown instead, each selected bar sharing the width
-        equally (halved for 2, thirded for 3). Drives the per-bar refresh dot
-        via the normal countdown tick; the parenthetical countdown is off here.
+        left of the hamburger equally (halved for 2, thirded for 3). Drives the
+        per-bar refresh dot via the normal countdown tick; the parenthetical
+        countdown is off here.
         """
         bars = self._essential_bar_ids()
         self.s_session.frame.pack_forget()
@@ -2183,21 +2587,17 @@ class Widget:
             sec.frame.pack_forget()
         n = len(bars)
         top_pad = 3  # same top spacing for single- and multi-bar (was cramped at 1)
-        # Multi-bar: reserve the hamburger on the right first so the bars fill
-        # the remaining width on the left (and the reset text clears the
+        # Reserve the hamburger on the right first so the bars fill the
+        # remaining width on the left (and the reset text clears the
         # bottom-right controls).
-        if n > 1:
-            self.ess_menu.pack(side='right', anchor='n', padx=(3, PAD),
-                               pady=(top_pad, 0))
-            self._draw_ess_menu(ESS_MENU_W)
+        self.ess_menu.pack(side='right', anchor='n', padx=(3, PAD),
+                           pady=(top_pad, 0))
+        self._draw_ess_menu(ESS_MENU_W)
         for i, b in enumerate(bars):
             sec = self.ess_bars[b]
             sec.set_compact(True)
             left = PAD if i == 0 else 3
-            if i == n - 1:
-                right = 3 if n > 1 else PAD  # small gap before the hamburger
-            else:
-                right = 0
+            right = 3 if i == n - 1 else 0  # small gap before the hamburger
             sec.frame.pack(side='left', expand=True, fill='both',
                            padx=(left, right), pady=(top_pad, 0))
         self.ess_row.pack(fill='x')
@@ -2212,19 +2612,6 @@ class Widget:
         for b in bars:
             self._bind_drag_section(self.ess_bars[b])
 
-    def _exit_ess_collapsed(self):
-        """Hide the side-by-side strip and restore the stacked session bar."""
-        # Stop any pulse/dot synchronously so the 50ms timer never outlives
-        # the strip (the next tick would catch it, but this is explicit).
-        self._set_pulse(False)
-        self._apply_dot_phase('off')
-        self.ess_menu.pack_forget()
-        self.ess_row.pack_forget()
-        self.bottom_pad.pack_forget()
-        self.s_session.frame.pack(fill='x', padx=PAD, pady=(3, 0))
-        self.bottom_pad.pack(fill='x')
-        self._reassert_error_order()
-
     def _reassert_error_order(self):
         """Keep the error panel below the bars after a content re-pack.
 
@@ -2235,6 +2622,52 @@ class Widget:
         if self.err_frame.winfo_ismapped():
             self.err_frame.pack_forget()
             self.err_frame.pack(fill='x', pady=(4, 0))
+
+    def _pack_stacked(self, all_bars=False):
+        """Lay out bars stacked. Normal mode shows the selected 'bars to show';
+        essential-expanded (all_bars=True) shows every bar, since expanding is
+        the 'see everything' action. The caller owns drag binding and the
+        bottom_pad height."""
+        sel = ['session', 'weekly', 'sonnet'] if all_bars else self._essential_bar_ids()
+        self._set_pulse(False)
+        self._apply_dot_phase('off')
+        self.ess_menu.pack_forget()
+        self.ess_row.pack_forget()
+        self.bottom_pad.pack_forget()
+        self.s_session.frame.pack_forget()
+        self.extra_frame.pack_forget()
+        self.s_weekly.frame.pack_forget()
+        self.s_sonnet.frame.pack_forget()
+        if 'session' in sel:
+            self.s_session.set_compact(False)
+            self.s_session.frame.pack(fill='x', padx=PAD, pady=(3, 0))
+        show_extra = False
+        for code, sec in (('weekly', self.s_weekly), ('sonnet', self.s_sonnet)):
+            if code in sel:
+                sec.set_compact(False)
+                sec.frame.pack(fill='x', padx=PAD, pady=(3, 0))
+                show_extra = True
+        if show_extra:
+            self.extra_frame.pack(fill='x')
+        self.bottom_pad.pack(fill='x')
+        self._reassert_error_order()
+
+    def _resize_bottom_anchored(self):
+        """Fit the height to the content, keeping the bottom edge fixed so the
+        widget grows upward (safe when parked on the taskbar)."""
+        self.root.update_idletasks()
+        w = self.root.winfo_width()
+        bottom = self.root.winfo_y() + self.root.winfo_height()
+        new_h = self.root.winfo_reqheight()
+        self.root.geometry(f'{w}x{new_h}+{self.root.winfo_x()}+{bottom - new_h}')
+
+    def _update_expand_visibility(self):
+        """The expand dot applies only to essential mode: normal mode always
+        shows the selected bars stacked, so there is nothing to expand there."""
+        if self._essential:
+            self.btn_expand.place(x=6, rely=1.0, y=-4, anchor='sw')
+        else:
+            self.btn_expand.place_forget()
 
     def _bind_drag(self, w):
         # Drag handlers only. The menu binding lives on root (_build) so
@@ -2282,16 +2715,23 @@ class Widget:
                 needed = max(needed, n * per_bar + ESS_MENU_W + 2 * PAD)
                 if n >= 3:
                     needed = max(needed, int(round(MIN_W * 1.5)))
+            else:
+                # Single bar keeps the full reset text, so measure it rather
+                # than using the reduced per-bar estimate. The hamburger takes
+                # the same reserved column here, and the bar shrinks to make
+                # room for it, so the text needs that width back.
+                needed = max(needed, sub_w + ESS_MENU_W + 2 * PAD)
         self.root.minsize(needed, 0)
-        # Force the widget to expand up to the minimum if it was previously
-        # smaller (for overrideredirect windows `minsize` alone doesn't
-        # resize the current window).
+        # Widen to the minimum only when the current width is below it (never
+        # more than needed, and never shrink the user's width). Anchor the
+        # RIGHT edge so the extra width grows to the LEFT, keeping the menu /
+        # hamburger on the right in place.
         cur_w = self.root.winfo_width()
         if cur_w > 1 and cur_w < needed:
-            x = self.root.winfo_x()
+            right = self.root.winfo_x() + cur_w
             y = self.root.winfo_y()
             h = self.root.winfo_reqheight()
-            self.root.geometry(f'{needed}x{h}+{x}+{y}')
+            self.root.geometry(f'{needed}x{h}+{right - needed}+{y}')
 
     def _auto_height(self):
         self.root.update_idletasks()
@@ -2299,6 +2739,24 @@ class Widget:
         w = self.root.winfo_width()
         new_h = self.root.winfo_reqheight()
         self.root.geometry(f'{w}x{new_h}+{x}+{y}')
+
+    def _restore_ess_width(self):
+        """Essential-collapsed: set the width to the user's saved width for the
+        current bar count (if wider than the minimum), else the minimum. Grows
+        or shrinks, anchored to the right edge, and updates the height too."""
+        if not (self._essential and not self._expanded):
+            return
+        self.root.update_idletasks()
+        minw = self.root.minsize()[0]
+        n = str(len(self._essential_bar_ids()))
+        saved = self.cfg.get('ess_width', {}).get(n)
+        target = max(minw, saved) if saved else minw
+        cur = self.root.winfo_width()
+        if cur > 1 and cur != target:
+            right = self.root.winfo_x() + cur
+            y = self.root.winfo_y()
+            h = self.root.winfo_reqheight()
+            self.root.geometry(f'{target}x{h}+{right - target}+{y}')
 
     # ── Resize via dot drag ────────────────────────
 
@@ -2367,26 +2825,26 @@ class Widget:
         sd = d.get('seven_day')
         self.s_weekly.update(sd['utilization'] if sd else None,
                              sd.get('resets_at') if sd else None)
-        ss = d.get('seven_day_sonnet')
-        self.s_sonnet.update(ss['utilization'] if ss else None,
-                             ss.get('resets_at') if ss else None)
+        sp, sr, sname = scoped_model(d)
+        self.s_sonnet.update(sp, sr)
+        self._apply_model_label(sname)
         # Mirror the same data onto the essential-row bars (shown only in
         # collapsed essential mode, but kept in sync so the switch is instant).
         self._last_data = d
         self._update_ess_bars(d)
         # Collect reset times for instant refresh when they arrive
         self._resets_at = []
-        for section in (fh, sd, ss):
-            if section and section.get('resets_at'):
+        for rs in (fh.get('resets_at') if fh else None,
+                   sd.get('resets_at') if sd else None, sr):
+            if rs:
                 try:
-                    reset_dt = datetime.fromisoformat(section['resets_at'])
-                    self._resets_at.append(reset_dt)
+                    self._resets_at.append(datetime.fromisoformat(rs))
                 except (ValueError, TypeError):
                     pass
         now = f'{datetime.now():%H:%M}'
         self._last_time = now
         self.btn_r.config(fg=DIM)
-        wlog(f'FETCH  ok: session={fh["utilization"] if fh else "?"} weekly={sd["utilization"] if sd else "?"} sonnet={ss["utilization"] if ss else "?"}')
+        wlog(f'FETCH  ok: session={fh["utilization"] if fh else "?"} weekly={sd["utilization"] if sd else "?"} {self._model_label}={sp if sp is not None else "?"}')
         # Threshold notifications on session usage (5-hour window).
         if fh and fh.get('utilization') is not None:
             self._check_thresholds(int(fh['utilization']),
@@ -2534,12 +2992,12 @@ class Widget:
     # ── Countdown display helpers ───────────────────
 
     def _essential_bar_ids(self):
-        """Selected essential bars, normalized to fixed order, session first."""
+        """Selected bars in fixed display order. Any bar (including session)
+        may be hidden, but at least one is always shown, so an empty selection
+        falls back to the session bar."""
         ids = self.cfg.get('essential_bars', ['session'])
         out = [b for b in ('session', 'weekly', 'sonnet') if b in ids]
-        if 'session' not in out:
-            out = ['session'] + out
-        return out
+        return out or ['session']
 
     def _countdown_mode(self):
         """Effective countdown mode. Multi-bar essential always uses the dot
@@ -2748,6 +3206,18 @@ class Widget:
             self.cfg['height'] = self.root.winfo_height()
             self.cfg['expanded'] = self._expanded
             self.cfg['essential'] = self._essential
+            # Per-bar-count width memory (essential-collapsed only): remember a
+            # width the user set WIDER than the minimum, keyed by how many bars
+            # are shown, so it is restored when that bar count is shown again.
+            # A width at the minimum stores nothing (means "no preference").
+            if self._essential and not self._expanded:
+                n = str(len(self._essential_bar_ids()))
+                minw = self.root.minsize()[0]
+                store = self.cfg.setdefault('ess_width', {})
+                if self.cfg['width'] > minw + 2:
+                    store[n] = self.cfg['width']
+                elif n in store:
+                    del store[n]
             if update_anchor is None:
                 update_anchor = self._on_anchor_monitor()
             if update_anchor:
@@ -2874,24 +3344,46 @@ class Widget:
             self.root.winfo_vrootheight(),
         )
 
-    def _place_popup(self, dw, dh, prefer='above'):
-        """Position a popup near the widget, preferring above/below, clamped
-        to the virtual desktop so it lands on the same monitor as the widget.
+    def _widget_monitor_area(self):
+        """Full bounds (l, t, r, b) of the monitor the widget currently sits on,
+        falling back to the virtual desktop when it cannot be resolved.
+
+        Full bounds, not the work area: the widget is meant to be parked on the
+        taskbar, which sits outside the work area. Measuring against the work
+        area would treat the widget as below the screen and push every popup up
+        by the taskbar's height, leaving a large fixed gap above the widget.
+        (_place_on_screen uses full bounds for the same reason.)
         """
+        info = _monitor_of(self.root.winfo_x(), self.root.winfo_y(),
+                           max(1, self.root.winfo_width()),
+                           max(1, self.root.winfo_height()),
+                           _MONITOR_DEFAULTTONEAREST)
+        if info:
+            return info[1]      # rcMonitor: taskbar area included
         vx, vy, vw, vh = self._virtual_bounds()
+        return (vx, vy, vx + vw, vy + vh)
+
+    def _place_popup(self, dw, dh, prefer='above'):
+        """Position a popup next to the widget, preferring above it.
+
+        Clamped to the work area of the monitor the widget is on, not to the
+        virtual desktop: that bounding box spans every screen, so clamping to
+        it let a popup straddle two monitors instead of staying whole on one.
+        """
+        ml, mt, mr, mb = self._widget_monitor_area()
         wx = self.root.winfo_x() + (self.root.winfo_width() - dw) // 2
         widget_top = self.root.winfo_y()
         widget_bottom = widget_top + self.root.winfo_height()
         if prefer == 'above':
             wy = widget_top - dh - SCREEN_MARGIN
-            if wy < vy + SCREEN_MARGIN:
+            if wy < mt + SCREEN_MARGIN:
                 wy = widget_bottom + SCREEN_MARGIN
         else:
             wy = widget_bottom + SCREEN_MARGIN
-            if wy + dh > vy + vh - TASKBAR_GAP:
+            if wy + dh > mb - TASKBAR_GAP:
                 wy = widget_top - dh - SCREEN_MARGIN
-        wx = max(vx + SCREEN_MARGIN, min(wx, vx + vw - dw - SCREEN_MARGIN))
-        wy = max(vy + SCREEN_MARGIN, min(wy, vy + vh - dh - TASKBAR_GAP))
+        wx = max(ml + SCREEN_MARGIN, min(wx, mr - dw - SCREEN_MARGIN))
+        wy = max(mt + SCREEN_MARGIN, min(wy, mb - dh - TASKBAR_GAP))
         return wx, wy
 
     def _place_submenu(self, dw, dh):
@@ -3019,6 +3511,23 @@ class Widget:
         dlg.after_idle(_finalize)
         return dlg, body
 
+    def _place_dialog(self, dlg, dw, dh_floor=0):
+        """Resize a dialog to fit its content and re-anchor it to the widget.
+
+        Runs now and again after idle: image-backed widgets (pill buttons,
+        avatar discs) report their height only after the first render, so a
+        single early measurement under-sizes the dialog and clips the bottom
+        controls. The position is recomputed from the new height so a dialog
+        above the widget grows upward, its bottom edge clear of the widget."""
+        def _apply():
+            dlg.update_idletasks()
+            ml, mt, mr, mb = self._widget_monitor_area()
+            need = min(dlg.winfo_reqheight(), (mb - mt) - 2 * SCREEN_MARGIN)
+            x, y = self._place_popup(dw, need)
+            dlg.geometry(f'{dw}x{need}+{x}+{y}')
+        _apply()
+        dlg.after_idle(_apply)
+
     # ── W11 Styled Menu ─────────────────────────────
 
     def _prewarm_menu(self):
@@ -3129,16 +3638,18 @@ class Widget:
         fn()
 
     def _menu_row(self, parent, text, command=None, *, icon=None, icon_ft=None,
-                  marker=None, marker_fg=None, trailing=None):
+                  marker=None, marker_fg=None, trailing=None, text_ft=None,
+                  tip=None):
         """One menu / flyout row. `icon` is a glyph (with icon_ft) or a
         PhotoImage; `marker` is a leading radio/check glyph; `trailing` is a
-        right-aligned glyph (category arrow / state). Binds hover, and click to
-        `command` when given."""
+        right-aligned glyph (category arrow / state); `text_ft` overrides the
+        row font for labels the menu font cannot render; `tip` shows an
+        explanatory tooltip on hover. Binds hover, and click to `command`."""
         row = tk.Frame(parent, bg=MENU_BG, cursor='hand2' if command else 'arrow')
         row.pack(fill='x')
         cells = [row]
         if marker is not None:
-            mk = tk.Label(row, text=marker, font=FT_MENU, width=2, padx=2, pady=5,
+            mk = tk.Label(row, text=marker, font=FT_MARK, width=2, padx=2, pady=5,
                           fg=(marker_fg or CLAUDE), bg=MENU_BG)
             mk.pack(side='left')
             cells.append(mk)
@@ -3153,12 +3664,12 @@ class Widget:
             il.pack(expand=True)
             cells += [cell, il]
         lead = 0 if (marker is not None or icon is not None) else 14
-        tl = tk.Label(row, text=text, font=FT_MENU, fg=FG, bg=MENU_BG,
+        tl = tk.Label(row, text=text, font=(text_ft or FT_MENU), fg=FG, bg=MENU_BG,
                       anchor='w', pady=5)
         tl.pack(side='left', fill='x', expand=True, padx=(lead, 12))
         cells.append(tl)
         if trailing is not None:
-            tr = tk.Label(row, text=trailing, font=FT_MENU, fg=DIM, bg=MENU_BG, pady=5)
+            tr = tk.Label(row, text=trailing, font=FT_MARK, fg=DIM, bg=MENU_BG, pady=5)
             tr.pack(side='right', padx=(0, 12))
             cells.append(tr)
 
@@ -3173,6 +3684,8 @@ class Widget:
             c.bind('<Leave>', lambda e: paint(MENU_BG))
             if command:
                 c.bind('<Button-1>', lambda e, cm=command: cm())
+            if tip:
+                self._tooltip(c, tip, delay=500)
         return row
 
     # ── Category side flyouts ────────────────────────
@@ -3200,6 +3713,9 @@ class Widget:
         m.geometry(f'{mw}x{mh}+{fx}+{fy}')
         m.after(10, lambda: dwm_round(m))
         m.after(20, lambda: self._lift_menu(m))
+        # Autoclose on the flyout too: a widget click must dismiss the menu even
+        # when focus currently sits in the flyout (e.g. after a bar toggle).
+        self._bind_focus_autoclose(m)
 
     def _close_flyout(self):
         m = self._flyout_win
@@ -3226,7 +3742,16 @@ class Widget:
 
     def _flyout_set(self, fn):
         """Apply a stateful change from a flyout, then refresh it so the new
-        state (radio dot / ON-OFF label) shows without closing the flyout."""
+        state (radio dot / ON-OFF label) shows without closing the flyout.
+
+        A toggle can resize the widget, which briefly bounces focus and would
+        otherwise trip the autoclose. Reset the grace period on the menu and
+        flyout first so that focus bounce is ignored; a later widget click
+        (past the grace window) still closes the menu normally."""
+        now = time.monotonic()
+        for win in (self._menu_win, self._flyout_win):
+            if win is not None:
+                win._opened_at = now
         fn()
         self._rebuild_flyout()
 
@@ -3261,21 +3786,25 @@ class Widget:
             self._menu_section(m, t('menu_countdown'))
             self._menu_row(m, t('countdown_dot'),
                            lambda: self._flyout_set(lambda: self._set_countdown_mode('dot', close=False)),
-                           marker=('●' if cd == 'dot' else '○'))
+                           marker=('●' if cd == 'dot' else '○'), tip=t('tip_countdown_dot'))
             self._menu_row(m, t('countdown_full'),
                            lambda: self._flyout_set(lambda: self._set_countdown_mode('full', close=False)),
-                           marker=('●' if cd == 'full' else '○'))
+                           marker=('●' if cd == 'full' else '○'), tip=t('tip_countdown_full'))
             self._menu_sep(m)
             sync_on = self.cfg.get('show_sync_time', True)
             self._menu_row(m, (t('menu_sync_on') if sync_on else t('menu_sync_off')),
                            lambda: self._flyout_set(lambda: self._toggle_sync_time(close=False)),
-                           icon='\U0001F552︎', icon_ft=FT_EMOJI)
+                           icon='\U0001F552︎', icon_ft=FT_EMOJI, tip=t('tip_sync'))
+            dyn = self.cfg.get('bar_dynamic', False)
+            self._menu_row(m, (t('menu_colors_dynamic') if dyn else t('menu_colors_fixed')),
+                           lambda: self._flyout_set(lambda: self._toggle_bar_dynamic(close=False)),
+                           icon='\U0001F3A8︎', icon_ft=FT_EMOJI, tip=t('tip_colors'))
             self._menu_sep(m)
             self._menu_section(m, t('menu_essential_bars'))
-            for code, name, locked in (('session', t('current_session'), True),
-                                       ('weekly', t('all_models'), False),
-                                       ('sonnet', t('sonnet_only'), False)):
-                self._ess_bar_row(m, code, name, locked)
+            for code, name in (('session', t('current_session')),
+                               ('weekly', t('all_models')),
+                               ('sonnet', self._sonnet_label())):
+                self._ess_bar_row(m, code, name, locked=False)
         elif cat == 'data':
             cur = self.cfg.get('refresh_ms', REFRESH) // 1000
             self._menu_row(m, f"{t('menu_refresh_interval')} ({cur}s)",
@@ -3285,24 +3814,29 @@ class Widget:
             notif = self.cfg.get('notifications_enabled', True)
             self._menu_row(m, (t('menu_notifications_on') if notif else t('menu_notifications_off')),
                            lambda: self._flyout_set(self._toggle_notifications),
-                           icon='\U0001F514︎', icon_ft=FT_EMOJI)
+                           icon='\U0001F514︎', icon_ft=FT_EMOJI, tip=t('tip_notifications'))
             tb = self.cfg.get('show_in_taskbar', False)
             self._menu_row(m, (t('menu_taskbar_on') if tb else t('menu_taskbar_off')),
                            lambda: self._flyout_set(self._toggle_taskbar),
-                           icon='\U0001F4CC︎', icon_ft=FT_EMOJI)
+                           icon='\U0001F4CC︎', icon_ft=FT_EMOJI, tip=t('tip_taskbar'))
         elif cat == 'account':
-            self._menu_row(m, t('menu_renew'),
-                           lambda: self._menu_do(self._renew_session),
-                           icon='\U0001F5DD︎', icon_ft=FT_EMOJI)
+            # No standalone "Session key" entry: a key means nothing without
+            # the account it belongs to, so keys are edited per account from
+            # the accounts dialog (key icon / double-click on a row).
+            self._menu_row(m, t('menu_accounts'),
+                           lambda: self._menu_do(self._accounts_dialog),
+                           icon=ICON_KEY, icon_ft=FT_MDL2_MENU)
             self._menu_row(m, t('menu_open_claude'),
                            lambda: self._menu_do(self._open_claude_usage),
                            icon='↗︎', icon_ft=FT_EMOJI)
         elif cat == 'general':
             self._menu_section(m, t('menu_language'))
-            for code, name in (('en', 'English'), ('it', 'Italiano'), ('ja', '日本語')):
+            for code, name, ft in (('en', 'English', None), ('it', 'Italiano', None),
+                                   ('ja', '日本語', FT_MENU_JP)):
                 self._menu_row(m, name,
                                lambda c=code: self._menu_do(lambda: self._set_language(c)),
-                               marker=('●' if code == _current_lang else '○'))
+                               marker=('●' if code == _current_lang else '○'),
+                               text_ft=ft)
             self._menu_sep(m)
             self._menu_row(m, t('menu_check_updates'),
                            lambda: self._menu_do(self._check_updates_manual),
@@ -3316,24 +3850,30 @@ class Widget:
                            lambda: self._menu_do(self._open_config),
                            icon='{ }', icon_ft=FT_EMOJI)
 
+    def _bind_focus_autoclose(self, win):
+        """Bind FocusOut on a menu/flyout window so losing focus schedules a
+        close. Both the main menu AND the side flyout get this, so a click on
+        the widget closes the menu even when focus currently sits in the
+        flyout. A short grace period after `_opened_at` ignores transient focus
+        bounces during setup and during a settings toggle that resizes the
+        widget (which briefly steals focus but must not close the menu)."""
+        win._opened_at = time.monotonic()
+
+        def on_focus_out(_e=None):
+            if time.monotonic() - win._opened_at < 0.2:
+                return
+            self.root.after(150, self._close_if_unfocused)
+
+        win.bind('<FocusOut>', on_focus_out)
+
     def _bind_menu_autoclose(self, m):
         """Close the menu when it loses focus (click-outside, Alt-tab, etc.).
 
         _show_menu dismisses the update banner before creating the menu, so
         we no longer have a competing topmost window stealing focus - the
         FocusOut pattern that worked up to v2.7.5 is safe again.
-        A short `after(150)` grace period protects against transient focus
-        bounces during Toplevel setup.
         """
-        m._opened_at = time.monotonic()
-
-        def on_focus_out(_e=None):
-            # Ignore the initial focus bounce while the menu is being mapped.
-            if time.monotonic() - m._opened_at < 0.2:
-                return
-            self.root.after(150, self._close_if_unfocused)
-
-        m.bind('<FocusOut>', on_focus_out)
+        self._bind_focus_autoclose(m)
 
         # NOACTIVATE means Tk never sees focus move to another application, so
         # FocusOut only fires for clicks on our own window. Poll the global
@@ -3385,7 +3925,10 @@ class Widget:
             return False
 
     def _close_if_unfocused(self):
-        """Close the menu only if focus hasn't returned to it in the meantime."""
+        """Close the menu only if focus hasn't returned to it in the meantime.
+        Focus inside the side flyout counts as inside the menu, so toggling a
+        setting there (which can resize the widget and bounce focus) keeps the
+        menu open."""
         m = self._menu_win
         if not m or not m.winfo_exists():
             return
@@ -3394,12 +3937,13 @@ class Widget:
             if focused is None:
                 self._close_menu()
                 return
-            # focus_displayof may return a child of the menu - walk up to see
-            # if the focused widget is inside our Toplevel.
+            # focus_displayof may return a child of the menu or flyout - walk
+            # up to see if the focused widget is inside either Toplevel.
+            keep = (m, self._flyout_win)
             t = focused
             while t is not None:
-                if t is m:
-                    return  # still inside menu - keep open
+                if t in keep:
+                    return  # still inside the menu/flyout - keep open
                 t = t.master
             self._close_menu()
         except Exception:
@@ -3434,16 +3978,20 @@ class Widget:
     def _set_language(self, code):
         """Apply new language, save to config, retranslate visible UI."""
         set_lang(code)
+        # Retarget the named fonts before the labels below get their new text,
+        # so a switch to Japanese repaints once instead of flashing the old
+        # family under the new strings.
+        apply_font_lang(code)
         self.cfg['language'] = code
         save_cfg(self.cfg)
         self._close_menu()
         # Retranslate section labels
         self.s_session.lbl.config(text=t('current_session'))
         self.s_weekly.lbl.config(text=t('all_models'))
-        self.s_sonnet.lbl.config(text=t('sonnet_only'))
+        self.s_sonnet.lbl.config(text=self._sonnet_label())
         self.ess_bars['session'].lbl.config(text=t('current_session'))
         self.ess_bars['weekly'].lbl.config(text=t('all_models'))
-        self.ess_bars['sonnet'].lbl.config(text=t('sonnet_only'))
+        self.ess_bars['sonnet'].lbl.config(text=self._sonnet_label())
         # Refresh to update reset text + any visible messages
         if self.cfg.get('session_key') and self.cfg.get('org_id'):
             self.refresh()
@@ -3485,58 +4033,252 @@ class Widget:
             self._countdown_job = None
         self._tick_countdown()
 
+    def _all_sections(self):
+        """Every usage bar (normal + essential-strip), for palette changes."""
+        return [self.s_session, self.s_weekly, self.s_sonnet,
+                *self.ess_bars.values()]
+
+    def _bar_ft(self, code):
+        """(fill, track) for a bar: the user's saved colour or the default,
+        with the track derived from the fill."""
+        fill = self.cfg.get('bar_colors', {}).get(code) or BAR_DEFAULT_FILL[code]
+        return fill, derive_track(fill)
+
+    def _set_bar_color(self, code, fill_hex):
+        """Persist a per-bar fill colour and apply it live to that bar's normal
+        and essential-strip Sections (track derived)."""
+        self.cfg.setdefault('bar_colors', {})[code] = fill_hex
+        save_cfg(self.cfg)
+        fill, track = self._bar_ft(code)
+        normal = {'session': self.s_session, 'weekly': self.s_weekly,
+                  'sonnet': self.s_sonnet}[code]
+        normal.set_colors(fill, track)
+        self.ess_bars[code].set_colors(fill, track)
+
+    def _open_bar_color_picker(self, code):
+        self._close_menu()
+        self._color_picker_dialog(t('dlg_bar_color'), self._bar_ft(code)[0],
+                                  lambda hexv: self._set_bar_color(code, hexv))
+
+    def _color_picker_dialog(self, title, initial, on_pick):
+        """In-tool HSV colour picker: preset swatches + a saturation/value
+        square, a hue strip and a hex field, all kept in sync."""
+        dw = 300
+        dlg, body = self._build_dialog_frame(title, dw, 320)
+        SVW, SVH, HUEH = dw - 40, 140, 14
+        st = {'h': 0.0, 's': 1.0, 'v': 1.0, 'sv': None, 'hue': None}
+        r, g, b = [c / 255 for c in _hex_to_rgb(initial)]
+        st['h'], st['s'], st['v'] = colorsys.rgb_to_hsv(r, g, b)
+
+        def cur_hex():
+            rr, gg, bb = colorsys.hsv_to_rgb(st['h'], st['s'], st['v'])
+            return _rgb_to_hex((rr * 255, gg * 255, bb * 255))
+
+        prow = tk.Frame(body, bg=BG)
+        prow.pack(fill='x', pady=(0, 10))
+        tk.Label(prow, text=t('dlg_presets'), font=FT_DLG_HINT, fg=DIM,
+                 bg=BG).pack(side='left', padx=(0, 8))
+        for hexv in BAR_PRESETS:
+            c = tk.Canvas(prow, width=22, height=22, bg=BG, highlightthickness=0,
+                          bd=0, cursor='hand2')
+            c._img = _dot_image(18, hexv)
+            c.create_image(11, 11, image=c._img, anchor='center')
+            c.pack(side='left', padx=(0, 6))
+            c.bind('<Button-1>', lambda e, hv=hexv: set_hex(hv))
+
+        sv = tk.Canvas(body, width=SVW, height=SVH, highlightthickness=0,
+                       bd=0, cursor='crosshair')
+        sv.pack()
+        hue = tk.Canvas(body, width=SVW, height=HUEH, highlightthickness=0,
+                        bd=0, cursor='crosshair')
+        hue.pack(pady=(8, 0))
+
+        prow2 = tk.Frame(body, bg=BG)
+        prow2.pack(fill='x', pady=(10, 0))
+        preview = tk.Canvas(prow2, width=26, height=26, bg=BG,
+                            highlightthickness=0, bd=0)
+        preview.pack(side='left')
+        hexvar = tk.StringVar()
+        hexwrap = tk.Frame(prow2, bg=BAR_BG, padx=1, pady=1)
+        hexwrap.pack(side='left', padx=(10, 0))
+        hexentry = tk.Entry(hexwrap, textvariable=hexvar, font=FT_DLG_BODY,
+                            bg=BAR_BG, fg=FG, insertbackground=FG, bd=0,
+                            highlightthickness=0, relief='flat', width=9)
+        hexentry.pack(ipady=5, ipadx=8)
+
+        def render_sv():
+            img = Image.new('RGB', (SVW, SVH))
+            px = img.load()
+            h = st['h']
+            for yy in range(SVH):
+                vv = 1 - yy / (SVH - 1)
+                for xx in range(SVW):
+                    rr, gg, bb = colorsys.hsv_to_rgb(h, xx / (SVW - 1), vv)
+                    px[xx, yy] = (int(rr * 255), int(gg * 255), int(bb * 255))
+            st['sv'] = ImageTk.PhotoImage(img)
+            sv.delete('all')
+            sv.create_image(0, 0, image=st['sv'], anchor='nw')
+            mx, my = st['s'] * (SVW - 1), (1 - st['v']) * (SVH - 1)
+            ring = '#000000' if st['v'] > 0.55 else '#ffffff'
+            sv.create_oval(mx - 5, my - 5, mx + 5, my + 5, outline=ring, width=2)
+
+        def render_hue():
+            img = Image.new('RGB', (SVW, HUEH))
+            px = img.load()
+            for xx in range(SVW):
+                rr, gg, bb = colorsys.hsv_to_rgb(xx / (SVW - 1), 1, 1)
+                col = (int(rr * 255), int(gg * 255), int(bb * 255))
+                for yy in range(HUEH):
+                    px[xx, yy] = col
+            st['hue'] = ImageTk.PhotoImage(img)
+            hue.delete('all')
+            hue.create_image(0, 0, image=st['hue'], anchor='nw')
+            hx = st['h'] * (SVW - 1)
+            hue.create_rectangle(hx - 2, 0, hx + 2, HUEH, outline='#ffffff', width=2)
+
+        def render_preview():
+            preview.delete('all')
+            preview._img = _dot_image(24, cur_hex())
+            preview.create_image(13, 13, image=preview._img, anchor='center')
+            hexvar.set(cur_hex())
+
+        def set_hex(hv):
+            try:
+                rr, gg, bb = [c / 255 for c in _hex_to_rgb(hv)]
+            except Exception:
+                return
+            st['h'], st['s'], st['v'] = colorsys.rgb_to_hsv(rr, gg, bb)
+            render_sv()
+            render_hue()
+            render_preview()
+
+        def on_sv(e):
+            st['s'] = min(1.0, max(0.0, e.x / (SVW - 1)))
+            st['v'] = min(1.0, max(0.0, 1 - e.y / (SVH - 1)))
+            render_sv()
+            render_preview()
+
+        def on_hue(e):
+            st['h'] = min(1.0, max(0.0, e.x / (SVW - 1)))
+            render_sv()
+            render_hue()
+            render_preview()
+
+        sv.bind('<Button-1>', on_sv)
+        sv.bind('<B1-Motion>', on_sv)
+        hue.bind('<Button-1>', on_hue)
+        hue.bind('<B1-Motion>', on_hue)
+
+        def on_hex(e=None):
+            v = hexvar.get().strip()
+            if not v.startswith('#'):
+                v = '#' + v
+            if re.fullmatch(r'#[0-9a-fA-F]{6}', v):
+                set_hex(v)
+        hexentry.bind('<Return>', on_hex)
+        hexentry.bind('<FocusOut>', on_hex)
+
+        btns = tk.Frame(body, bg=BG)
+        btns.pack(fill='x', side='bottom', pady=(14, 0))
+
+        def confirm():
+            on_pick(cur_hex())
+            dlg.destroy()
+        self._primary_pill(btns, t('dlg_save'), confirm).pack(side='right')
+        self._secondary_pill(btns, t('dlg_cancel'), dlg.destroy).pack(
+            side='right', padx=(0, 8))
+
+        render_sv()
+        render_hue()
+        render_preview()
+        self._place_dialog(dlg, dw)
+
+    def _toggle_bar_dynamic(self, close=True):
+        """Switch the whole widget between the fixed per-bar palette and the
+        percentage-driven one (all bars then share the usage-level colours)."""
+        new = not self.cfg.get('bar_dynamic', False)
+        self.cfg['bar_dynamic'] = new
+        save_cfg(self.cfg)
+        wlog(f'PALETTE bar_dynamic -> {new}')
+        for sec in self._all_sections():
+            sec.set_dynamic(new)
+        if close:
+            self._close_menu()
+
     def _ess_bar_row(self, m, code, name, locked):
         selected = code in self._essential_bar_ids()
         row = tk.Frame(m, bg=MENU_BG, cursor='arrow' if locked else 'hand2')
         row.pack(fill='x')
         marker = tk.Label(row, text=('✓' if selected else ''),
-                          font=FT_MENU, fg=(DIM if locked else CLAUDE), bg=MENU_BG,
+                          font=FT_MARK, fg=(DIM if locked else CLAUDE), bg=MENU_BG,
                           width=2, padx=4, pady=6)
         marker.pack(side='left')
         txt = tk.Label(row, text=name,
-                       font=(FT_MENU[0], FT_MENU[1], 'bold') if selected else FT_MENU,
+                       font=FT_MENU_B if selected else FT_MENU,
                        fg=(DIM if locked else FG), bg=MENU_BG, anchor='w', padx=2, pady=6)
         txt.pack(side='left', fill='x', expand=True)
-        for w in (row, marker, txt):
-            w.bind('<Enter>', lambda e, r=row, mk=marker, tx=txt: (
-                r.config(bg=HOVER_BG), mk.config(bg=HOVER_BG), tx.config(bg=HOVER_BG)))
-            w.bind('<Leave>', lambda e, r=row, mk=marker, tx=txt: (
-                r.config(bg=MENU_BG), mk.config(bg=MENU_BG), tx.config(bg=MENU_BG)))
-            if not locked:
-                w.bind('<Button-1>',
-                       lambda e, c=code, mk=marker, tx=txt: self._toggle_essential_bar(c, mk, tx))
+        # Colour swatch on the right: opens the picker for this bar. Works even
+        # for the locked session bar (its colour is still user-choosable).
+        sw = tk.Canvas(row, width=18, height=18, bg=MENU_BG,
+                       highlightthickness=0, bd=0, cursor='hand2')
+        sw._img = _dot_image(16, self._bar_ft(code)[0])
+        sw.create_image(9, 9, image=sw._img, anchor='center')
+        sw.pack(side='right', padx=(0, 10))
+        sw.bind('<Button-1>', lambda e, c=code: (self._open_bar_color_picker(c), 'break')[1])
+        self._tooltip(sw, t('dlg_bar_color'), delay=500)
+        for w in (row, marker, txt, sw):
+            w.bind('<Enter>', lambda e, r=row, mk=marker, tx=txt, s=sw: (
+                r.config(bg=HOVER_BG), mk.config(bg=HOVER_BG),
+                tx.config(bg=HOVER_BG), s.config(bg=HOVER_BG)))
+            w.bind('<Leave>', lambda e, r=row, mk=marker, tx=txt, s=sw: (
+                r.config(bg=MENU_BG), mk.config(bg=MENU_BG),
+                tx.config(bg=MENU_BG), s.config(bg=MENU_BG)))
+            if not locked and w is not sw:
+                w.bind('<Button-1>', lambda e, c=code: self._flyout_set(
+                    lambda: self._toggle_essential_bar(c)))
 
-    def _toggle_essential_bar(self, code, marker, txt):
-        """Toggle a bar in/out of the essential set; re-apply layout live."""
+    def _toggle_essential_bar(self, code):
+        """Toggle a bar in/out of the shown set; re-apply layout live. Any bar
+        can be hidden, but the last remaining one cannot (keep at least one).
+        Called via _flyout_set, which rebuilds the flyout so its checkmarks
+        refresh and it stays open (the layout resize below would otherwise
+        drop the menu's focus and close it)."""
         ids = self._essential_bar_ids()
         if code in ids:
+            if len(ids) == 1:
+                return  # can't hide the only visible bar
             ids = [b for b in ids if b != code]
         else:
             ids.append(code)
         ids = [b for b in ('session', 'weekly', 'sonnet') if b in ids]
-        if 'session' not in ids:
-            ids = ['session'] + ids
         self.cfg['essential_bars'] = ids
         save_cfg(self.cfg)
         wlog(f'ESSBARS essential_bars -> {ids}')
-        # Repaint this row's marker in place (submenu stays open).
-        selected = code in ids
-        marker.config(text=('✓' if selected else ''))
-        txt.config(font=(FT_MENU[0], FT_MENU[1], 'bold') if selected else FT_MENU)
-        # Live re-apply when the collapsed essential strip is currently visible.
+        # Live re-apply to whichever view is showing the bars.
         if self._essential and not self._expanded:
             self._enter_ess_collapsed()
             self._update_minsize()
-            self._auto_height()
-            # Re-tick so countdown text + dot phase recompute for the new bar
-            # set immediately (otherwise an added bar stays dot-less for up to
-            # one cadence step while the others already show it).
-            self._set_pulse(False)
-            self._apply_dot_phase('off')
-            if self._countdown_job:
-                self.root.after_cancel(self._countdown_job)
-                self._countdown_job = None
-            self._tick_countdown()
+            # Restore the saved width for this bar count, or shrink back to the
+            # minimum when the user has no saved preference for it.
+            self._restore_ess_width()
+        else:
+            # Stacked view: essential-expanded shows all bars, normal mode
+            # shows the selected ones.
+            self._pack_stacked(all_bars=(self._essential and self._expanded))
+            if self._essential:
+                for sec in (self.s_session, self.s_weekly, self.s_sonnet):
+                    self._bind_drag_section(sec)
+            self._update_minsize()
+            self._resize_bottom_anchored()
+        # Re-tick so countdown text + dot phase recompute for the new bar set
+        # immediately (otherwise an added bar stays dot-less for up to one
+        # cadence step while the others already show it).
+        self._set_pulse(False)
+        self._apply_dot_phase('off')
+        if self._countdown_job:
+            self.root.after_cancel(self._countdown_job)
+            self._countdown_job = None
+        self._tick_countdown()
 
     # ── Refresh interval dialog ──────────────────────
 
@@ -3980,8 +4722,18 @@ class Widget:
 
     # ── Session key dialog (shared by setup + renew) ──
 
-    def _session_key_dialog(self, title, is_setup=False):
-        dw, dh = 460, 320
+    def _session_key_dialog(self, title, is_setup=False, on_success=None,
+                            prefill=None, show_name=False, name_prefill=''):
+        """Key entry dialog, shared by setup / renew / add / edit-key.
+
+        on_success(key, info, name): when given, called with the verified key,
+        its account info (org_id, email, name, plan) and the account name from
+        the optional name field, instead of the default behaviour of writing
+        the active account. prefill seeds the key entry; without it the dialog
+        shows the active key (legacy renew flow). show_name adds an account
+        name field (add / edit), so the key and name are set together.
+        """
+        dw, dh = 460, (392 if show_name else 320)
         dlg, body = self._build_dialog_frame(title, dw, dh)
 
         if is_setup:
@@ -4005,12 +4757,39 @@ class Widget:
                          insertbackground=FG, bd=0,
                          highlightthickness=0, relief='flat')
         entry.pack(fill='x', ipady=7, ipadx=10)
-        entry.bind('<FocusIn>',  lambda e: entry_wrap.configure(bg=FOCUS_RING))
+        def on_focus_in(e):
+            entry_wrap.configure(bg=FOCUS_RING)
+            # Select the whole key so pasting a new one replaces it outright.
+            # after_idle is required: the click that grants focus is processed
+            # after this handler and would drop the selection to place the
+            # caret. Once focused, a further click positions the caret as usual.
+            entry.after_idle(lambda: (entry.select_range(0, 'end'),
+                                      entry.icursor('end')))
+
+        entry.bind('<FocusIn>',  on_focus_in)
         entry.bind('<FocusOut>', lambda e: entry_wrap.configure(bg=BAR_BG))
 
-        if self.cfg.get('session_key'):
+        if prefill is not None:
+            entry.insert(0, prefill)
+        elif on_success is None and self.cfg.get('session_key'):
             entry.insert(0, self.cfg['session_key'])
         entry.focus_set()
+
+        # Optional account name field (add / edit): set the key and the name in
+        # one place instead of renaming as a separate step afterwards.
+        name_entry = None
+        if show_name:
+            tk.Label(body, text=t('dlg_account_name'), font=FT_DLG_H, fg=FG,
+                     bg=BG, anchor='w').pack(fill='x', pady=(14, 0))
+            name_wrap = tk.Frame(body, bg=BAR_BG, padx=1, pady=1)
+            name_wrap.pack(fill='x', pady=(8, 0))
+            name_entry = tk.Entry(name_wrap, font=FT_DLG_BODY, bg=BAR_BG, fg=FG,
+                                  insertbackground=FG, bd=0,
+                                  highlightthickness=0, relief='flat')
+            name_entry.pack(fill='x', ipady=7, ipadx=10)
+            name_entry.insert(0, name_prefill or '')
+            name_entry.bind('<FocusIn>', lambda e: name_wrap.configure(bg=FOCUS_RING))
+            name_entry.bind('<FocusOut>', lambda e: name_wrap.configure(bg=BAR_BG))
 
         status_lbl = tk.Label(body, text='', font=FT_DLG_HINT, fg=DIM, bg=BG,
                               anchor='w', justify='left', wraplength=dw - 40)
@@ -4045,13 +4824,34 @@ class Widget:
             dlg.update_idletasks()
             def detect():
                 try:
-                    org_id = fetch_org_id(key)
-                    dlg.after(0, lambda: on_ok(key, org_id))
+                    info = fetch_account_info(key)
+                    dlg.after(0, lambda: on_ok(key, info))
                 except Exception as e:
                     dlg.after(0, lambda: on_err(str(e)))
-            def on_ok(key, org_id):
-                self.cfg['session_key'] = key
-                self.cfg['org_id'] = org_id
+            def on_ok(key, info):
+                if on_success is not None:
+                    name = name_entry.get().strip() if name_entry else ''
+                    dlg.destroy()
+                    on_success(key, info, name)
+                    return
+                # Default: write the active account in place, creating the
+                # first account on initial setup.
+                a = active_account(self.cfg)
+                if a is None:
+                    a = {'id': _new_id(),
+                         'name': info.get('name') or 'Account 1',
+                         'session_key': key, 'org_id': info['org_id'],
+                         'email': info.get('email', ''), 'plan': info.get('plan', '')}
+                    self.cfg.setdefault('accounts', []).append(a)
+                    self.cfg['active_account'] = a['id']
+                else:
+                    a['session_key'] = key
+                    a['org_id'] = info['org_id']
+                    if info.get('email'):
+                        a['email'] = info['email']
+                    if info.get('plan'):
+                        a['plan'] = info['plan']
+                mirror_active(self.cfg)
                 save_cfg(self.cfg)
                 dlg.destroy()
                 self._clear_error()
@@ -4068,6 +4868,344 @@ class Widget:
 
     def _setup_dialog(self):
         self._session_key_dialog(t('dlg_setup_title'), is_setup=True)
+
+    # ── Accounts ─────────────────────────────────────
+
+    def _tooltip(self, widget, text, delay=0):
+        """Hover tooltip for icon-only controls. Sits above the control (below
+        it when there is no room), clamped to the widget's monitor. Bound with
+        add='+' so it composes with the control's own hover handlers. delay=0
+        shows it immediately so the icon meaning is instant."""
+        state = {'win': None, 'job': None}
+
+        def cancel():
+            if state['job']:
+                try:
+                    widget.after_cancel(state['job'])
+                except Exception:
+                    pass
+                state['job'] = None
+
+        def hide(e=None):
+            cancel()
+            if state['win'] is not None:
+                try:
+                    state['win'].destroy()
+                except Exception:
+                    pass
+                state['win'] = None
+
+        def show():
+            state['job'] = None
+            if state['win'] is not None or not widget.winfo_exists():
+                return
+            tw = tk.Toplevel(widget)
+            tw.overrideredirect(True)
+            tw.attributes('-topmost', True)
+            tk.Label(tw, text=text, font=FT_DLG_HINT, fg=FG, bg=MENU_BG,
+                     padx=8, pady=4).pack()
+            tw.update_idletasks()
+            tipw, tiph = tw.winfo_reqwidth(), tw.winfo_reqheight()
+            x = widget.winfo_rootx() + widget.winfo_width() // 2 - tipw // 2
+            y = widget.winfo_rooty() - tiph - 6
+            ml, mt, mr, mb = self._widget_monitor_area()
+            x = max(ml + 4, min(x, mr - tipw - 4))
+            if y < mt + 4:      # no room above: drop below the control
+                y = widget.winfo_rooty() + widget.winfo_height() + 6
+            tw.geometry(f'+{int(x)}+{int(y)}')
+            state['win'] = tw
+
+        def enter(e):
+            cancel()
+            state['job'] = widget.after(delay, show)
+        widget.bind('<Enter>', enter, add='+')
+        widget.bind('<Leave>', hide, add='+')
+        widget.bind('<Button-1>', hide, add='+')
+        widget.bind('<Destroy>', hide, add='+')
+
+    def _account_bubble(self, parent, acc, size=34):
+        base = parent.cget('bg')
+        cv = tk.Canvas(parent, width=size, height=size, bg=base,
+                       highlightthickness=0, bd=0, cursor='hand2')
+        # Anti-aliased disc (Canvas ovals are jagged): render smooth via the
+        # shared 4x-downscaled circle image, then overlay the initials.
+        img = _dot_image(size, bubble_color(acc.get('id')))
+        cv._bubble_img = img
+        cv.create_image(size / 2, size / 2, image=img, anchor='center')
+        cv.create_text(size / 2, size / 2 + 1, text=account_initials(acc.get('name')),
+                       fill='#ffffff', font=FT_DLG_BTN_B)
+        return cv
+
+    def _account_row(self, parent, acc, rebuild):
+        active = acc.get('id') == self.cfg.get('active_account')
+        # Uniform background for every row: the active one is marked by a left
+        # accent stripe, not a lighter panel (which read as a floating overlay).
+        base = BG
+        accent = bubble_color(acc.get('id'))
+        row = tk.Frame(parent, bg=base, cursor='hand2')
+        row.pack(fill='x', pady=1)
+        cells = [row]
+
+        stripe = tk.Frame(row, bg=(accent if active else base), width=3)
+        stripe.pack(side='left', fill='y')
+
+        bubble = self._account_bubble(row, acc)
+        bubble.pack(side='left', padx=(8, 10), pady=8)
+        cells.append(bubble)
+
+        def icon_btn(glyph, cmd, tip, fg=DIM):
+            b = tk.Label(row, text=glyph, font=FT_MDL2_MENU, fg=fg, bg=base,
+                         cursor='hand2', padx=6, pady=8)
+            b.pack(side='right')
+            b.bind('<Button-1>', lambda e: (cmd(), 'break')[1])
+            b.bind('<Enter>', lambda e, w=b: w.config(fg=FG))
+            b.bind('<Leave>', lambda e, w=b, c=fg: w.config(fg=c))
+            self._tooltip(b, tip)   # icon-only: say what it does
+            cells.append(b)
+
+        icon_btn(ICON_DELETE, lambda: self._remove_account(acc, rebuild),
+                 t('dlg_remove'))
+        icon_btn(ICON_EDIT, lambda: self._rename_account(acc, rebuild),
+                 t('dlg_rename'))
+        icon_btn(ICON_KEY, lambda: self._edit_account_key(acc, rebuild),
+                 t('dlg_update_key'), fg=CLAUDE)
+
+        txt = tk.Frame(row, bg=base)
+        txt.pack(side='left', fill='x', expand=True)
+        cells.append(txt)
+        name_lbl = tk.Label(txt, text=acc.get('name') or '-', font=FT_DLG_BTN_B,
+                            fg=FG, bg=base, anchor='w')
+        name_lbl.pack(fill='x')
+        cells.append(name_lbl)
+        sub = ' · '.join([x for x in (acc.get('email'), acc.get('plan')) if x])
+        if active:
+            sub = (sub + ' · ' if sub else '') + t('dlg_active')
+        sub_lbl = tk.Label(txt, text=sub, font=FT_DLG_HINT, fg=DIM,
+                           bg=base, anchor='w')
+        sub_lbl.pack(fill='x')
+        cells.append(sub_lbl)
+
+        def switch(e=None):
+            self._switch_account(acc['id'], rebuild)
+
+        def edit_key(e=None):
+            self._edit_account_key(acc, rebuild)
+            return 'break'
+        for c in (row, bubble, txt, name_lbl, sub_lbl):
+            c.bind('<Button-1>', switch)
+            c.bind('<Double-Button-1>', edit_key)
+
+        # Hover affordance. The stripe is not recoloured (it keeps the active
+        # accent), but every widget in the row shares the same enter/leave so
+        # the highlight does not flicker as the pointer crosses children: on
+        # leave we repaint only when the pointer is truly outside the row, not
+        # merely over one of its children.
+        def paint(bg):
+            for c in cells:
+                try:
+                    c.config(bg=bg)
+                except tk.TclError:
+                    pass
+
+        def on_leave(e):
+            try:
+                w = row.winfo_containing(*row.winfo_pointerxy())
+            except Exception:
+                w = None
+            if not (w is row or (w is not None and str(w).startswith(str(row) + '.'))):
+                paint(base)
+        for c in cells + [stripe]:
+            c.bind('<Enter>', lambda e: paint(HOVER_BG), add='+')
+            c.bind('<Leave>', on_leave, add='+')
+
+    def _accounts_dialog(self):
+        dw = 480
+        # dh is just a floor; the dialog is resized to fit the list on every
+        # rebuild (fit) so the height grows with the account count and the Add
+        # button below the list stays visible without a cap or scrolling.
+        dlg, body = self._build_dialog_frame(t('dlg_accounts_title'), dw, 150)
+
+        list_frame = tk.Frame(body, bg=BG)
+        list_frame.pack(fill='x')
+        add_host = tk.Frame(body, bg=BG)
+        add_host.pack(fill='x')
+        tk.Frame(add_host, bg=BAR_BG, height=1).pack(fill='x', pady=(12, 12))
+        self._secondary_pill(add_host, t('dlg_add_account'),
+                             lambda: self._add_account(rebuild)).pack(anchor='w')
+
+        def rebuild():
+            for w in list_frame.winfo_children():
+                w.destroy()
+            accounts = self.cfg.get('accounts', [])
+            if not accounts:
+                tk.Label(list_frame, text=t('dlg_no_accounts'), font=FT_DLG_BODY,
+                         fg=DIM, bg=BG, anchor='w').pack(fill='x', padx=8, pady=10)
+            for acc in accounts:
+                self._account_row(list_frame, acc, rebuild)
+            self._place_dialog(dlg, dw)
+        rebuild()
+
+    def _backfill_identity(self):
+        """One-time identity fill for the active account. A config migrated
+        from the pre-multi-account format has no email/plan and a placeholder
+        name; fetch them in the background so the account list shows the real
+        identity without the user re-entering the key."""
+        a = active_account(self.cfg)
+        if not a or a.get('email') or not a.get('session_key'):
+            return
+        key, acc_id = a['session_key'], a.get('id')
+
+        def work():
+            try:
+                info = fetch_account_info(key)
+            except Exception as e:
+                wlog(f'ACCT   identity backfill failed: {e}')
+                return
+
+            def apply():
+                acc = active_account(self.cfg)
+                if not acc or acc.get('id') != acc_id:
+                    return
+                if info.get('email'):
+                    acc['email'] = info['email']
+                if info.get('plan'):
+                    acc['plan'] = info['plan']
+                # Replace only an auto-generated placeholder name.
+                if info.get('name') and re.match(r'^Account \d+$', acc.get('name', '')):
+                    acc['name'] = info['name']
+                save_cfg(self.cfg)
+            self.root.after(0, apply)
+        threading.Thread(target=work, daemon=True).start()
+
+    def _switch_account(self, acc_id, rebuild=None):
+        if self.cfg.get('active_account') == acc_id:
+            return
+        self.cfg['active_account'] = acc_id
+        mirror_active(self.cfg)
+        save_cfg(self.cfg)
+        self._clear_error()
+        # Reset the countdown / dot so they restart for the new account, the
+        # same way the other setters do.
+        self._set_pulse(False)
+        self._apply_dot_phase('off')
+        if self._countdown_job:
+            self.root.after_cancel(self._countdown_job)
+            self._countdown_job = None
+        self.refresh()
+        if rebuild:
+            rebuild()
+
+    def _add_account(self, rebuild):
+        def on_success(key, info, name):
+            n = len(self.cfg.get('accounts', [])) + 1
+            acc = {'id': _new_id(),
+                   'name': name or info.get('name') or f'Account {n}',
+                   'session_key': key, 'org_id': info['org_id'],
+                   'email': info.get('email', ''), 'plan': info.get('plan', '')}
+            self.cfg.setdefault('accounts', []).append(acc)
+            self.cfg['active_account'] = acc['id']
+            mirror_active(self.cfg)
+            save_cfg(self.cfg)
+            self._clear_error()
+            self.refresh()
+            rebuild()
+        self._session_key_dialog(t('dlg_add_account'), on_success=on_success,
+                                 prefill='', show_name=True)
+
+    def _edit_account_key(self, acc, rebuild):
+        def on_success(key, info, name):
+            acc['session_key'] = key
+            acc['org_id'] = info['org_id']
+            if name:
+                acc['name'] = name
+            if info.get('email'):
+                acc['email'] = info['email']
+            if info.get('plan'):
+                acc['plan'] = info['plan']
+            is_active = acc.get('id') == self.cfg.get('active_account')
+            if is_active:
+                mirror_active(self.cfg)
+            save_cfg(self.cfg)
+            self._clear_error()
+            if is_active:
+                self.refresh()
+            rebuild()
+        self._session_key_dialog(t('dlg_update_key'), on_success=on_success,
+                                 prefill=acc.get('session_key', ''),
+                                 show_name=True, name_prefill=acc.get('name', ''))
+
+    def _rename_account(self, acc, rebuild):
+        def on_ok(name):
+            name = name.strip()
+            if name:
+                acc['name'] = name
+                save_cfg(self.cfg)
+                rebuild()
+        self._name_prompt(t('dlg_rename'), acc.get('name', ''), on_ok)
+
+    def _remove_account(self, acc, rebuild):
+        def on_yes():
+            self.cfg['accounts'] = [a for a in self.cfg.get('accounts', [])
+                                    if a.get('id') != acc.get('id')]
+            if self.cfg.get('active_account') == acc.get('id'):
+                accounts = self.cfg['accounts']
+                self.cfg['active_account'] = accounts[0]['id'] if accounts else None
+                mirror_active(self.cfg)
+                if self.cfg.get('active_account'):
+                    self.refresh()
+                else:
+                    self._error(t('setup_required'),
+                                action_label=t('action_setup_now'),
+                                action_cmd=self._setup_dialog)
+            save_cfg(self.cfg)
+            rebuild()
+        self._confirm_dialog(t('dlg_remove'), t('dlg_remove_confirm'), on_yes)
+
+    def _name_prompt(self, title, initial, on_ok):
+        """Small single-field text prompt (account rename)."""
+        dw, dh = 380, 170
+        dlg, body = self._build_dialog_frame(title, dw, dh)
+        tk.Label(body, text=t('dlg_account_name'), font=FT_DLG_H, fg=FG,
+                 bg=BG, anchor='w').pack(fill='x')
+        wrap = tk.Frame(body, bg=BAR_BG, padx=1, pady=1)
+        wrap.pack(fill='x', pady=(8, 0))
+        entry = tk.Entry(wrap, font=FT_DLG_BODY, bg=BAR_BG, fg=FG,
+                         insertbackground=FG, bd=0, highlightthickness=0, relief='flat')
+        entry.pack(fill='x', ipady=7, ipadx=10)
+        entry.insert(0, initial or '')
+        entry.bind('<FocusIn>', lambda e: (wrap.configure(bg=FOCUS_RING),
+                   entry.after_idle(lambda: entry.select_range(0, 'end'))))
+        entry.bind('<FocusOut>', lambda e: wrap.configure(bg=BAR_BG))
+        entry.focus_set()
+
+        btns = tk.Frame(body, bg=BG)
+        btns.pack(fill='x', side='bottom', pady=(12, 0))
+
+        def confirm():
+            on_ok(entry.get())
+            dlg.destroy()
+        self._primary_pill(btns, t('dlg_save'), confirm).pack(side='right')
+        self._secondary_pill(btns, t('dlg_cancel'), dlg.destroy).pack(
+            side='right', padx=(0, 8))
+        entry.bind('<Return>', lambda e: confirm())
+        self._place_dialog(dlg, dw)
+
+    def _confirm_dialog(self, title, msg, on_yes):
+        """Small yes/no confirmation (account removal)."""
+        dw, dh = 380, 180
+        dlg, body = self._build_dialog_frame(title, dw, dh)
+        tk.Label(body, text=msg, font=FT_DLG_BODY, fg=FG, bg=BG, anchor='w',
+                 justify='left', wraplength=dw - 40).pack(fill='x')
+        btns = tk.Frame(body, bg=BG)
+        btns.pack(fill='x', side='bottom', pady=(16, 0))
+
+        def confirm():
+            on_yes()
+            dlg.destroy()
+        self._primary_pill(btns, t('dlg_remove'), confirm).pack(side='right')
+        self._secondary_pill(btns, t('dlg_cancel'), dlg.destroy).pack(
+            side='right', padx=(0, 8))
+        self._place_dialog(dlg, dw)
 
     # ── Quit ─────────────────────────────────────────
 
