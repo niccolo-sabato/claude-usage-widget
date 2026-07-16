@@ -2,7 +2,7 @@
 ; Run from the installer/ folder. All Source paths are relative to this script.
 
 #define MyAppName "Claude Usage"
-#define MyAppVersion "2.8.46"
+#define MyAppVersion "2.8.47"
 #define MyAppPublisher "Niccolo Sabato"
 #define MyAppExeName "Claude Usage.exe"
 #define MyAppIcon "claude.ico"
@@ -59,11 +59,16 @@ Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "
 Name: "{group}\Uninstall {#MyAppName}"; Filename: "{uninstallexe}"
 
 [Run]
-; Relaunch the widget FIRST so its cold start overlaps with everything else —
+; Relaunch the widget FIRST so its cold start overlaps with everything else.
 ; "postinstall" was adding a check box on the Finished wizard page, which
 ; simply doesn't exist under /VERYSILENT (our auto-update flow), so the widget
 ; never came back up. Dropping the flag runs the exe in every mode.
-Filename: "{app}\{#MyAppExeName}"; Flags: nowait
+; runasoriginaluser: the setup runs elevated, but the widget must relaunch as
+; the logged-in (non-elevated) user. Without it the process inherits the admin
+; token; on machines where the standard user is not the elevating admin, the
+; widget would read/write config under the admin profile's LocalAppData and the
+; user's own settings would appear to vanish on the next normal start.
+Filename: "{app}\{#MyAppExeName}"; Flags: nowait runasoriginaluser
 
 [UninstallDelete]
 ; Clean up AppData config/log on uninstall

@@ -35,6 +35,7 @@ import signal
 import atexit
 import tempfile
 import threading
+import shutil
 import base64
 import subprocess
 import webbrowser
@@ -65,21 +66,57 @@ except Exception:
 # DATA_DIR: writable folder for config, logs (AppData\Local\Claude Usage)
 # _RES: bundled resources when running as PyInstaller exe
 EXE_DIR = os.path.dirname(os.path.abspath(sys.argv[0] if sys.argv and sys.argv[0] else __file__))
-DATA_DIR = os.path.join(os.environ.get('LOCALAPPDATA', EXE_DIR), 'Claude Usage')
-os.makedirs(DATA_DIR, exist_ok=True)
+
+
+def _resolve_local_appdata():
+    """Per-user local AppData for config/logs. Prefer %LOCALAPPDATA%; fall back
+    to %USERPROFILE%\\AppData\\Local so we never end up writing into Program
+    Files (EXE_DIR) when a stripped autostart environment omits LOCALAPPDATA -
+    a non-elevated write there fails or is redirected to VirtualStore, which is
+    how settings 'vanish' between runs."""
+    local = os.environ.get('LOCALAPPDATA')
+    if local and os.path.isdir(local):
+        return local
+    profile = os.environ.get('USERPROFILE')
+    if profile:
+        candidate = os.path.join(profile, 'AppData', 'Local')
+        if os.path.isdir(candidate):
+            return candidate
+    return local or EXE_DIR
+
+
+def _ensure_data_dir():
+    """Pick a writable folder for config/logs, trying the per-user AppData
+    first, then the temp dir, then the exe's own folder. Never raises at import
+    time (which would kill the process before any window or log exists)."""
+    for base in (_resolve_local_appdata(), tempfile.gettempdir(), EXE_DIR):
+        path = os.path.join(base, 'Claude Usage')
+        try:
+            os.makedirs(path, exist_ok=True)
+            return path
+        except OSError:
+            continue
+    return EXE_DIR  # give up gracefully; writes may fail but import survives
+
+
+DATA_DIR = _ensure_data_dir()
 _RES = getattr(sys, '_MEIPASS', EXE_DIR)  # bundled resources (icons) or same as EXE_DIR
 # Migrate config.json from old location if needed
 _old_cfg = os.path.join(EXE_DIR, 'config.json')
 _new_cfg = os.path.join(DATA_DIR, 'config.json')
 if os.path.exists(_old_cfg) and not os.path.exists(_new_cfg):
-    import shutil
-    shutil.copy2(_old_cfg, _new_cfg)
+    try:
+        shutil.copy2(_old_cfg, _new_cfg)
+    except OSError:
+        pass
 CFG = _new_cfg
 # Dev mode (env CLAUDE_USAGE_DEV=1): use a separate config so test runs never
 # touch the real one, and skip single-instance (below) so the source can run
 # alongside an installed copy. Invisible to normal users (env var unset).
 if os.environ.get('CLAUDE_USAGE_DEV') == '1':
     CFG = os.path.join(DATA_DIR, 'config-dev.json')
+# Backup companion for corruption recovery (see load_cfg/save_cfg).
+CFG_BAK = CFG + '.bak'
 
 def _find_res(name):
     """Locate a bundled resource: try _RES root, then _RES/assets, then EXE_DIR/assets."""
@@ -139,7 +176,7 @@ BAR_DEFAULT_FILL = {'session': BAR_FILL_SESSION,
 BAR_PRESETS = [BAR_FILL_SESSION, BAR_FILL_WEEKLY, BAR_FILL_HIGH, BAR_FILL_PURPLE]
 
 # ─── App ────────────────────────────────────────────
-APP_VERSION = '2.8.46'
+APP_VERSION = '2.8.47'
 
 # ─── Auto-update ────────────────────────────────────
 UPDATE_REPO = 'niccolo-sabato/claude-usage-widget'
@@ -900,25 +937,101 @@ def set_lang(code):
 # Helpers
 # ═══════════════════════════════════════════════════════
 
+# Config writes are atomic (temp file + os.replace) and serialised by this
+# lock so a save triggered on the refresh worker thread can never interleave
+# with one from the Tk main thread. CFG_BAK is defined in the paths section.
+_cfg_lock = threading.RLock()
+
+
 def load_cfg():
-    if os.path.exists(CFG):
-        with open(CFG, encoding='utf-8') as f:
-            cfg = json.load(f)
-        # Migrate old 5-min refresh to 3-min
-        if cfg.get('refresh_ms') == 300_000:
-            cfg['refresh_ms'] = REFRESH
+    """Load config, tolerating a corrupt/truncated primary by recovering from
+    the .bak written on the last successful save. Never raises: a hard failure
+    returns {} (fresh start) instead of crashing the widget before it appears.
+
+    A killed or force-closed write (e.g. the installer's CloseApplications
+    during an auto-update) used to leave a half-written or empty config.json,
+    which then failed to parse and either crashed startup or was silently
+    replaced by defaults. Atomic writes plus this backup fallback remove that
+    whole failure mode."""
+    cfg = None
+    quarantined = False  # primary was corrupt and moved aside -> rewrite it
+    for path in (CFG, CFG_BAK):
+        if not path or not os.path.exists(path):
+            continue
+        try:
+            with open(path, encoding='utf-8') as f:
+                loaded = json.load(f)
+        except (json.JSONDecodeError, ValueError) as e:
+            # Real corruption (truncated/garbled). Quarantine the bad primary
+            # so a reboot does not keep tripping on it, then try the backup.
+            wlog(f'CFG    corrupt {os.path.basename(path)}: {e}')
+            if path == CFG:
+                try:
+                    os.replace(CFG, CFG + '.corrupt')
+                    quarantined = True
+                except OSError:
+                    pass
+            continue
+        except OSError as e:
+            # Transient (a sharing/lock violation, e.g. AV scanning the file):
+            # the primary may be perfectly good, just unreadable right now. Fall
+            # back to the backup for this run, but do NOT quarantine it or later
+            # overwrite it with possibly-staler backup data.
+            wlog(f'CFG    unreadable {os.path.basename(path)}: {e}')
+            continue
+        if isinstance(loaded, dict):
+            cfg = loaded
+            if path != CFG:
+                wlog('CFG    recovered from backup')
+            break
+    if cfg is None:
+        return {}
+    # Rewrite the primary only when we quarantined it (so the on-disk file is
+    # restored) or a migration changed the data. A backup used because of a
+    # transient lock is intentionally NOT written back.
+    changed = quarantined
+    if cfg.get('refresh_ms') == 300_000:  # old 5-min refresh -> 3-min
+        cfg['refresh_ms'] = REFRESH
+        changed = True
+    if 'accounts' not in cfg:  # wrap a legacy single key into the accounts list
+        account_migrate(cfg)
+        changed = True
+    if changed:
+        # Never let a heal-write failure turn a recovered-in-memory config into
+        # a hard no-start: this function must not raise (see docstring).
+        try:
             save_cfg(cfg)
-        # Wrap a legacy single key into the accounts list on first run.
-        if 'accounts' not in cfg:
-            account_migrate(cfg)
-            save_cfg(cfg)
-        return cfg
-    return {}
+        except Exception as e:
+            wlog(f'CFG    heal-write failed: {e}')
+    return cfg
 
 
 def save_cfg(data):
-    with open(CFG, 'w', encoding='utf-8') as f:
-        json.dump(data, f, indent=2)
+    """Persist config atomically. Writes to a temp file in the same directory,
+    flushes it to disk, then atomically replaces the target, so a crash or
+    force-kill mid-write can never leave a truncated or empty config. The
+    previous good file is copied to CFG_BAK first for recovery on next load."""
+    with _cfg_lock:
+        d = os.path.dirname(CFG) or '.'
+        # Snapshot the current good file as the backup before overwriting it.
+        try:
+            if CFG_BAK and os.path.exists(CFG) and os.path.getsize(CFG) > 0:
+                shutil.copy2(CFG, CFG_BAK)
+        except OSError:
+            pass
+        fd, tmp = tempfile.mkstemp(dir=d, prefix='.cfg-', suffix='.tmp')
+        try:
+            with os.fdopen(fd, 'w', encoding='utf-8') as f:
+                json.dump(data, f, indent=2)
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(tmp, CFG)
+        except Exception:
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+            raise
 
 
 # ─── Accounts ───────────────────────────────────────
@@ -1607,7 +1720,16 @@ def scoped_model(d):
 
 
 def fetch_usage(cfg):
-    """Fetch usage data from Claude.ai API. See fetch_org_id for why curl."""
+    """Fetch usage data from Claude.ai API. See fetch_org_id for why curl.
+
+    Returns (data, rotation): rotation is None, or (account_id, new_key) when
+    Claude.ai rotated the session key. The persist is deliberately NOT done
+    here: this runs on the refresh worker thread, and writing cfg off-thread
+    could (a) serialise the dict while the UI thread mutates it and (b) land
+    the new key on the wrong account if the user switched accounts mid-fetch.
+    The caller applies the rotation on the main thread, targeting the exact
+    account the key was issued for (see Widget._apply_rotated_key)."""
+    target_id = (active_account(cfg) or {}).get('id')
     url = API_URL.format(cfg['org_id'])
     cookie = f"sessionKey={cfg['session_key']}; lastActiveOrg={cfg['org_id']}"
     result = subprocess.run(
@@ -1637,14 +1759,12 @@ def fetch_usage(cfg):
             raise PermissionError(t('session_expired_short'))
         if code >= 400:
             raise RuntimeError(f'HTTP {code}')
+    rotation = None
     km = re.search(r'sessionKey=([^;\s]+)', headers)
     if km and km.group(1) != cfg.get('session_key'):
-        # Claude.ai rotated the key: persist it on the active account too, not
-        # just the mirror, so the account list keeps a working key.
-        set_active_key(cfg, km.group(1))
-        save_cfg(cfg)
+        rotation = (target_id, km.group(1))
     try:
-        return json.loads(body)
+        return json.loads(body), rotation
     except json.JSONDecodeError as e:
         raise RuntimeError(f'invalid response: {e}')
 
@@ -1750,6 +1870,14 @@ def download_installer(url, dest_path, on_progress=None, chunk_size=65536):
                         on_progress(downloaded, total)
                     except Exception:
                         pass
+    # Reject a truncated download before it is renamed and executed elevated:
+    # a dropped connection ends the read loop cleanly, leaving a short file.
+    if downloaded == 0 or (total and downloaded != total):
+        try:
+            os.remove(tmp_path)
+        except OSError:
+            pass
+        raise IOError(f'incomplete download: {downloaded}/{total or "?"} bytes')
     if os.path.exists(dest_path):
         try:
             os.remove(dest_path)
@@ -2796,9 +2924,11 @@ class Widget:
     def _fetch(self):
         wlog('FETCH  thread started')
         try:
-            data = fetch_usage(self.cfg)
+            data, rotation = fetch_usage(self.cfg)
             wlog('FETCH  data received, dispatching to main thread')
             self.root.after(0, self._on_data, data)
+            if rotation:
+                self.root.after(0, self._apply_rotated_key, rotation[0], rotation[1])
         except PermissionError:
             wlog('FETCH  session expired (401/403)')
             try:
@@ -2816,6 +2946,26 @@ class Widget:
                 self.root.after(0, self._error, str(e))
             except Exception as ex:
                 wlog(f'FETCH  error after Exception: {ex}')
+
+    def _apply_rotated_key(self, acct_id, new_key):
+        """Persist a key Claude.ai rotated during a fetch. Runs on the main
+        thread. Writes the key onto the exact account it was issued for (by id),
+        never onto 'whatever account is active now' - the user may have switched
+        mid-fetch. The top-level mirror is touched only if that account is still
+        the active one."""
+        try:
+            for a in self.cfg.get('accounts', []):
+                if a.get('id') == acct_id:
+                    a['session_key'] = new_key
+                    break
+            if acct_id is None or self.cfg.get('active_account') == acct_id:
+                self.cfg['session_key'] = new_key
+            save_cfg(self.cfg)
+            wlog('FETCH  rotated session key persisted')
+        except Exception as e:
+            # A persist failure must not surface as a fetch error: the usage
+            # data already arrived fine and the in-memory key stays valid.
+            wlog(f'FETCH  rotated key persist failed: {e}')
 
     def _on_data(self, d):
         self._clear_error()
@@ -5415,10 +5565,17 @@ class Widget:
 # ═══════════════════════════════════════════════════════
 
 def _single_instance():
-    """Ensure only one widget instance runs. Returns mutex handle or exits."""
+    """Ensure only one widget instance runs. Returns mutex handle or exits.
+
+    Reads the last error via a use_last_error DLL binding so the
+    ERROR_ALREADY_EXISTS check cannot be defeated by an intervening ctypes
+    call resetting the thread's last error (which would let a second instance
+    launch). The named mutex is released by the OS on process exit, so a crash
+    can never leave a stale lock that wedges the next launch."""
     try:
-        mutex = ctypes.windll.kernel32.CreateMutexW(None, True, 'ClaudeUsageWidget_SingleInstance')
-        if ctypes.windll.kernel32.GetLastError() == 183:  # ERROR_ALREADY_EXISTS
+        kernel32 = ctypes.WinDLL('kernel32', use_last_error=True)
+        mutex = kernel32.CreateMutexW(None, True, 'ClaudeUsageWidget_SingleInstance')
+        if ctypes.get_last_error() == 183:  # ERROR_ALREADY_EXISTS
             # Another instance is running - bring it to front and exit
             hwnd = ctypes.windll.user32.FindWindowW(None, 'Claude Usage')
             if hwnd:
@@ -5448,3 +5605,14 @@ if __name__ == '__main__':
         tb = traceback.format_exc()
         wlog(f'CRASH  {tb}')
         write_crash('CRASH', tb)
+        # Startup failed before any window appeared. Without this the process
+        # would just vanish with no feedback; show a native message box so the
+        # user knows it crashed and where the log is.
+        try:
+            ctypes.windll.user32.MessageBoxW(
+                None,
+                'Claude Usage failed to start.\n\n'
+                f'Details were written to:\n{CRASH_LOG_FILE}',
+                'Claude Usage', 0x10)  # MB_ICONERROR
+        except Exception:
+            pass
