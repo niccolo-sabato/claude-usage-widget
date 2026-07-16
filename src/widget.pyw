@@ -556,6 +556,9 @@ LANG = {
         'dlg_error_prefix': 'Error',
         'dlg_connect': 'Connect',
         'dlg_cancel': 'Cancel',
+        'dlg_pick_org_title': 'Choose organization',
+        'dlg_pick_org_hint': 'This account belongs to more than one Claude organization. Choose the one whose usage you want to track.',
+        'dlg_pick_org_use': 'Use this org',
         # Kept for legacy references - consolidated into dlg_step_* above
         'dlg_howto': 'Where do I find my session key?',
         'dlg_paste_here': 'Paste your session key below',
@@ -643,6 +646,9 @@ LANG = {
         'dlg_error_prefix': 'Errore',
         'dlg_connect': 'Connetti',
         'dlg_cancel': 'Annulla',
+        'dlg_pick_org_title': 'Scegli organizzazione',
+        'dlg_pick_org_hint': 'Questo account fa parte di più organizzazioni Claude. Scegli quella di cui monitorare l’utilizzo.',
+        'dlg_pick_org_use': 'Usa questa',
         'dlg_howto': 'Dove trovo la session key?',
         'dlg_paste_here': 'Incolla la session key qui sotto',
     },
@@ -729,6 +735,9 @@ LANG = {
         'dlg_error_prefix': '\u30a8\u30e9\u30fc',
         'dlg_connect': '\u63a5\u7d9a',
         'dlg_cancel': '\u30ad\u30e3\u30f3\u30bb\u30eb',
+        'dlg_pick_org_title': '\u7d44\u7e54\u3092\u9078\u629e',
+        'dlg_pick_org_hint': '\u3053\u306e\u30a2\u30ab\u30a6\u30f3\u30c8\u306f\u8907\u6570\u306e Claude \u7d44\u7e54\u306b\u6240\u5c5e\u3057\u3066\u3044\u307e\u3059\u3002\u4f7f\u7528\u91cf\u3092\u8ffd\u8de1\u3059\u308b\u7d44\u7e54\u3092\u9078\u629e\u3057\u3066\u304f\u3060\u3055\u3044\u3002',
+        'dlg_pick_org_use': '\u3053\u306e\u7d44\u7e54\u3092\u4f7f\u7528',
         'dlg_howto': '\u30bb\u30c3\u30b7\u30e7\u30f3\u30ad\u30fc\u306e\u53d6\u5f97\u65b9\u6cd5',
         'dlg_paste_here': '\u30bb\u30c3\u30b7\u30e7\u30f3\u30ad\u30fc\u3092\u4e0b\u306b\u8cbc\u308a\u4ed8\u3051\u307e\u3059',
     },
@@ -1238,8 +1247,30 @@ def _curl_get(url, session_key):
     return body
 
 
+def _org_uuid(o):
+    return o.get('uuid') or o.get('id')
+
+
+def _org_rank(o):
+    """Rank an org by how likely it is the one the user actively works in.
+
+    Orgs expose a `capabilities` list; a plan with 'raven' (Claude Code /
+    heavier API usage) is where usage limits actually matter, and an org
+    with more capabilities generally beats a bare 'chat'-only personal
+    org. Higher tuple sorts first. Used only as a tiebreaker when the
+    browser's last-active org is unknown.
+    """
+    caps = set(o.get('capabilities') or [])
+    return (1 if 'raven' in caps else 0, len(caps))
+
+
 def fetch_org_id(session_key):
     """Resolve the user's org_id from the session key.
+
+    Returns (org_id, orgs). `orgs` is the raw org list from the API.
+    `org_id` is None when the choice is genuinely ambiguous and the
+    caller must ask the user to pick from `orgs` (see the org picker in
+    the session-key dialog).
 
     Strategy:
       1. List the user's orgs via /api/organizations.
@@ -1247,11 +1278,14 @@ def fetch_org_id(session_key):
       3. If there are multiple, ask /api/bootstrap which one was last
          active in the browser (account.lastActiveOrgId). This matches
          what the official Claude.ai web UI shows the user.
-      4. Fallback to the first org if bootstrap fails.
+      4. If bootstrap gives no active org, rank the orgs by capability
+         and auto-pick a clear winner. Only if the top two tie do we
+         return org_id=None so the caller prompts the user.
 
-    Without the bootstrap step a user with multiple orgs (personal +
-    work) would always see usage for whichever org happens to be first
-    in the API response, not the one they're actively using.
+    Blindly taking orgs[0] (the old behaviour) picked whichever org
+    happened to be first in the API response - for a user with a
+    'chat'-only personal org listed ahead of their real work org, that
+    meant a widget stuck at 0% forever.
     """
     body = _curl_get('https://claude.ai/api/organizations', session_key)
     try:
@@ -1262,7 +1296,7 @@ def fetch_org_id(session_key):
         raise RuntimeError(t('no_org'))
 
     if len(orgs) == 1:
-        return orgs[0].get('uuid') or orgs[0].get('id')
+        return _org_uuid(orgs[0]), orgs
 
     # Multi-org: prefer the org Claude.ai itself currently routes to.
     try:
@@ -1271,13 +1305,20 @@ def fetch_org_id(session_key):
         active_id = (boot.get('account') or {}).get('lastActiveOrgId')
         if active_id:
             for o in orgs:
-                if o.get('uuid') == active_id or o.get('id') == active_id:
-                    return active_id
-            return active_id  # bootstrap is authoritative even if not in list
+                if _org_uuid(o) == active_id:
+                    return active_id, orgs
+            return active_id, orgs  # bootstrap authoritative even if not in list
     except Exception as e:
         wlog(f'BOOT   bootstrap fallback failed: {e}')
 
-    return orgs[0].get('uuid') or orgs[0].get('id')
+    # No active org from bootstrap. Rank by capability; auto-pick a clear
+    # winner, otherwise hand the decision to the user.
+    ranked = sorted(orgs, key=_org_rank, reverse=True)
+    if _org_rank(ranked[0]) == _org_rank(ranked[1]):
+        wlog(f'ORG    ambiguous ({len(orgs)} orgs, no active) -> user picks')
+        return None, orgs
+    wlog(f'ORG    auto-picked by capability: {_org_uuid(ranked[0])}')
+    return _org_uuid(ranked[0]), orgs
 
 
 def fetch_usage(cfg):
@@ -4045,19 +4086,20 @@ class Widget:
             dlg.update_idletasks()
             def detect():
                 try:
-                    org_id = fetch_org_id(key)
-                    dlg.after(0, lambda: on_ok(key, org_id))
+                    org_id, orgs = fetch_org_id(key)
+                    if org_id is None:
+                        # Ambiguous multi-org: let the user choose.
+                        dlg.after(0, lambda: on_pick(key, orgs))
+                    else:
+                        dlg.after(0, lambda: on_ok(key, org_id))
                 except Exception as e:
                     dlg.after(0, lambda: on_err(str(e)))
             def on_ok(key, org_id):
-                self.cfg['session_key'] = key
-                self.cfg['org_id'] = org_id
-                save_cfg(self.cfg)
                 dlg.destroy()
-                self._clear_error()
-                if is_setup:
-                    self._schedule()
-                self.refresh()
+                self._commit_session(key, org_id, is_setup)
+            def on_pick(key, orgs):
+                dlg.destroy()
+                self._org_picker_dialog(key, orgs, is_setup)
             def on_err(msg):
                 status_lbl.config(text=f"{t('dlg_error_prefix')}: {msg}", fg=RED)
                 build_connect(enabled=True)
@@ -4068,6 +4110,71 @@ class Widget:
 
     def _setup_dialog(self):
         self._session_key_dialog(t('dlg_setup_title'), is_setup=True)
+
+    def _commit_session(self, key, org_id, is_setup):
+        """Persist a verified (key, org_id) pair and kick off tracking.
+
+        Shared by the direct-resolve path and the org-picker path so both
+        store, schedule and refresh identically.
+        """
+        self.cfg['session_key'] = key
+        self.cfg['org_id'] = org_id
+        save_cfg(self.cfg)
+        self._clear_error()
+        if is_setup:
+            self._schedule()
+        self.refresh()
+
+    def _org_picker_dialog(self, key, orgs, is_setup=False):
+        """Ask the user which org to track when the choice is ambiguous.
+
+        Reached only when the account has multiple orgs, the browser's
+        last-active org is unknown, and no single org wins on capability
+        ranking. Defaults the selection to the best-ranked org so a single
+        Enter/click still lands somewhere sensible.
+        """
+        DW = 420
+        dlg, body = self._build_dialog_frame(t('dlg_pick_org_title'), DW, 200)
+
+        tk.Label(body, text=t('dlg_pick_org_hint'), font=FT_DLG_BODY, fg=FG,
+                 bg=BG, anchor='w', justify='left',
+                 wraplength=DW - 2 * DLG_PAD_X).pack(fill='x')
+
+        ranked = sorted(orgs, key=_org_rank, reverse=True)
+        choice = tk.StringVar(value=_org_uuid(ranked[0]))
+
+        list_frame = tk.Frame(body, bg=BG)
+        list_frame.pack(fill='x', pady=(12, 0))
+        for o in orgs:
+            oid = _org_uuid(o)
+            tk.Radiobutton(
+                list_frame, text=(o.get('name') or oid), value=oid,
+                variable=choice, font=FT_DLG_BODY, fg=FG, bg=BG,
+                selectcolor=BAR_BG, activebackground=BG, activeforeground=FG,
+                highlightthickness=0, bd=0, anchor='w').pack(fill='x', pady=2)
+
+        def use():
+            dlg.destroy()
+            self._commit_session(key, choice.get(), is_setup)
+
+        btn_frame = tk.Frame(body, bg=BG)
+        btn_frame.pack(fill='x', side='bottom', pady=(16, 0))
+        self._primary_pill(btn_frame, t('dlg_pick_org_use'), use).pack(side='right')
+        self._secondary_pill(btn_frame, t('dlg_cancel'), dlg.destroy).pack(
+            side='right', padx=(0, 8))
+
+        # _build_dialog_frame auto-sizes once via after_idle, but the wrapped
+        # hint label's height only resolves on a second layout pass - and the
+        # row count here is dynamic (one per org). Re-fit after the layout
+        # settles so the buttons are never clipped, whatever the org count.
+        def _refit():
+            dlg.update_idletasks()
+            h = dlg.winfo_reqheight()
+            if h > dlg.winfo_height():
+                wx, wy = self._place_popup(DW, h)
+                dlg.geometry(f'{DW}x{h}+{wx}+{wy}')
+                dwm_round(dlg)
+        dlg.after(30, _refit)
 
     # ── Quit ─────────────────────────────────────────
 
