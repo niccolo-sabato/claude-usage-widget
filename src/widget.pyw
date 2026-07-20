@@ -1675,14 +1675,9 @@ def _org_uuid(o):
 
 
 def _org_rank(o):
-    """Rank an org by how likely it is the one the user actively tracks.
-
-    Orgs carry a `capabilities` list. A personal or work claude.ai org exposes
-    'chat'; a pure Console-API org carries only 'api'/'api_individual' and has
-    no usage the widget can read. Among comparable orgs a paid plan and more
-    capabilities win. Higher tuple sorts first. Used only as a tiebreaker when
-    the browser's last-active org is unknown.
-    """
+    """Rank an org for auto-selection: chat capability first, then a paid tier,
+    then breadth of capabilities. Higher tuple sorts first. Used only as a
+    tiebreaker when the browser's last-active org is unknown."""
     caps = set(o.get('capabilities') or [])
     tier = (o.get('rate_limit_tier') or '').lower()
     paid = any(k in tier for k in ('max', 'pro', 'team', 'enterprise'))
@@ -1701,8 +1696,8 @@ def fetch_account_info(session_key):
 
     Org selection strategy:
       1. List the user's orgs via /api/organizations.
-      2. Keep only orgs exposing 'chat' (a pure Console-API org has no usage
-         the widget can read); fall back to the full list if none qualify.
+      2. Keep only the orgs the widget can read usage for; fall back to the
+         full list if none qualify.
       3. If exactly one remains, use it.
       4. Otherwise prefer the org /api/bootstrap reports as last active in the
          browser (account.lastActiveOrgId), matching what Claude.ai shows.
@@ -3703,14 +3698,19 @@ class Widget:
     def _build_dialog_frame(self, title, dw, dh):
         """Create a Toplevel with the standard chrome. Returns (dlg, body).
 
-        Same title bar, padding, rounded corners and screen-clamped
-        positioning across every dialog. The height passed in is treated
-        as a MINIMUM: after the caller has finished populating `body`,
-        an idle callback grows the dialog to whatever height the actual
-        layout requires. This keeps the bottom controls (the orange
-        Connect pill, in particular) on screen at higher Windows DPI
-        scaling, where text/widgets render larger and the fixed minimum
-        height would otherwise crop them.
+        Same title bar, padding, rounded corners and screen-clamped placement
+        for every dialog. `dh` is a minimum: once the caller has populated
+        `body`, the dialog is re-measured and grown to the height the layout
+        actually needs. Two passes are required because image-backed pill
+        buttons report their size only after the first render, so a single
+        measurement under-sizes the dialog and crops its bottom controls at
+        higher Windows DPI scaling.
+
+        Layout contract for callers: pack the bottom controls (the button row,
+        and anything else that must never disappear) BEFORE the content that
+        fills the middle. Tk allocates space in packing order, so whenever a
+        dialog is shorter than its content, the widgets packed last are the
+        ones squeezed out.
         """
         dlg = tk.Toplevel(self.root)
         dlg.title(title)
@@ -3737,12 +3737,8 @@ class Widget:
         dlg.bind('<Escape>', lambda e: dlg.destroy())
 
         def _finalize():
-            # Double-pass measurement + monitor-clamped placement (see
-            # _place_dialog): one measurement under-reports height on scaled
-            # displays because image-backed pills report their size only after
-            # the first render, which crops the bottom controls. dh is the
-            # minimum. This runs for every dialog, so a caller need not add its
-            # own _place_dialog call (an extra one is harmless).
+            # Measure and place (see docstring); dh is the floor. Runs for
+            # every dialog, so callers need no _place_dialog call of their own.
             try:
                 self._place_dialog(dlg, dw, dh_floor=dh)
                 # Re-apply DWM rounding after the final position settles.
@@ -4536,8 +4532,7 @@ class Widget:
         dw, dh = self._dlg_size(460, 260)
         dlg, body = self._build_dialog_frame(t('dlg_interval_title'), dw, dh)
 
-        # Bottom controls packed FIRST so a short measurement never squeezes
-        # the Save/Cancel row out (see _show_update_dialog).
+        # Bottom controls first (see the layout contract in _build_dialog_frame).
         btn_frame = tk.Frame(body, bg=BG)
         btn_frame.pack(fill='x', side='bottom', pady=(12, 0))
 
@@ -4793,14 +4788,8 @@ class Widget:
         if len(changelog) > UPDATE_CHANGELOG_MAX_CHARS:
             changelog = changelog[:UPDATE_CHANGELOG_MAX_CHARS].rstrip() + '\u2026'
 
-        # Bottom controls are packed BEFORE the changelog box. Tk's packer
-        # allocates space in packing order, so when the dialog is shorter than
-        # the content (mis-measured height, small screen), the last-packed
-        # widget is the one that gets squeezed out. With the buttons packed
-        # first they are structurally guaranteed their slice; any shortage
-        # compresses the changelog instead. At 125%+ Windows scaling the old
-        # order left the Install/Cancel row crushed to a sliver under the
-        # changelog, making the update impossible to confirm.
+        # Bottom controls first (see the layout contract in _build_dialog_frame):
+        # any height shortage compresses the changelog, never the buttons.
         btn_frame = tk.Frame(body, bg=BG)
         btn_frame.pack(fill='x', side='bottom', pady=(12, 0))
 
@@ -5006,8 +4995,7 @@ class Widget:
         dw, dh = self._dlg_size(460, 392 if show_name else 320)
         dlg, body = self._build_dialog_frame(title, dw, dh)
 
-        # Bottom controls packed FIRST so a short measurement squeezes the
-        # content above, never the Connect/Cancel row (see _show_update_dialog).
+        # Bottom controls first (see the layout contract in _build_dialog_frame).
         btn_frame = tk.Frame(body, bg=BG)
         btn_frame.pack(fill='x', side='bottom', pady=(12, 0))
         connect_state = {'btn': None}
@@ -5186,8 +5174,7 @@ class Widget:
             dlg.destroy()
             on_choose(sel, tier)
 
-        # Bottom controls packed FIRST so a short measurement never squeezes
-        # them out (same pattern as _show_update_dialog).
+        # Bottom controls first (see the layout contract in _build_dialog_frame).
         btn_frame = tk.Frame(body, bg=BG)
         btn_frame.pack(fill='x', side='bottom', pady=(12, 0))
         self._primary_pill(btn_frame, t('dlg_pick_org_use'), use).pack(side='right')
