@@ -176,7 +176,7 @@ BAR_DEFAULT_FILL = {'session': BAR_FILL_SESSION,
 BAR_PRESETS = [BAR_FILL_SESSION, BAR_FILL_WEEKLY, BAR_FILL_HIGH, BAR_FILL_PURPLE]
 
 # ─── App ────────────────────────────────────────────
-APP_VERSION = '2.8.47'
+APP_VERSION = '2.8.48'
 
 # ─── Auto-update ────────────────────────────────────
 UPDATE_REPO = 'niccolo-sabato/claude-usage-widget'
@@ -3668,11 +3668,16 @@ class Widget:
         avatar discs) report their height only after the first render, so a
         single early measurement under-sizes the dialog and clips the bottom
         controls. The position is recomputed from the new height so a dialog
-        above the widget grows upward, its bottom edge clear of the widget."""
+        above the widget grows upward, its bottom edge clear of the widget.
+
+        dh_floor sets a minimum height (used by dialogs that look better with
+        some breathing room than shrink-wrapped); the content requirement
+        still wins when larger, and the widget's monitor caps both."""
         def _apply():
             dlg.update_idletasks()
             ml, mt, mr, mb = self._widget_monitor_area()
-            need = min(dlg.winfo_reqheight(), (mb - mt) - 2 * SCREEN_MARGIN)
+            need = min(max(dh_floor, dlg.winfo_reqheight()),
+                       (mb - mt) - 2 * SCREEN_MARGIN)
             x, y = self._place_popup(dw, need)
             dlg.geometry(f'{dw}x{need}+{x}+{y}')
         _apply()
@@ -4674,7 +4679,12 @@ class Widget:
     def _show_update_dialog(self, info):
         """Full update dialog: shows changelog + download button + progress."""
         self._dismiss_update_banner()
-        dw, dh = 520, 440
+        # Scale the frame with the display DPI (fonts and pill paddings already
+        # do), then cap to the widget's monitor: at a fixed 520x440 the content
+        # outgrew the box on scaled displays and the bottom row could not fit.
+        ml, mt, mr, mb = self._widget_monitor_area()
+        dw = min(self.dp(520), (mr - ml) - 2 * SCREEN_MARGIN)
+        dh = min(self.dp(440), (mb - mt) - 2 * SCREEN_MARGIN)
         dlg, body = self._build_dialog_frame(t('update_dlg_title'), dw, dh)
 
         subtitle = t('update_dlg_subtitle').format(
@@ -4691,6 +4701,25 @@ class Widget:
         if len(changelog) > UPDATE_CHANGELOG_MAX_CHARS:
             changelog = changelog[:UPDATE_CHANGELOG_MAX_CHARS].rstrip() + '\u2026'
 
+        # Bottom controls are packed BEFORE the changelog box. Tk's packer
+        # allocates space in packing order, so when the dialog is shorter than
+        # the content (mis-measured height, small screen), the last-packed
+        # widget is the one that gets squeezed out. With the buttons packed
+        # first they are structurally guaranteed their slice; any shortage
+        # compresses the changelog instead. At 125%+ Windows scaling the old
+        # order left the Install/Cancel row crushed to a sliver under the
+        # changelog, making the update impossible to confirm.
+        btn_frame = tk.Frame(body, bg=BG)
+        btn_frame.pack(fill='x', side='bottom', pady=(12, 0))
+
+        progress_cv = tk.Canvas(body, height=6, bg=BG, bd=0, highlightthickness=0)
+        progress_cv.pack(fill='x', pady=(4, 0), side='bottom')
+        progress_cv.pack_forget()
+
+        status_lbl = tk.Label(body, text='', font=FT_DLG_HINT, fg=DIM, bg=BG,
+                              anchor='w', wraplength=dw - 40)
+        status_lbl.pack(fill='x', pady=(10, 0), side='bottom')
+
         txt_frame = tk.Frame(body, bg=BAR_BG, bd=0, highlightthickness=0)
         txt_frame.pack(fill='both', expand=True)
         txt = tk.Text(txt_frame, font=FT_DLG_BODY, fg=DIM, bg=BAR_BG, bd=0,
@@ -4700,17 +4729,6 @@ class Widget:
         render_markdown_into(txt, changelog,
                              base_font=FT_DLG_BODY, fg=DIM, header_fg=FG)
         txt.pack(fill='both', expand=True)
-
-        status_lbl = tk.Label(body, text='', font=FT_DLG_HINT, fg=DIM, bg=BG,
-                              anchor='w', wraplength=dw - 40)
-        status_lbl.pack(fill='x', pady=(10, 0))
-
-        progress_cv = tk.Canvas(body, height=6, bg=BG, bd=0, highlightthickness=0)
-        progress_cv.pack(fill='x', pady=(4, 0))
-        progress_cv.pack_forget()
-
-        btn_frame = tk.Frame(body, bg=BG)
-        btn_frame.pack(fill='x', side='bottom', pady=(12, 0))
 
         install_state = {'btn': None, 'enabled': True}
 
@@ -4744,7 +4762,10 @@ class Widget:
                 dlg.destroy()
                 return
             build_install_btn(enabled=False)
-            progress_cv.pack(fill='x', pady=(4, 0))
+            # Re-insert right after btn_frame in the packing order so the
+            # bottom stack stays: buttons, progress above them, status above.
+            progress_cv.pack(fill='x', pady=(4, 0), side='bottom',
+                             after=btn_frame)
             status_lbl.config(text=t('update_dlg_downloading').format(
                 percent=0, done='0',
                 total=fmt_size(info.get('asset_size') or 0)), fg=DIM)
@@ -4783,6 +4804,11 @@ class Widget:
         self._secondary_pill(btn_frame, t('update_dlg_cancel'),
                              dlg.destroy).pack(side='right', padx=(0, 8))
         build_install_btn(enabled=True)
+        # Double-pass measurement, same as every other dialog: the single
+        # idle-time pass in _build_dialog_frame under-reports the height on
+        # scaled displays (the button row is not yet accounted for), which
+        # fixed the dialog too short.
+        self._place_dialog(dlg, dw, dh_floor=dh)
 
     def _launch_installer(self, path):
         """Run the downloaded installer silently and exit so it can replace files.
