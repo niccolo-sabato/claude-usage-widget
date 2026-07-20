@@ -176,7 +176,7 @@ BAR_DEFAULT_FILL = {'session': BAR_FILL_SESSION,
 BAR_PRESETS = [BAR_FILL_SESSION, BAR_FILL_WEEKLY, BAR_FILL_HIGH, BAR_FILL_PURPLE]
 
 # ─── App ────────────────────────────────────────────
-APP_VERSION = '2.8.48'
+APP_VERSION = '2.8.49'
 
 # ─── Auto-update ────────────────────────────────────
 UPDATE_REPO = 'niccolo-sabato/claude-usage-widget'
@@ -697,6 +697,10 @@ LANG = {
         'dlg_error_prefix': 'Error',
         'dlg_connect': 'Connect',
         'dlg_cancel': 'Cancel',
+        'key_invalid_or_expired': 'Invalid or expired session key',
+        'dlg_pick_org_title': 'Choose organization',
+        'dlg_pick_org_hint': 'This account belongs to more than one Claude organization. Choose the one whose usage you want to track.',
+        'dlg_pick_org_use': 'Use this org',
         # Kept for legacy references - consolidated into dlg_step_* above
         'dlg_howto': 'Where do I find my session key?',
         'dlg_paste_here': 'Paste your session key below',
@@ -806,6 +810,10 @@ LANG = {
         'dlg_error_prefix': 'Errore',
         'dlg_connect': 'Connetti',
         'dlg_cancel': 'Annulla',
+        'key_invalid_or_expired': 'Session key non valida o scaduta',
+        'dlg_pick_org_title': 'Scegli organizzazione',
+        'dlg_pick_org_hint': 'Questo account fa parte di pi\u00f9 organizzazioni Claude. Scegli quella di cui monitorare l\u2019utilizzo.',
+        'dlg_pick_org_use': 'Usa questa',
         'dlg_howto': 'Dove trovo la session key?',
         'dlg_paste_here': 'Incolla la session key qui sotto',
     },
@@ -916,6 +924,10 @@ LANG = {
         'dlg_error_prefix': '\u30a8\u30e9\u30fc',
         'dlg_connect': '\u63a5\u7d9a',
         'dlg_cancel': '\u30ad\u30e3\u30f3\u30bb\u30eb',
+        'key_invalid_or_expired': '\u30bb\u30c3\u30b7\u30e7\u30f3\u30ad\u30fc\u304c\u7121\u52b9\u307e\u305f\u306f\u671f\u9650\u5207\u308c\u3067\u3059',
+        'dlg_pick_org_title': '\u7d44\u7e54\u3092\u9078\u629e',
+        'dlg_pick_org_hint': '\u3053\u306e\u30a2\u30ab\u30a6\u30f3\u30c8\u306f\u8907\u6570\u306e Claude \u7d44\u7e54\u306b\u6240\u5c5e\u3057\u3066\u3044\u307e\u3059\u3002\u4f7f\u7528\u91cf\u3092\u8ffd\u8de1\u3059\u308b\u7d44\u7e54\u3092\u9078\u629e\u3057\u3066\u304f\u3060\u3055\u3044\u3002',
+        'dlg_pick_org_use': '\u3053\u306e\u7d44\u7e54\u3092\u4f7f\u7528',
         'dlg_howto': '\u30bb\u30c3\u30b7\u30e7\u30f3\u30ad\u30fc\u306e\u53d6\u5f97\u65b9\u6cd5',
         'dlg_paste_here': '\u30bb\u30c3\u30b7\u30e7\u30f3\u30ad\u30fc\u3092\u4e0b\u306b\u8cbc\u308a\u4ed8\u3051\u307e\u3059',
     },
@@ -1600,8 +1612,11 @@ def _curl_get(url, session_key):
     # text mode would decode with the Windows locale (cp1252) and raise on any
     # non-latin1 byte (accented names, Japanese org names, emoji), silently
     # failing the whole call.
+    # -D - dumps the response headers to stdout ahead of the body so we can
+    # read the status line: without it, a 401 error payload parses as valid
+    # JSON and the caller mis-reads it as "no organization found".
     result = subprocess.run(
-        ['curl', '-s',
+        ['curl', '-s', '-D', '-',
          '-H', f'Cookie: sessionKey={session_key}',
          '-H', f'User-Agent: {_BROWSER_UA}',
          '-H', 'anthropic-client-platform: web_claude_ai',
@@ -1611,7 +1626,22 @@ def _curl_get(url, session_key):
     )
     if result.returncode != 0:
         raise RuntimeError(f'curl: {result.stderr.decode("utf-8", "replace").strip()}')
-    body = result.stdout.decode('utf-8', 'replace').strip()
+    stdout = result.stdout.decode('utf-8', 'replace')
+    # Split on the LAST header/body boundary and read the LAST status line, so
+    # an interim (1xx) header block emitted before the final response does not
+    # get mistaken for the body or the status.
+    sep = '\r\n\r\n' if '\r\n\r\n' in stdout else '\n\n'
+    headers, found, body = stdout.rpartition(sep)
+    if not found:
+        headers, body = '', stdout
+    body = body.strip()
+    codes = re.findall(r'HTTP/[\d.]+ (\d+)', headers or stdout)
+    if codes:
+        code = int(codes[-1])
+        if code in (401, 403):
+            raise RuntimeError(t('key_invalid_or_expired'))
+        if code >= 400:
+            raise RuntimeError(f'HTTP {code}')
     if not body:
         raise RuntimeError(t('empty_response'))
     return body
@@ -1640,18 +1670,46 @@ def plan_label(tier):
     return s.replace('default_', '').replace('claude_', '').replace('_', ' ').title()
 
 
+def _org_uuid(o):
+    return o.get('uuid') or o.get('id')
+
+
+def _org_rank(o):
+    """Rank an org by how likely it is the one the user actively tracks.
+
+    Orgs carry a `capabilities` list. A personal or work claude.ai org exposes
+    'chat'; a pure Console-API org carries only 'api'/'api_individual' and has
+    no usage the widget can read. Among comparable orgs a paid plan and more
+    capabilities win. Higher tuple sorts first. Used only as a tiebreaker when
+    the browser's last-active org is unknown.
+    """
+    caps = set(o.get('capabilities') or [])
+    tier = (o.get('rate_limit_tier') or '').lower()
+    paid = any(k in tier for k in ('max', 'pro', 'team', 'enterprise'))
+    return (1 if 'chat' in caps else 0, 1 if paid else 0, len(caps))
+
+
 def fetch_account_info(session_key):
     """Resolve org_id plus the account identity (email, name, plan) from a
     session key.
 
+    Returns {'org_id', 'email', 'name', 'plan', 'org_choices'}. `org_id` is
+    None only when the account has several trackable orgs, the browser's
+    last-active org is unknown, and none wins the ranking outright; then
+    `org_choices` lists the candidates [{'id', 'name', 'tier'}] (best first)
+    for the caller to show a picker.
+
     Org selection strategy:
       1. List the user's orgs via /api/organizations.
-      2. If there is exactly one, use it.
-      3. If there are multiple, ask /api/bootstrap which one was last active
-         in the browser (account.lastActiveOrgId), matching what Claude.ai
-         shows the user. Fall back to the first org if bootstrap fails.
+      2. Keep only orgs exposing 'chat' (a pure Console-API org has no usage
+         the widget can read); fall back to the full list if none qualify.
+      3. If exactly one remains, use it.
+      4. Otherwise prefer the org /api/bootstrap reports as last active in the
+         browser (account.lastActiveOrgId), matching what Claude.ai shows.
+      5. If bootstrap gives nothing, rank by capability and auto-pick a clear
+         winner; only on a genuine tie return org_id=None for the picker.
 
-    The same bootstrap call carries the account's email and name, and the
+    The bootstrap call also carries the account's email and name, and the
     chosen org carries the rate-limit tier we turn into a plan label.
     """
     body = _curl_get('https://claude.ai/api/organizations', session_key)
@@ -1659,6 +1717,13 @@ def fetch_account_info(session_key):
         orgs = json.loads(body)
     except json.JSONDecodeError as e:
         raise RuntimeError(f'invalid response: {e}')
+    # An error payload comes back as a dict ({"error": {...}} / {"detail": ...})
+    # rather than a list: surface its message instead of the misleading "no
+    # organization found".
+    if isinstance(orgs, dict):
+        err = orgs.get('error')
+        msg = (err.get('message') if isinstance(err, dict) else err) or orgs.get('detail')
+        raise RuntimeError(msg or t('key_invalid_or_expired'))
     if not isinstance(orgs, list) or not orgs:
         raise RuntimeError(t('no_org'))
 
@@ -1673,27 +1738,48 @@ def fetch_account_info(session_key):
     except Exception as e:
         wlog(f'BOOT   bootstrap fallback failed: {e}')
 
-    chosen = None
-    if len(orgs) == 1:
-        chosen = orgs[0]
-        org_id = chosen.get('uuid') or chosen.get('id')
-    elif active_id:
-        for o in orgs:
-            if o.get('uuid') == active_id or o.get('id') == active_id:
-                chosen = o
-                break
-        org_id = active_id  # bootstrap is authoritative even if not in the list
-    else:
-        chosen = orgs[0]
-        org_id = chosen.get('uuid') or chosen.get('id')
+    def result(org, org_id=None):
+        return {'org_id': org_id or _org_uuid(org or {}),
+                'email': email, 'name': name,
+                'plan': plan_label((org or {}).get('rate_limit_tier')),
+                'org_choices': None}
 
-    plan = plan_label((chosen or {}).get('rate_limit_tier'))
-    return {'org_id': org_id, 'email': email, 'name': name, 'plan': plan}
+    # Only orgs exposing 'chat' have usage the widget can read; a pure
+    # Console-API org would leave every bar at 0. Keep the full list as a
+    # fallback so a missing capabilities field never yields nothing.
+    trackable = [o for o in orgs if 'chat' in (o.get('capabilities') or [])] or orgs
+
+    if len(trackable) == 1:
+        return result(trackable[0])
+
+    # Prefer the org Claude.ai itself currently routes to (authoritative even
+    # if it is not in the listed orgs).
+    if active_id:
+        for o in orgs:
+            if _org_uuid(o) == active_id:
+                return result(o)
+        return result(None, org_id=active_id)
+
+    # No active org from bootstrap: rank the trackable orgs.
+    ranked = sorted(trackable, key=_org_rank, reverse=True)
+    if _org_rank(ranked[0]) == _org_rank(ranked[1]):
+        wlog(f'ORG    ambiguous ({len(trackable)} orgs, no active) -> user picks')
+        choices = [{'id': _org_uuid(o), 'name': o.get('name') or _org_uuid(o),
+                    'tier': o.get('rate_limit_tier') or ''} for o in ranked]
+        return {'org_id': None, 'email': email, 'name': name,
+                'plan': '', 'org_choices': choices}
+    wlog(f'ORG    auto-picked by capability: {_org_uuid(ranked[0])}')
+    return result(ranked[0])
 
 
 def fetch_org_id(session_key):
-    """Back-compat shim: just the org_id from fetch_account_info."""
-    return fetch_account_info(session_key)['org_id']
+    """Back-compat shim: just the org_id. Never returns None - resolves an
+    ambiguous multi-org choice to the best-ranked candidate (no UI)."""
+    info = fetch_account_info(session_key)
+    if info['org_id']:
+        return info['org_id']
+    choices = info.get('org_choices') or []
+    return choices[0]['id'] if choices else None
 
 
 def scoped_model(d):
@@ -3580,6 +3666,15 @@ class Widget:
         """Scale a 96-DPI baseline pixel value to the current display DPI."""
         return int(round(x * self.dpi_scale))
 
+    def _dlg_size(self, w, h):
+        """Scale a 96-DPI dialog size to the display DPI and clamp it to the
+        widget's monitor, so a dialog never renders wider or taller than the
+        screen. Fonts (points) and pill paddings (dp) already grow with DPI;
+        the frame must grow with them or its content clips at 125%+ scaling."""
+        ml, mt, mr, mb = self._widget_monitor_area()
+        return (min(self.dp(w), (mr - ml) - 2 * SCREEN_MARGIN),
+                min(self.dp(h), (mb - mt) - 2 * SCREEN_MARGIN))
+
     def _primary_pill(self, parent, text, cmd, enabled=True):
         """Primary pill button (Claude orange). Padding scales with DPI so
         the pill keeps proportional whitespace around the (point-scaled)
@@ -3642,20 +3737,16 @@ class Widget:
         dlg.bind('<Escape>', lambda e: dlg.destroy())
 
         def _finalize():
+            # Double-pass measurement + monitor-clamped placement (see
+            # _place_dialog): one measurement under-reports height on scaled
+            # displays because image-backed pills report their size only after
+            # the first render, which crops the bottom controls. dh is the
+            # minimum. This runs for every dialog, so a caller need not add its
+            # own _place_dialog call (an extra one is harmless).
             try:
-                dlg.update_idletasks()
-                # max(passed-in, required) - at 100% DPI the two usually
-                # match; on scaled displays req > passed-in.
-                actual_h = max(dh, dlg.winfo_reqheight())
-                # Clamp to the virtual desktop so a tall dialog on a
-                # short monitor still fits; place_popup already handles
-                # x clamping.
-                vx, vy, vw, vh = self._virtual_bounds()
-                actual_h = min(actual_h, vh - 40)
-                wx, wy = self._place_popup(dw, actual_h)
-                dlg.geometry(f'{dw}x{actual_h}+{wx}+{wy}')
+                self._place_dialog(dlg, dw, dh_floor=dh)
                 # Re-apply DWM rounding after the final position settles.
-                dlg.after(50, lambda: dwm_round(dlg))
+                dlg.after(60, lambda: dwm_round(dlg))
             except Exception:
                 pass
         dlg.after_idle(_finalize)
@@ -4218,9 +4309,9 @@ class Widget:
     def _color_picker_dialog(self, title, initial, on_pick):
         """In-tool HSV colour picker: preset swatches + a saturation/value
         square, a hue strip and a hex field, all kept in sync."""
-        dw = 300
-        dlg, body = self._build_dialog_frame(title, dw, 320)
-        SVW, SVH, HUEH = dw - 40, 140, 14
+        dw, dh = self._dlg_size(300, 320)
+        dlg, body = self._build_dialog_frame(title, dw, dh)
+        SVW, SVH, HUEH = dw - 40, self.dp(140), self.dp(14)
         st = {'h': 0.0, 's': 1.0, 'v': 1.0, 'sv': None, 'hue': None}
         r, g, b = [c / 255 for c in _hex_to_rgb(initial)]
         st['h'], st['s'], st['v'] = colorsys.rgb_to_hsv(r, g, b)
@@ -4442,7 +4533,13 @@ class Widget:
         self.root.after(10, self._show_interval_dialog_now)
 
     def _show_interval_dialog_now(self):
-        dlg, body = self._build_dialog_frame(t('dlg_interval_title'), 460, 260)
+        dw, dh = self._dlg_size(460, 260)
+        dlg, body = self._build_dialog_frame(t('dlg_interval_title'), dw, dh)
+
+        # Bottom controls packed FIRST so a short measurement never squeezes
+        # the Save/Cancel row out (see _show_update_dialog).
+        btn_frame = tk.Frame(body, bg=BG)
+        btn_frame.pack(fill='x', side='bottom', pady=(12, 0))
 
         tk.Label(body, text=t('dlg_interval_label'), font=FT_DLG_H, fg=FG,
                  bg=BG, anchor='w').pack(fill='x')
@@ -4462,7 +4559,7 @@ class Widget:
         entry.focus_set()
 
         status_lbl = tk.Label(body, text='', font=FT_DLG_HINT, fg=RED, bg=BG,
-                              anchor='w', wraplength=460 - 40)
+                              anchor='w', wraplength=dw - 40)
         status_lbl.pack(fill='x', pady=(8, 0))
 
         def save_interval():
@@ -4485,8 +4582,6 @@ class Widget:
             self._schedule()
             dlg.destroy()
 
-        btn_frame = tk.Frame(body, bg=BG)
-        btn_frame.pack(fill='x', side='bottom', pady=(12, 0))
         self._primary_pill(btn_frame, t('dlg_save'), save_interval).pack(side='right')
         self._secondary_pill(btn_frame, t('dlg_cancel'), dlg.destroy).pack(
             side='right', padx=(0, 8))
@@ -4668,7 +4763,7 @@ class Widget:
         dlg.configure(bg=MENU_BG)
         dlg.geometry('+10000+10000')  # off-screen until positioned
         tk.Label(dlg, text=message, font=FT_DLG_BODY, fg=FG, bg=MENU_BG,
-                 padx=16, pady=10, wraplength=340, justify='left').pack()
+                 padx=16, pady=10, wraplength=self.dp(340), justify='left').pack()
         dlg.update_idletasks()
         dw, dh = dlg.winfo_reqwidth(), dlg.winfo_reqheight()
         wx, wy = self._place_popup(dw, dh, prefer='below')
@@ -4679,12 +4774,9 @@ class Widget:
     def _show_update_dialog(self, info):
         """Full update dialog: shows changelog + download button + progress."""
         self._dismiss_update_banner()
-        # Scale the frame with the display DPI (fonts and pill paddings already
-        # do), then cap to the widget's monitor: at a fixed 520x440 the content
-        # outgrew the box on scaled displays and the bottom row could not fit.
-        ml, mt, mr, mb = self._widget_monitor_area()
-        dw = min(self.dp(520), (mr - ml) - 2 * SCREEN_MARGIN)
-        dh = min(self.dp(440), (mb - mt) - 2 * SCREEN_MARGIN)
+        # Scale + clamp to the monitor: at a fixed 520x440 the content outgrew
+        # the box on scaled displays and the bottom row could not fit.
+        dw, dh = self._dlg_size(520, 440)
         dlg, body = self._build_dialog_frame(t('update_dlg_title'), dw, dh)
 
         subtitle = t('update_dlg_subtitle').format(
@@ -4782,8 +4874,10 @@ class Widget:
                     dlg.after(300, lambda: self._launch_installer(dest))
                 except Exception as e:
                     wlog(f'UPDATE  download failed: {e}')
-                    dlg.after(0, lambda: status_lbl.config(
-                        text=t('update_dlg_failed').format(error=str(e)), fg=RED))
+                    # Bind the message as a default arg (see detect() above):
+                    # a bare `e` in this deferred callback would NameError.
+                    dlg.after(0, lambda msg=str(e): status_lbl.config(
+                        text=t('update_dlg_failed').format(error=msg), fg=RED))
                     dlg.after(0, lambda: build_install_btn(enabled=True))
 
             threading.Thread(target=worker, daemon=True).start()
@@ -4909,8 +5003,14 @@ class Widget:
         shows the active key (legacy renew flow). show_name adds an account
         name field (add / edit), so the key and name are set together.
         """
-        dw, dh = 460, (392 if show_name else 320)
+        dw, dh = self._dlg_size(460, 392 if show_name else 320)
         dlg, body = self._build_dialog_frame(title, dw, dh)
+
+        # Bottom controls packed FIRST so a short measurement squeezes the
+        # content above, never the Connect/Cancel row (see _show_update_dialog).
+        btn_frame = tk.Frame(body, bg=BG)
+        btn_frame.pack(fill='x', side='bottom', pady=(12, 0))
+        connect_state = {'btn': None}
 
         if is_setup:
             tk.Label(body, text=t('dlg_welcome_hint'), font=FT_DLG_BODY, fg=DIM,
@@ -4971,10 +5071,6 @@ class Widget:
                               anchor='w', justify='left', wraplength=dw - 40)
         status_lbl.pack(fill='x', pady=(8, 0))
 
-        btn_frame = tk.Frame(body, bg=BG)
-        btn_frame.pack(fill='x', side='bottom', pady=(12, 0))
-        connect_state = {'btn': None}
-
         def build_connect(enabled=True):
             if connect_state['btn'] is not None:
                 connect_state['btn'].destroy()
@@ -5001,13 +5097,38 @@ class Widget:
             def detect():
                 try:
                     info = fetch_account_info(key)
-                    dlg.after(0, lambda: on_ok(key, info))
                 except Exception as e:
-                    dlg.after(0, lambda: on_err(str(e)))
-            def on_ok(key, info):
-                if on_success is not None:
-                    name = name_entry.get().strip() if name_entry else ''
+                    # Bind the message as a default arg: Python clears the
+                    # except variable when the block exits, so a bare `e`
+                    # inside a deferred callback raises NameError instead of
+                    # showing the error (leaving Connect stuck disabled).
+                    dlg.after(0, lambda msg=str(e): on_err(msg))
+                    return
+                dlg.after(0, lambda: resolve(info))
+            def resolve(info):
+                # Ambiguous multi-org account: let the user pick which org to
+                # track, then finish through the same commit path.
+                if info.get('org_id') is None and info.get('org_choices'):
+                    nm = name_entry.get().strip() if name_entry else ''
+                    def chosen(org_id, tier):
+                        info['org_id'] = org_id
+                        info['plan'] = plan_label(tier)
+                        commit(info, nm)
+                    def pick_cancel():
+                        build_connect(enabled=True)
+                        status_lbl.config(text='')
+                    self._org_picker_dialog(info['org_choices'], chosen,
+                                            on_cancel=pick_cancel)
+                    return
+                commit(info, name_entry.get().strip() if name_entry else '')
+            def commit(info, name):
+                # Close the dialog first (guarded: the org-picker path may have
+                # let it go already) so the account write below always runs.
+                try:
                     dlg.destroy()
+                except tk.TclError:
+                    pass
+                if on_success is not None:
                     on_success(key, info, name)
                     return
                 # Default: write the active account in place, creating the
@@ -5029,7 +5150,6 @@ class Widget:
                         a['plan'] = info['plan']
                 mirror_active(self.cfg)
                 save_cfg(self.cfg)
-                dlg.destroy()
                 self._clear_error()
                 if is_setup:
                     self._schedule()
@@ -5044,6 +5164,62 @@ class Widget:
 
     def _setup_dialog(self):
         self._session_key_dialog(t('dlg_setup_title'), is_setup=True)
+
+    def _org_picker_dialog(self, choices, on_choose, on_cancel=None):
+        """Pick which org to track when the choice is ambiguous.
+
+        `choices` is [{'id', 'name', 'tier'}] (best first); on_choose(org_id,
+        tier) runs with the selected org, on_cancel() if the user backs out.
+        Reached only for an account with several trackable orgs when the
+        browser's last-active org is unknown and none wins the ranking.
+        """
+        dw, dh = self._dlg_size(420, 200)
+        dlg, body = self._build_dialog_frame(t('dlg_pick_org_title'), dw, dh)
+
+        choice = tk.StringVar(value=choices[0]['id'])
+        cancelled = {'v': True}
+
+        def use():
+            sel = choice.get()
+            tier = next((c['tier'] for c in choices if c['id'] == sel), '')
+            cancelled['v'] = False
+            dlg.destroy()
+            on_choose(sel, tier)
+
+        # Bottom controls packed FIRST so a short measurement never squeezes
+        # them out (same pattern as _show_update_dialog).
+        btn_frame = tk.Frame(body, bg=BG)
+        btn_frame.pack(fill='x', side='bottom', pady=(12, 0))
+        self._primary_pill(btn_frame, t('dlg_pick_org_use'), use).pack(side='right')
+        self._secondary_pill(btn_frame, t('dlg_cancel'), dlg.destroy).pack(
+            side='right', padx=(0, 8))
+
+        tk.Label(body, text=t('dlg_pick_org_hint'), font=FT_DLG_BODY, fg=FG,
+                 bg=BG, anchor='w', justify='left',
+                 wraplength=dw - 2 * DLG_PAD_X).pack(fill='x')
+
+        list_frame = tk.Frame(body, bg=BG)
+        list_frame.pack(fill='x', pady=(12, 0))
+        for c in choices:
+            label = c['name']
+            pl = plan_label(c.get('tier'))
+            if pl:
+                label = f'{label}  ({pl})'
+            tk.Radiobutton(
+                list_frame, text=label, value=c['id'], variable=choice,
+                font=FT_DLG_BODY, fg=FG, bg=BG, selectcolor=BAR_BG,
+                activebackground=BG, activeforeground=FG,
+                highlightthickness=0, bd=0, anchor='w').pack(fill='x', pady=2)
+
+        # Fire on_cancel on any close path (Cancel pill, title-bar X, Escape)
+        # except an explicit choice, so the session dialog behind can re-enable
+        # its Connect button. <Destroy> bubbles from children; guard on dlg.
+        def on_close(e):
+            if e.widget is dlg and cancelled['v'] and on_cancel:
+                on_cancel()
+        dlg.bind('<Destroy>', on_close)
+
+        self._place_dialog(dlg, dw, dh_floor=dh)
 
     # ── Accounts ─────────────────────────────────────
 
@@ -5195,11 +5371,11 @@ class Widget:
             c.bind('<Leave>', on_leave, add='+')
 
     def _accounts_dialog(self):
-        dw = 480
+        dw, dh = self._dlg_size(480, 150)
         # dh is just a floor; the dialog is resized to fit the list on every
         # rebuild (fit) so the height grows with the account count and the Add
         # button below the list stays visible without a cap or scrolling.
-        dlg, body = self._build_dialog_frame(t('dlg_accounts_title'), dw, 150)
+        dlg, body = self._build_dialog_frame(t('dlg_accounts_title'), dw, dh)
 
         list_frame = tk.Frame(body, bg=BG)
         list_frame.pack(fill='x')
@@ -5339,7 +5515,7 @@ class Widget:
 
     def _name_prompt(self, title, initial, on_ok):
         """Small single-field text prompt (account rename)."""
-        dw, dh = 380, 170
+        dw, dh = self._dlg_size(380, 170)
         dlg, body = self._build_dialog_frame(title, dw, dh)
         tk.Label(body, text=t('dlg_account_name'), font=FT_DLG_H, fg=FG,
                  bg=BG, anchor='w').pack(fill='x')
@@ -5368,7 +5544,7 @@ class Widget:
 
     def _confirm_dialog(self, title, msg, on_yes):
         """Small yes/no confirmation (account removal)."""
-        dw, dh = 380, 180
+        dw, dh = self._dlg_size(380, 180)
         dlg, body = self._build_dialog_frame(title, dw, dh)
         tk.Label(body, text=msg, font=FT_DLG_BODY, fg=FG, bg=BG, anchor='w',
                  justify='left', wraplength=dw - 40).pack(fill='x')
