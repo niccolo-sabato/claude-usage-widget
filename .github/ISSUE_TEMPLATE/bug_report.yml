@@ -1,0 +1,61 @@
+name: Bug report
+description: Something does not work as expected
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For anything about reaching claude.ai (errors on Connect, bars stuck at 0,
+        certificate or curl messages), run **≡ > General > Connection self-test**
+        first and paste the report below. It tells us in one step what would
+        otherwise take several rounds of questions.
+
+  - type: input
+    id: version
+    attributes:
+      label: Widget version
+      description: Shown at the bottom of the ≡ menu.
+      placeholder: "2.8.50"
+    validations:
+      required: true
+
+  - type: input
+    id: windows
+    attributes:
+      label: Windows version
+      description: "Win+R > winver, or the second line of the self-test report."
+      placeholder: "Windows 11 24H2 (10.0.26100)"
+    validations:
+      required: true
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, what you got instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: selftest
+    attributes:
+      label: Connection self-test report
+      description: ≡ > General > Connection self-test > Copy report. It carries no session key, organization id or email address.
+      render: text
+
+  - type: checkboxes
+    id: network
+    attributes:
+      label: On this PC there is
+      options:
+        - label: A VPN
+        - label: A corporate or filtering proxy
+        - label: An antivirus or security suite with HTTPS inspection
+        - label: None of the above
+
+  - type: textarea
+    id: log
+    attributes:
+      label: Log excerpt (optional)
+      description: The last lines of `%LOCALAPPDATA%\Claude Usage\widget.log` around the problem. It contains no session key.
+      render: text

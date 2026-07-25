@@ -1,0 +1,16 @@
+name: Feature request
+description: Suggest an improvement
+labels: [enhancement]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like the widget to do
+    validations:
+      required: true
+
+  - type: textarea
+    id: why
+    attributes:
+      label: Why it would help
+      description: The situation it would solve. Concrete beats general.

@@ -37,6 +37,7 @@ import tempfile
 import threading
 import shutil
 import base64
+import socket
 import subprocess
 import webbrowser
 import winreg
@@ -176,7 +177,7 @@ BAR_DEFAULT_FILL = {'session': BAR_FILL_SESSION,
 BAR_PRESETS = [BAR_FILL_SESSION, BAR_FILL_WEEKLY, BAR_FILL_HIGH, BAR_FILL_PURPLE]
 
 # ─── App ────────────────────────────────────────────
-APP_VERSION = '2.8.49'
+APP_VERSION = '2.8.50'
 
 # ─── Auto-update ────────────────────────────────────
 UPDATE_REPO = 'niccolo-sabato/claude-usage-widget'
@@ -698,6 +699,47 @@ LANG = {
         'dlg_connect': 'Connect',
         'dlg_cancel': 'Cancel',
         'key_invalid_or_expired': 'Invalid or expired session key',
+        'net_err_revocation': 'Your network is blocking the certificate revocation check. A VPN, firewall or security suite is the usual cause.',
+        'net_err_untrusted': 'The certificate could not be trusted. A proxy or antivirus inspecting HTTPS traffic is the usual cause.',
+        'net_err_unreachable': 'Could not reach claude.ai. Check your internet connection.',
+        'net_err_timeout': 'The connection to claude.ai timed out.',
+        'net_err_reset': 'The connection to claude.ai was cut. Security software or a proxy along the way is the usual cause.',
+        'net_err_tls': 'The secure connection to claude.ai failed.',
+        'net_err_generic': 'The request to claude.ai failed.',
+        'menu_selftest': 'Connection self-test\u2026',
+        'selftest_title': 'Connection self-test',
+        'selftest_hint': 'Checks how this PC reaches claude.ai. If a line fails, copy the report into a bug report.',
+        'selftest_running': 'Running the checks\u2026',
+        'selftest_copy': 'Copy report',
+        'selftest_copied': 'Report copied to the clipboard.',
+        'selftest_close': 'Close',
+        'selftest_rerun': 'Run again',
+        'selftest_summary_ok': 'Everything works: the widget can reach claude.ai.',
+        'selftest_summary_warn': 'The connection works, but something on this PC could interfere.',
+        'selftest_summary_fail': 'A check failed. The first failing line is the one to act on.',
+        'selftest_summary_partial': 'The connection works. No account is configured, so the usage endpoint was not checked.',
+        'selftest_dns_failed': 'claude.ai could not be resolved. Either this PC is offline, or a DNS that filters (Pi-hole, a company resolver, parental controls) is intercepting the name.',
+        'selftest_step_curl': 'curl and TLS backend',
+        'selftest_step_dns': 'Name resolution (claude.ai)',
+        'selftest_step_tls': 'TLS handshake',
+        'selftest_step_revoke': 'TLS handshake without revocation check',
+        'selftest_step_proxy': 'Proxy configuration',
+        'selftest_step_curlrc': 'curl configuration file',
+        'selftest_step_api': 'Usage API',
+        'selftest_curl_missing': 'curl not found. It ships with Windows 10 1803 and later.',
+        'selftest_curl_backend': 'This curl does not use the Windows certificate store, so it can reject certificates Windows trusts.',
+        'selftest_tls_ok': 'Certificate accepted',
+        'selftest_revoke_not_needed': 'Not needed: the certificate check already passed.',
+        'selftest_revoke_worked': 'Works without the revocation check, so the certificate is valid and the network is blocking the revocation lookup. The widget skips that lookup on its own.',
+        'selftest_revoke_inconsistent': 'The handshake succeeded on the second attempt, so the revocation check was not the problem. It looks like a one-off failure.',
+        'selftest_proxy_none': 'No proxy configured',
+        'selftest_proxy_found': 'Proxy configured',
+        'selftest_curlrc_none': 'None found',
+        'selftest_curlrc_found': 'Found',
+        'selftest_api_no_account': 'No account configured yet',
+        'selftest_api_key_rejected': 'Session key rejected: renew it from the Accounts dialog.',
+        'selftest_api_bad_body': 'Unexpected response from claude.ai',
+        'selftest_api_ok': 'Usage data received',
         'dlg_pick_org_title': 'Choose organization',
         'dlg_pick_org_hint': 'This account belongs to more than one Claude organization. Choose the one whose usage you want to track.',
         'dlg_pick_org_use': 'Use this org',
@@ -811,6 +853,47 @@ LANG = {
         'dlg_connect': 'Connetti',
         'dlg_cancel': 'Annulla',
         'key_invalid_or_expired': 'Session key non valida o scaduta',
+        'net_err_revocation': 'La rete impedisce di verificare la revoca del certificato. Di solito la causa \u00e8 una VPN, un firewall o un antivirus.',
+        'net_err_untrusted': 'Il certificato non risulta attendibile. Di solito la causa \u00e8 un proxy o un antivirus che ispeziona il traffico HTTPS.',
+        'net_err_unreachable': 'Impossibile raggiungere claude.ai. Controlla la connessione.',
+        'net_err_timeout': 'La connessione a claude.ai \u00e8 scaduta.',
+        'net_err_reset': 'La connessione a claude.ai \u00e8 stata interrotta. Di solito la causa \u00e8 un antivirus o un proxy sul percorso.',
+        'net_err_tls': 'La connessione sicura a claude.ai non \u00e8 riuscita.',
+        'net_err_generic': 'La richiesta a claude.ai non \u00e8 riuscita.',
+        'menu_selftest': 'Test di connessione\u2026',
+        'selftest_title': 'Test di connessione',
+        'selftest_hint': 'Verifica come questo PC raggiunge claude.ai. Se una riga fallisce, copia il report in una segnalazione.',
+        'selftest_running': 'Verifiche in corso\u2026',
+        'selftest_copy': 'Copia report',
+        'selftest_copied': 'Report copiato negli appunti.',
+        'selftest_close': 'Chiudi',
+        'selftest_rerun': 'Ripeti',
+        'selftest_summary_ok': 'Tutto funziona: il widget raggiunge claude.ai.',
+        'selftest_summary_warn': 'La connessione funziona, ma qualcosa su questo PC potrebbe interferire.',
+        'selftest_summary_fail': 'Una verifica non \u00e8 riuscita. La prima riga fallita \u00e8 quella su cui intervenire.',
+        'selftest_summary_partial': 'La connessione funziona. Nessun account configurato, quindi l\u2019endpoint di utilizzo non \u00e8 stato verificato.',
+        'selftest_dns_failed': 'claude.ai non \u00e8 stato risolto. O questo PC \u00e8 offline, o un DNS che filtra (Pi-hole, resolver aziendale, parental control) intercetta il nome.',
+        'selftest_step_curl': 'curl e backend TLS',
+        'selftest_step_dns': 'Risoluzione del nome (claude.ai)',
+        'selftest_step_tls': 'Handshake TLS',
+        'selftest_step_revoke': 'Handshake TLS senza controllo di revoca',
+        'selftest_step_proxy': 'Configurazione proxy',
+        'selftest_step_curlrc': 'File di configurazione di curl',
+        'selftest_step_api': 'API di utilizzo',
+        'selftest_curl_missing': 'curl non trovato. \u00c8 incluso in Windows 10 1803 e successivi.',
+        'selftest_curl_backend': 'Questo curl non usa l\u2019archivio certificati di Windows, quindi pu\u00f2 rifiutare certificati che Windows considera validi.',
+        'selftest_tls_ok': 'Certificato accettato',
+        'selftest_revoke_not_needed': 'Non necessario: il controllo del certificato \u00e8 gi\u00e0 riuscito.',
+        'selftest_revoke_worked': 'Funziona senza il controllo di revoca: il certificato \u00e8 valido ed \u00e8 la rete a bloccarne la verifica. Il widget salta quel controllo da solo.',
+        'selftest_revoke_inconsistent': 'L\u2019handshake \u00e8 riuscito al secondo tentativo, quindi il controllo di revoca non era il problema. Sembra un errore isolato.',
+        'selftest_proxy_none': 'Nessun proxy configurato',
+        'selftest_proxy_found': 'Proxy configurato',
+        'selftest_curlrc_none': 'Nessuno trovato',
+        'selftest_curlrc_found': 'Trovato',
+        'selftest_api_no_account': 'Nessun account configurato',
+        'selftest_api_key_rejected': 'Session key rifiutata: rinnovala dalla finestra Account.',
+        'selftest_api_bad_body': 'Risposta inattesa da claude.ai',
+        'selftest_api_ok': 'Dati di utilizzo ricevuti',
         'dlg_pick_org_title': 'Scegli organizzazione',
         'dlg_pick_org_hint': 'Questo account fa parte di pi\u00f9 organizzazioni Claude. Scegli quella di cui monitorare l\u2019utilizzo.',
         'dlg_pick_org_use': 'Usa questa',
@@ -925,6 +1008,47 @@ LANG = {
         'dlg_connect': '\u63a5\u7d9a',
         'dlg_cancel': '\u30ad\u30e3\u30f3\u30bb\u30eb',
         'key_invalid_or_expired': '\u30bb\u30c3\u30b7\u30e7\u30f3\u30ad\u30fc\u304c\u7121\u52b9\u307e\u305f\u306f\u671f\u9650\u5207\u308c\u3067\u3059',
+        'net_err_revocation': '\u30cd\u30c3\u30c8\u30ef\u30fc\u30af\u304c\u8a3c\u660e\u66f8\u306e\u5931\u52b9\u78ba\u8a8d\u3092\u30d6\u30ed\u30c3\u30af\u3057\u3066\u3044\u307e\u3059\u3002VPN\u30fb\u30d5\u30a1\u30a4\u30a2\u30a6\u30a9\u30fc\u30eb\u30fb\u30bb\u30ad\u30e5\u30ea\u30c6\u30a3\u30bd\u30d5\u30c8\u304c\u539f\u56e0\u306e\u5834\u5408\u304c\u3042\u308a\u307e\u3059\u3002',
+        'net_err_untrusted': '\u8a3c\u660e\u66f8\u3092\u4fe1\u983c\u3067\u304d\u307e\u305b\u3093\u3002HTTPS\u901a\u4fe1\u3092\u691c\u67fb\u3059\u308b\u30d7\u30ed\u30ad\u30b7\u3084\u30a6\u30a4\u30eb\u30b9\u5bfe\u7b56\u30bd\u30d5\u30c8\u304c\u539f\u56e0\u306e\u5834\u5408\u304c\u3042\u308a\u307e\u3059\u3002',
+        'net_err_unreachable': 'claude.ai \u306b\u63a5\u7d9a\u3067\u304d\u307e\u305b\u3093\u3002\u30a4\u30f3\u30bf\u30fc\u30cd\u30c3\u30c8\u63a5\u7d9a\u3092\u78ba\u8a8d\u3057\u3066\u304f\u3060\u3055\u3044\u3002',
+        'net_err_timeout': 'claude.ai \u3078\u306e\u63a5\u7d9a\u304c\u30bf\u30a4\u30e0\u30a2\u30a6\u30c8\u3057\u307e\u3057\u305f\u3002',
+        'net_err_reset': 'claude.ai \u3078\u306e\u63a5\u7d9a\u304c\u5207\u65ad\u3055\u308c\u307e\u3057\u305f\u3002\u30bb\u30ad\u30e5\u30ea\u30c6\u30a3\u30bd\u30d5\u30c8\u3084\u7d4c\u8def\u4e0a\u306e\u30d7\u30ed\u30ad\u30b7\u304c\u539f\u56e0\u306e\u5834\u5408\u304c\u3042\u308a\u307e\u3059\u3002',
+        'net_err_tls': 'claude.ai \u3078\u306e\u5b89\u5168\u306a\u63a5\u7d9a\u306b\u5931\u6557\u3057\u307e\u3057\u305f\u3002',
+        'net_err_generic': 'claude.ai \u3078\u306e\u30ea\u30af\u30a8\u30b9\u30c8\u306b\u5931\u6557\u3057\u307e\u3057\u305f\u3002',
+        'menu_selftest': '\u63a5\u7d9a\u30c6\u30b9\u30c8\u2026',
+        'selftest_title': '\u63a5\u7d9a\u30c6\u30b9\u30c8',
+        'selftest_hint': '\u3053\u306ePC\u304cclaude.ai\u306b\u63a5\u7d9a\u3067\u304d\u308b\u304b\u3092\u78ba\u8a8d\u3057\u307e\u3059\u3002\u5931\u6557\u3057\u305f\u9805\u76ee\u304c\u3042\u308c\u3070\u3001\u30ec\u30dd\u30fc\u30c8\u3092\u30b3\u30d4\u30fc\u3057\u3066\u5831\u544a\u306b\u6dfb\u4ed8\u3057\u3066\u304f\u3060\u3055\u3044\u3002',
+        'selftest_running': '\u78ba\u8a8d\u4e2d\u2026',
+        'selftest_copy': '\u30ec\u30dd\u30fc\u30c8\u3092\u30b3\u30d4\u30fc',
+        'selftest_copied': '\u30ec\u30dd\u30fc\u30c8\u3092\u30af\u30ea\u30c3\u30d7\u30dc\u30fc\u30c9\u306b\u30b3\u30d4\u30fc\u3057\u307e\u3057\u305f\u3002',
+        'selftest_close': '\u9589\u3058\u308b',
+        'selftest_rerun': '\u518d\u5b9f\u884c',
+        'selftest_summary_ok': '\u3059\u3079\u3066\u6b63\u5e38\u3067\u3059\u3002claude.ai\u306b\u63a5\u7d9a\u3067\u304d\u3066\u3044\u307e\u3059\u3002',
+        'selftest_summary_warn': '\u63a5\u7d9a\u306f\u3067\u304d\u3066\u3044\u307e\u3059\u304c\u3001\u5e72\u6e09\u3059\u308b\u53ef\u80fd\u6027\u306e\u3042\u308b\u8a2d\u5b9a\u304c\u3042\u308a\u307e\u3059\u3002',
+        'selftest_summary_fail': '\u5931\u6557\u3057\u305f\u9805\u76ee\u304c\u3042\u308a\u307e\u3059\u3002\u6700\u521d\u306b\u5931\u6557\u3057\u305f\u884c\u304c\u539f\u56e0\u3067\u3059\u3002',
+        'selftest_summary_partial': '\u63a5\u7d9a\u306f\u6b63\u5e38\u3067\u3059\u3002\u30a2\u30ab\u30a6\u30f3\u30c8\u304c\u672a\u8a2d\u5b9a\u306e\u305f\u3081\u3001\u4f7f\u7528\u91cf\u30a8\u30f3\u30c9\u30dd\u30a4\u30f3\u30c8\u306f\u78ba\u8a8d\u3057\u3066\u3044\u307e\u305b\u3093\u3002',
+        'selftest_dns_failed': 'claude.ai \u306e\u540d\u524d\u89e3\u6c7a\u304c\u3067\u304d\u307e\u305b\u3093\u3002\u3053\u306ePC\u304c\u30aa\u30d5\u30e9\u30a4\u30f3\u3067\u3042\u308b\u304b\u3001\u30d5\u30a3\u30eb\u30bf\u30ea\u30f3\u30b0\u3092\u884c\u3046DNS (Pi-hole\u3001\u793e\u5185DNS\u3001\u30da\u30a2\u30ec\u30f3\u30bf\u30eb\u30b3\u30f3\u30c8\u30ed\u30fc\u30eb) \u304c\u540d\u524d\u3092\u906e\u65ad\u3057\u3066\u3044\u307e\u3059\u3002',
+        'selftest_step_curl': 'curl\u3068TLS\u30d0\u30c3\u30af\u30a8\u30f3\u30c9',
+        'selftest_step_dns': '\u540d\u524d\u89e3\u6c7a (claude.ai)',
+        'selftest_step_tls': 'TLS\u30cf\u30f3\u30c9\u30b7\u30a7\u30a4\u30af',
+        'selftest_step_revoke': '\u5931\u52b9\u78ba\u8a8d\u306a\u3057\u306eTLS\u30cf\u30f3\u30c9\u30b7\u30a7\u30a4\u30af',
+        'selftest_step_proxy': '\u30d7\u30ed\u30ad\u30b7\u8a2d\u5b9a',
+        'selftest_step_curlrc': 'curl\u306e\u8a2d\u5b9a\u30d5\u30a1\u30a4\u30eb',
+        'selftest_step_api': '\u4f7f\u7528\u91cfAPI',
+        'selftest_curl_missing': 'curl\u304c\u898b\u3064\u304b\u308a\u307e\u305b\u3093\u3002Windows 10 1803\u4ee5\u964d\u306b\u6a19\u6e96\u3067\u542b\u307e\u308c\u3066\u3044\u307e\u3059\u3002',
+        'selftest_curl_backend': '\u3053\u306ecurl\u306fWindows\u306e\u8a3c\u660e\u66f8\u30b9\u30c8\u30a2\u3092\u4f7f\u7528\u3057\u3066\u3044\u306a\u3044\u305f\u3081\u3001Windows\u304c\u4fe1\u983c\u3059\u308b\u8a3c\u660e\u66f8\u3092\u62d2\u5426\u3059\u308b\u5834\u5408\u304c\u3042\u308a\u307e\u3059\u3002',
+        'selftest_tls_ok': '\u8a3c\u660e\u66f8\u3092\u53d7\u3051\u5165\u308c\u307e\u3057\u305f',
+        'selftest_revoke_not_needed': '\u4e0d\u8981\u3067\u3059\u3002\u8a3c\u660e\u66f8\u306e\u78ba\u8a8d\u306f\u3059\u3067\u306b\u6210\u529f\u3057\u3066\u3044\u307e\u3059\u3002',
+        'selftest_revoke_worked': '\u5931\u52b9\u78ba\u8a8d\u306a\u3057\u3067\u306f\u6210\u529f\u3057\u307e\u3059\u3002\u8a3c\u660e\u66f8\u306f\u6b63\u5e38\u3067\u3001\u30cd\u30c3\u30c8\u30ef\u30fc\u30af\u304c\u5931\u52b9\u78ba\u8a8d\u3092\u30d6\u30ed\u30c3\u30af\u3057\u3066\u3044\u307e\u3059\u3002\u30a6\u30a3\u30b8\u30a7\u30c3\u30c8\u306f\u3053\u306e\u78ba\u8a8d\u3092\u81ea\u52d5\u7684\u306b\u30b9\u30ad\u30c3\u30d7\u3057\u307e\u3059\u3002',
+        'selftest_revoke_inconsistent': '2\u56de\u76ee\u306e\u8a66\u884c\u3067\u306f\u6210\u529f\u3057\u305f\u305f\u3081\u3001\u5931\u52b9\u78ba\u8a8d\u304c\u539f\u56e0\u3067\u306f\u3042\u308a\u307e\u305b\u3093\u3002\u4e00\u6642\u7684\u306a\u5931\u6557\u3068\u8003\u3048\u3089\u308c\u307e\u3059\u3002',
+        'selftest_proxy_none': '\u30d7\u30ed\u30ad\u30b7\u306f\u8a2d\u5b9a\u3055\u308c\u3066\u3044\u307e\u305b\u3093',
+        'selftest_proxy_found': '\u30d7\u30ed\u30ad\u30b7\u304c\u8a2d\u5b9a\u3055\u308c\u3066\u3044\u307e\u3059',
+        'selftest_curlrc_none': '\u898b\u3064\u304b\u308a\u307e\u305b\u3093',
+        'selftest_curlrc_found': '\u691c\u51fa',
+        'selftest_api_no_account': '\u30a2\u30ab\u30a6\u30f3\u30c8\u304c\u672a\u8a2d\u5b9a\u3067\u3059',
+        'selftest_api_key_rejected': '\u30bb\u30c3\u30b7\u30e7\u30f3\u30ad\u30fc\u304c\u62d2\u5426\u3055\u308c\u307e\u3057\u305f\u3002\u30a2\u30ab\u30a6\u30f3\u30c8\u753b\u9762\u3067\u66f4\u65b0\u3057\u3066\u304f\u3060\u3055\u3044\u3002',
+        'selftest_api_bad_body': 'claude.ai\u304b\u3089\u4e88\u671f\u3057\u306a\u3044\u5fdc\u7b54\u304c\u3042\u308a\u307e\u3057\u305f',
+        'selftest_api_ok': '\u4f7f\u7528\u91cf\u30c7\u30fc\u30bf\u3092\u53d6\u5f97\u3057\u307e\u3057\u305f',
         'dlg_pick_org_title': '\u7d44\u7e54\u3092\u9078\u629e',
         'dlg_pick_org_hint': '\u3053\u306e\u30a2\u30ab\u30a6\u30f3\u30c8\u306f\u8907\u6570\u306e Claude \u7d44\u7e54\u306b\u6240\u5c5e\u3057\u3066\u3044\u307e\u3059\u3002\u4f7f\u7528\u91cf\u3092\u8ffd\u8de1\u3059\u308b\u7d44\u7e54\u3092\u9078\u629e\u3057\u3066\u304f\u3060\u3055\u3044\u3002',
         'dlg_pick_org_use': '\u3053\u306e\u7d44\u7e54\u3092\u4f7f\u7528',
@@ -1598,8 +1722,138 @@ _BROWSER_UA = (
 )
 
 
-def _curl_get(url, session_key):
-    """Minimal curl GET that returns the response body or raises.
+# Schannel status codes reported when the revocation check could not be
+# completed (CRYPT_E_NO_REVOCATION_CHECK / CRYPT_E_REVOCATION_OFFLINE). They
+# mean "could not verify", not "the certificate is revoked": a VPN, filtering
+# DNS or security suite is blocking the CA's OCSP/CRL endpoint.
+_REVOCATION_HINTS = ('0x80092012', '0x80092013', 'revocation')
+
+# curl exit codes worth explaining in the user's own words.
+CURL_COULDNT_RESOLVE_HOST = 6
+CURL_COULDNT_CONNECT = 7
+CURL_OPERATION_TIMEDOUT = 28
+CURL_SSL_CONNECT_ERROR = 35
+CURL_SEND_ERROR = 55
+CURL_RECV_ERROR = 56
+CURL_PEER_FAILED_VERIFICATION = 60
+
+# Failures that are usually gone a moment later: a laptop resuming from
+# standby, a VPN reconnecting, a connection dropped mid-flight. Worth one
+# retry before telling the user anything is wrong.
+_TRANSIENT_EXITS = (CURL_COULDNT_RESOLVE_HOST, CURL_COULDNT_CONNECT,
+                    CURL_OPERATION_TIMEDOUT, CURL_SEND_ERROR, CURL_RECV_ERROR)
+TRANSIENT_RETRY_DELAY_S = 1.5
+
+
+# Anything account-identifying that must never reach a log, an error message
+# or the self-test report, which users are asked to paste into public issues.
+_SECRET_PATTERNS = (
+    (re.compile(r'sk-ant-[A-Za-z0-9_\-]+'), 'sk-ant-***'),
+    # Credentials in a URL, before the email rule can nibble at them. Matches a
+    # bare intranet host too, which is the common shape of a corporate proxy.
+    (re.compile(r'//[^/\s@]+@'), '//<redacted>@'),
+    (re.compile(r'\b[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}\b'), '<org-id>'),
+    (re.compile(r'[\w.+-]+@[\w-]+\.[\w.-]+'), '<redacted>'),
+    # Up to the next path separator, not the next space: a Windows account
+    # name can contain one ("C:\\Users\\Mario Rossi\\...").
+    (re.compile(r'(?i)([A-Z]:\\Users\\)[^\\/\r\n"\']+'), r'\1<user>'),
+)
+
+
+def _redact(text):
+    """Strip account-identifying values from text that will be shown or shared.
+
+    Applied at the points where such text enters the program rather than
+    trusted to each caller, so a new caller cannot leak by omission. Covers
+    session keys, organization ids, email addresses, credentials embedded in a
+    proxy URL, and the Windows account name in a file path.
+    """
+    out = str(text)
+    for pattern, replacement in _SECRET_PATTERNS:
+        out = pattern.sub(replacement, out)
+    return out
+
+
+def _decode_console(raw):
+    """Decode output curl wrote to the console.
+
+    curl uses the Windows ANSI code page for its messages, not UTF-8, so a
+    strict UTF-8 decode fails on any localized text and 'replace' would turn
+    accented characters into replacement marks.
+    """
+    try:
+        return raw.decode('utf-8').strip()
+    except UnicodeDecodeError:
+        try:
+            return raw.decode('mbcs', 'replace').strip()
+        except (LookupError, ValueError):
+            return raw.decode('utf-8', 'replace').strip()
+
+
+def _first_line(text):
+    """Keep only the first line of a console message.
+
+    curl follows a certificate error with a fixed five-line advisory pointing
+    at its documentation. The first line is the error; the rest would flood
+    the widget's error panel, the log and the self-test report.
+    """
+    return text.split('\n', 1)[0].strip()
+
+
+def _explain_curl_error(code, message):
+    """Turn a curl failure into something the user can act on.
+
+    The raw text is kept after the explanation: it is what a bug report needs,
+    while the leading sentence is what tells the user whether to look at their
+    network, their proxy or their key.
+    """
+    lower = message.lower()
+    if any(h in lower for h in _REVOCATION_HINTS):
+        hint = t('net_err_revocation')
+    elif (code == CURL_PEER_FAILED_VERIFICATION
+            or 'untrusted' in lower or '0x800b0109' in lower or '0x800b010a' in lower
+            or 'local issuer' in lower or 'self-signed' in lower
+            or 'self signed' in lower):
+        # Exit 60 and the issuer wording come from an OpenSSL-backed curl
+        # (Git, MSYS, conda) that validates against its own CA bundle rather
+        # than the Windows store, so a root Windows trusts is rejected.
+        hint = t('net_err_untrusted')
+    elif code in (CURL_COULDNT_RESOLVE_HOST, CURL_COULDNT_CONNECT):
+        hint = t('net_err_unreachable')
+    elif code == CURL_OPERATION_TIMEDOUT:
+        hint = t('net_err_timeout')
+    elif code in (CURL_SEND_ERROR, CURL_RECV_ERROR):
+        # A reset connection is not a slow one: something cut it deliberately.
+        hint = t('net_err_reset')
+    elif code == CURL_SSL_CONNECT_ERROR:
+        hint = t('net_err_tls')
+    else:
+        hint = t('net_err_generic')
+    return f'{hint} ({message})' if message else hint
+
+
+def _curl_args(url, cookie, max_time):
+    """Argument list every claude.ai request shares.
+
+    `-D -` dumps the response headers to stdout ahead of the body so the
+    caller can read the status line: without it, a 401 error payload parses as
+    valid JSON and gets mis-read as a missing organization.
+
+    `--max-time` makes curl give up before Python's own timeout does. curl's
+    default connect timeout is 300s, so against a firewall that silently drops
+    the connection Python would be the one to time out, and its exception
+    carries the whole command line - session key included.
+    """
+    args = ['-D', '-', '--max-time', str(max_time),
+            '-H', f'User-Agent: {_BROWSER_UA}',
+            '-H', 'anthropic-client-platform: web_claude_ai']
+    if cookie:
+        args += ['-H', f'Cookie: {cookie}']
+    return args + [url]
+
+
+def _curl_attempt(url, cookie, extra=(), timeout=20):
+    """Run curl once. Returns (exit code, stdout bytes, decoded stderr).
 
     NOTE: claude.ai sits behind Cloudflare which fingerprints the TLS
     handshake (JA3) to detect non-browser clients. Python's urllib uses
@@ -1607,26 +1861,73 @@ def _curl_get(url, session_key):
     the headers are. curl on Windows uses schannel - the same TLS stack
     Edge/Chrome use - so the JA3 matches a real browser. Schannel also
     uses the system CA store, so cert validation matches the browser.
+
+    `-sS` hides the progress meter while keeping error messages: with `-s`
+    alone a failure produced an empty stderr, which surfaced as a bare
+    "curl:" with nothing after it and left users unable to tell a blocked
+    certificate check from an expired key.
+
+    stdout stays bytes: the API responses are UTF-8, but Python's text mode
+    would decode with the Windows locale (cp1252) and raise on any non-latin1
+    byte (accented names, Japanese org names, emoji), silently failing the
+    whole call.
+
+    stderr is redacted here, at the single point where it enters the program:
+    everything downstream (the log, the message shown to the user, the
+    self-test report) is then safe to share by construction.
+
+    A Python-side timeout is reported as curl's own timeout exit code. Letting
+    subprocess.TimeoutExpired escape would both bypass this pipeline and print
+    the command line - session key included - into the log and the UI.
     """
-    # Capture bytes, not text: the API responses are UTF-8, but Python's
-    # text mode would decode with the Windows locale (cp1252) and raise on any
-    # non-latin1 byte (accented names, Japanese org names, emoji), silently
-    # failing the whole call.
-    # -D - dumps the response headers to stdout ahead of the body so we can
-    # read the status line: without it, a 401 error payload parses as valid
-    # JSON and the caller mis-reads it as "no organization found".
-    result = subprocess.run(
-        ['curl', '-s', '-D', '-',
-         '-H', f'Cookie: sessionKey={session_key}',
-         '-H', f'User-Agent: {_BROWSER_UA}',
-         '-H', 'anthropic-client-platform: web_claude_ai',
-         url],
-        capture_output=True, timeout=20,
-        creationflags=subprocess.CREATE_NO_WINDOW
-    )
-    if result.returncode != 0:
-        raise RuntimeError(f'curl: {result.stderr.decode("utf-8", "replace").strip()}')
-    stdout = result.stdout.decode('utf-8', 'replace')
+    try:
+        result = subprocess.run(
+            ['curl', '-sS'] + list(extra) + _curl_args(url, cookie, timeout),
+            capture_output=True, timeout=timeout + 5,
+            creationflags=subprocess.CREATE_NO_WINDOW)
+    except subprocess.TimeoutExpired:
+        return CURL_OPERATION_TIMEDOUT, b'', f'curl did not return within {timeout}s'
+    return (result.returncode, result.stdout,
+            _redact(_first_line(_decode_console(result.stderr))))
+
+
+def _curl_call(url, cookie, timeout=20, retry_transient=True):
+    """Fetch a claude.ai URL; return (headers, body) or raise.
+
+    Shared by every call so the transport behaves identically everywhere.
+    Two recoveries are built in, each attempted at most once:
+
+    - the revocation lookup is dropped only when that lookup is what failed.
+      Certificate chain, hostname and expiry checks stay enforced, and a
+      working network never reaches this path.
+    - a transient failure is simply repeated after a short pause: waking from
+      standby or a reconnecting VPN routinely costs one request.
+
+    The connection self-test passes retry_transient=False, since it reports
+    what a single attempt does and a retry would mask the symptom.
+    """
+    extra = []
+    tried_no_revoke = tried_transient = False
+    while True:
+        code, out, err = _curl_attempt(url, cookie, extra, timeout)
+        if code == 0:
+            break
+        if not tried_no_revoke and any(h in err.lower() for h in _REVOCATION_HINTS):
+            tried_no_revoke = True
+            extra = ['--ssl-no-revoke']
+            wlog('NET    revocation check unavailable, retrying without it')
+            continue
+        if retry_transient and not tried_transient and code in _TRANSIENT_EXITS:
+            tried_transient = True
+            wlog(f'NET    transient failure (curl exit {code}), retrying once: {err}')
+            time.sleep(TRANSIENT_RETRY_DELAY_S)
+            continue
+        wlog(f'NET    curl exit {code}: {err}')
+        raise RuntimeError(_explain_curl_error(code, err))
+    if tried_no_revoke:
+        wlog('NET    request succeeded with the revocation check skipped')
+
+    stdout = out.decode('utf-8', 'replace')
     # Split on the LAST header/body boundary and read the LAST status line, so
     # an interim (1xx) header block emitted before the final response does not
     # get mistaken for the body or the status.
@@ -1634,10 +1935,20 @@ def _curl_get(url, session_key):
     headers, found, body = stdout.rpartition(sep)
     if not found:
         headers, body = '', stdout
-    body = body.strip()
-    codes = re.findall(r'HTTP/[\d.]+ (\d+)', headers or stdout)
-    if codes:
-        code = int(codes[-1])
+    return headers or stdout, body.strip()
+
+
+def _http_status(headers):
+    """Last HTTP status code in a header dump, or None."""
+    codes = re.findall(r'HTTP/[\d.]+ (\d+)', headers)
+    return int(codes[-1]) if codes else None
+
+
+def _curl_get(url, session_key):
+    """Authenticated GET returning the response body, or raising."""
+    headers, body = _curl_call(url, f'sessionKey={session_key}')
+    code = _http_status(headers)
+    if code is not None:
         if code in (401, 403):
             raise RuntimeError(t('key_invalid_or_expired'))
         if code >= 400:
@@ -1813,29 +2124,11 @@ def fetch_usage(cfg):
     target_id = (active_account(cfg) or {}).get('id')
     url = API_URL.format(cfg['org_id'])
     cookie = f"sessionKey={cfg['session_key']}; lastActiveOrg={cfg['org_id']}"
-    result = subprocess.run(
-        ['curl', '-s', '-D', '-',
-         '-H', f'Cookie: {cookie}',
-         '-H', f'User-Agent: {_BROWSER_UA}',
-         '-H', 'anthropic-client-platform: web_claude_ai',
-         url],
-        capture_output=True, timeout=20,
-        creationflags=subprocess.CREATE_NO_WINDOW
-    )
-    if result.returncode != 0:
-        raise RuntimeError(f'curl: {result.stderr.decode("utf-8", "replace").strip()}')
-    # UTF-8, not the Windows locale: see _curl_get.
-    stdout = result.stdout.decode('utf-8', 'replace')
-    parts = stdout.split('\r\n\r\n', 1)
-    if len(parts) < 2:
-        parts = stdout.split('\n\n', 1)
-    headers = parts[0] if len(parts) == 2 else ''
-    body = parts[-1].strip()
+    headers, body = _curl_call(url, cookie)
     if not body:
         raise RuntimeError(t('empty_response'))
-    sm = re.search(r'HTTP/[\d.]+ (\d+)', headers)
-    if sm:
-        code = int(sm.group(1))
+    code = _http_status(headers)
+    if code is not None:
         if code in (401, 403):
             raise PermissionError(t('session_expired_short'))
         if code >= 400:
@@ -1848,6 +2141,280 @@ def fetch_usage(cfg):
         return json.loads(body), rotation
     except json.JSONDecodeError as e:
         raise RuntimeError(f'invalid response: {e}')
+
+
+# ═══════════════════════════════════════════════════════
+# Connection self-test
+# ═══════════════════════════════════════════════════════
+#
+# One place to look when the widget cannot reach claude.ai. The checks follow
+# the path a request actually takes - is curl there, does the name resolve,
+# does the handshake complete, is anything intercepting it, is the key still
+# good - so the first failing line is the cause rather than a symptom.
+#
+# The report is written to be pasted into a bug report, which is exactly why
+# it carries no credentials: see _redact.
+
+CLAUDE_ORIGIN = 'https://claude.ai/'
+SELFTEST_DETAIL_MAX = 300
+
+
+def _selftest_curl():
+    """Is curl there, and does it use the Windows certificate store?
+
+    A curl earlier in PATH (MSYS2, conda, or a tool shipping its own) may
+    validate against its own CA bundle instead of Schannel, so certificates
+    Windows trusts - a corporate root, an antivirus root - are rejected on a
+    machine where the browser works fine.
+    """
+    try:
+        result = subprocess.run(['curl', '-V'], capture_output=True, timeout=10,
+                                creationflags=subprocess.CREATE_NO_WINDOW)
+    except (OSError, subprocess.SubprocessError):
+        # A missing curl surfaces as WinError 2, which says nothing useful.
+        return 'fail', t('selftest_curl_missing')
+    line = (_decode_console(result.stdout).splitlines() or [''])[0]
+    if result.returncode != 0 or not line:
+        return 'fail', t('selftest_curl_missing')
+    if 'schannel' in line.lower():
+        return 'ok', line
+    return 'warn', f"{t('selftest_curl_backend')} ({line})"
+
+
+def _selftest_dns():
+    """Does claude.ai resolve? Filtering DNS fails here, before any TLS."""
+    try:
+        infos = socket.getaddrinfo('claude.ai', 443, proto=socket.IPPROTO_TCP)
+    except socket.gaierror as e:
+        # Not "check your connection": the rest of the internet works fine for
+        # someone whose resolver is the thing filtering claude.ai.
+        return 'fail', f"{t('selftest_dns_failed')} ({e})"
+    addresses = sorted({i[4][0] for i in infos})
+    shown = ', '.join(addresses[:3])
+    if len(addresses) > 3:
+        shown += ', \u2026'
+    return 'ok', shown
+
+
+def _selftest_tls(skip_revocation=False):
+    """Complete a handshake with claude.ai, with no credentials attached.
+
+    Run twice when the first attempt fails: if dropping the revocation lookup
+    is what makes it work, the certificate is fine and the network is blocking
+    the CA's OCSP/CRL endpoint - a different problem, with a different fix,
+    than a certificate that cannot be trusted at all.
+    """
+    extra = ['-o', os.devnull]  # keep the header dump, discard the page body
+    if skip_revocation:
+        extra.append('--ssl-no-revoke')
+    code, out, err = _curl_attempt(CLAUDE_ORIGIN, '', extra)
+    if code != 0:
+        # Same explanation the widget shows anywhere else, so the diagnosis
+        # reads in the user's language and not only in curl's.
+        return 'fail', _explain_curl_error(code, err)
+    status = _http_status(out.decode('utf-8', 'replace'))
+    return 'ok', f"{t('selftest_tls_ok')} (HTTP {status})" if status else t('selftest_tls_ok')
+
+
+# A proxy value may carry a 'scheme://' or a Windows 'protocol=' prefix in
+# front of its credentials. Anchored, so it can only match an actual prefix.
+_PROXY_PREFIX = re.compile(r'^(?:[A-Za-z][\w+.-]*(?:://|=))?')
+
+
+def _mask_userinfo(value):
+    """Drop any user:password@ from a proxy value.
+
+    Done by shape rather than left to _redact, whose patterns cannot recognise
+    credentials in front of a dotless intranet host name. Windows can list one
+    proxy per protocol (`http=host;https=host`), so each part is masked while
+    its `scheme://` or `protocol=` prefix is kept.
+    """
+    def mask(part):
+        head, sep, host = part.rpartition('@')   # last @: a password may hold one
+        if not sep:
+            return part
+        # Only a prefix counts as a prefix. Searching the whole head for '='
+        # would find the padding of a base64 password and keep it.
+        prefix = _PROXY_PREFIX.match(head).group(0)
+        return f'{prefix}<redacted>@{host}'
+
+    value = str(value)
+    parts = value.split(';')
+    if len(parts) > 1 and not all(_PROXY_PREFIX.match(p).group(0) for p in parts):
+        parts = [value]     # not the per-protocol form: a ';' inside one value
+    return ';'.join(mask(p) for p in parts)
+
+
+def _selftest_proxy():
+    """Report any proxy in the way. Not an error - just the usual suspect
+    behind an untrusted certificate, since a proxy re-signs what it inspects."""
+    found = []
+    for var in ('HTTPS_PROXY', 'HTTP_PROXY', 'ALL_PROXY'):
+        value = os.environ.get(var) or os.environ.get(var.lower())
+        if value:
+            found.append(f'{var}={_mask_userinfo(value)}')
+    try:
+        with winreg.OpenKey(
+                winreg.HKEY_CURRENT_USER,
+                r'Software\Microsoft\Windows\CurrentVersion\Internet Settings') as key:
+            if winreg.QueryValueEx(key, 'ProxyEnable')[0]:
+                system = _mask_userinfo(winreg.QueryValueEx(key, 'ProxyServer')[0])
+                found.append(f'system={system}')
+    except OSError:
+        pass
+    if not found:
+        return 'ok', t('selftest_proxy_none')
+    return 'warn', f"{t('selftest_proxy_found')}: {'; '.join(found)}"
+
+
+def _selftest_curlrc():
+    """Report curl config files, which apply to every curl run on the machine.
+
+    Only the presence and the directives that change TLS behaviour are
+    reported: the file itself can hold credentials, so it is never quoted.
+    """
+    found = []
+    directives = []
+    for token, base in (('%CURL_HOME%', os.environ.get('CURL_HOME')),
+                        ('%APPDATA%', os.environ.get('APPDATA')),
+                        ('%USERPROFILE%', os.environ.get('USERPROFILE'))):
+        if not base:
+            continue
+        for name in ('_curlrc', '.curlrc'):
+            path = os.path.join(base, name)
+            label = f'{token}\\{name}'
+            if not os.path.isfile(path) or label in found:
+                continue
+            found.append(label)
+            try:
+                with open(path, encoding='utf-8', errors='replace') as f:
+                    content = f.read().lower()
+            except OSError:
+                continue
+            for directive in ('insecure', 'ssl-no-revoke', 'proxy', 'cacert'):
+                if directive in content and directive not in directives:
+                    directives.append(directive)
+    if not found:
+        return 'ok', t('selftest_curlrc_none')
+    detail = f"{t('selftest_curlrc_found')}: {', '.join(found)}"
+    if directives:
+        detail += f" [{', '.join(directives)}]"
+    return 'warn', detail
+
+
+def _selftest_api(cfg):
+    """The end-to-end check: the usage endpoint, with the configured key."""
+    account = active_account(cfg) or {}
+    key = account.get('session_key') or cfg.get('session_key')
+    org_id = account.get('org_id') or cfg.get('org_id')
+    if not key or not org_id:
+        return 'skip', t('selftest_api_no_account')
+    headers, body = _curl_call(API_URL.format(org_id),
+                               f'sessionKey={key}; lastActiveOrg={org_id}',
+                               retry_transient=False)
+    status = _http_status(headers)
+    if status in (401, 403):
+        return 'fail', t('selftest_api_key_rejected')
+    if status and status >= 400:
+        return 'fail', f'HTTP {status}'
+    try:
+        json.loads(body)
+    except (json.JSONDecodeError, ValueError):
+        return 'fail', t('selftest_api_bad_body')
+    return 'ok', t('selftest_api_ok')
+
+
+def run_connection_selftest(cfg, on_step=None):
+    """Run every check in request order and return the results.
+
+    Each result is {'key', 'label', 'status', 'detail'} with status in ok /
+    warn / fail / skip. on_step(step) fires as each check finishes so the
+    dialog can fill in progressively instead of freezing until the last one
+    returns.
+    """
+    steps = []
+
+    def add(key, check):
+        label = t('selftest_step_' + key)
+        try:
+            status, detail = check()
+        except Exception as e:
+            status, detail = 'fail', str(e)
+        detail = _redact(detail)
+        if len(detail) > SELFTEST_DETAIL_MAX:
+            detail = detail[:SELFTEST_DETAIL_MAX].rstrip() + '\u2026'
+        step = {'key': key, 'label': label, 'status': status, 'detail': detail}
+        steps.append(step)
+        wlog(f'SELFTEST {status:4} {label}: {detail}')
+        if on_step:
+            on_step(step)
+        return step
+
+    add('curl', _selftest_curl)
+    add('dns', _selftest_dns)
+    handshake = add('tls', _selftest_tls)
+
+    def without_revocation():
+        if handshake['status'] == 'ok':
+            return 'skip', t('selftest_revoke_not_needed')
+        status, detail = _selftest_tls(skip_revocation=True)
+        if status != 'ok':
+            return status, detail
+        # Succeeding here is the diagnosis, not a clean result - but only if
+        # the revocation lookup is what failed first. Otherwise the first
+        # attempt simply hit a blip, and saying otherwise would send the user
+        # after a problem they do not have.
+        if any(h in handshake['detail'].lower() for h in _REVOCATION_HINTS):
+            return 'warn', t('selftest_revoke_worked')
+        return 'warn', t('selftest_revoke_inconsistent')
+
+    add('revoke', without_revocation)
+    add('proxy', _selftest_proxy)
+    add('curlrc', _selftest_curlrc)
+    add('api', lambda: _selftest_api(cfg))
+    return steps
+
+
+def selftest_verdict(steps):
+    """Overall result: ok / warn / fail / partial.
+
+    The end-to-end check against the usage endpoint decides the headline:
+
+    - it succeeded, so whatever failed upstream was recovered from (the
+      handshake that only works once the revocation lookup is dropped): a
+      warning, not a broken connection;
+    - it never ran because no account is configured: 'partial', since a green
+      "everything works" would be a claim nothing verified.
+    """
+    api = next((s['status'] for s in steps if s.get('key') == 'api'), None)
+    worst = ('fail' if not steps or any(s['status'] == 'fail' for s in steps)
+             else 'warn' if any(s['status'] == 'warn' for s in steps)
+             else 'ok')
+    if worst == 'fail' and api == 'ok':
+        return 'warn'
+    if worst == 'ok' and api != 'ok':
+        return 'partial'
+    return worst
+
+
+def selftest_report(steps):
+    """Plain-text report for the clipboard. Credential-free by construction."""
+    win = sys.getwindowsversion()
+    # Windows 11 still reports itself as 10.0; the build number is what tells
+    # them apart, and a report that says "Windows 10" on a Windows 11 machine
+    # sends every bug report off on the wrong foot.
+    name = '11' if win.build >= 22000 else '10'
+    lines = [f'Claude Usage Widget {APP_VERSION} - connection self-test',
+             f'Windows {name} ({win.major}.{win.minor}.{win.build})'
+             f' | language: {_current_lang}',
+             '']
+    # English labels whatever the UI language: this text is written to be
+    # pasted into an issue tracker where reports have to be comparable. The
+    # header still records the language the details were produced in.
+    lines += [f"[{s['status'].upper():4}] "
+              f"{LANG['en'].get('selftest_step_' + s.get('key', ''), s['label'])}: "
+              f"{s['detail']}" for s in steps]
+    return _redact('\n'.join(lines))
 
 
 # ═══════════════════════════════════════════════════════
@@ -2187,6 +2754,9 @@ class Widget:
 
         self._job = None
         self._countdown_job = None
+        self._fetch_busy = False      # a fetch is in flight; do not start another
+        self._fetch_pending = False   # a refresh asked for while one was running
+        self._fetch_lock = threading.Lock()   # guards the two flags above
         self._topmost_job = None
         self._pulse_job = None
         self._pulse_phase = 0.0
@@ -2992,6 +3562,18 @@ class Widget:
     # ── Data ─────────────────────────────────────────
 
     def refresh(self):
+        # One fetch at a time. A slow network can now cost a minute per fetch
+        # (a retried request, twice over) and the refresh interval goes down to
+        # 10s, so without this the worker threads would pile up. Queued rather
+        # than dropped: refresh() is also how an account switch asks for its
+        # data, and that request must not be lost.
+        with self._fetch_lock:
+            if self._fetch_busy:
+                self._fetch_pending = True
+                wlog('FETCH  queued: a fetch is already running')
+                return
+            self._fetch_busy = True
+            self._fetch_pending = False
         if self._countdown_job:
             self.root.after_cancel(self._countdown_job)
             self._countdown_job = None
@@ -3000,10 +3582,33 @@ class Widget:
         self.btn_r.config(fg=BLUE)
         for tgt in self._countdown_targets():
             tgt.set_countdown('\u2022\u2022\u2022')
-        threading.Thread(target=self._fetch, daemon=True).start()
+        try:
+            threading.Thread(target=self._fetch, daemon=True).start()
+        except Exception as e:
+            # The flag is released by the thread, so a thread that never
+            # started would leave the widget unable to refresh again.
+            with self._fetch_lock:
+                self._fetch_busy = False
+            wlog(f'FETCH  could not start the worker: {e}')
 
     def _fetch(self):
         wlog('FETCH  thread started')
+        try:
+            self._fetch_once()
+        finally:
+            # Always released, or the widget would never refresh again. Read
+            # and cleared under the lock: a refresh queued at this exact
+            # moment must not fall between the two.
+            with self._fetch_lock:
+                self._fetch_busy = False
+                pending, self._fetch_pending = self._fetch_pending, False
+            if pending:
+                try:
+                    self.root.after(0, self.refresh)
+                except (tk.TclError, RuntimeError):
+                    pass
+
+    def _fetch_once(self):
         try:
             data, rotation = fetch_usage(self.cfg)
             wlog('FETCH  data received, dispatching to main thread')
@@ -3022,9 +3627,13 @@ class Widget:
             except Exception as ex:
                 wlog(f'FETCH  error after PermissionError: {ex}')
         except Exception as e:
-            wlog(f'FETCH  exception: {e}')
+            # Redacted: an exception raised below the transport can still carry
+            # the request that produced it, and this text is both logged and
+            # shown on screen.
+            msg = _redact(e)
+            wlog(f'FETCH  exception: {msg}')
             try:
-                self.root.after(0, self._error, str(e))
+                self.root.after(0, self._error, msg)
             except Exception as ex:
                 wlog(f'FETCH  error after Exception: {ex}')
 
@@ -4091,6 +4700,10 @@ class Widget:
             self._menu_row(m, t('menu_open_config'),
                            lambda: self._menu_do(self._open_config),
                            icon='{ }', icon_ft=FT_EMOJI)
+            self._menu_row(m, t('menu_selftest'),
+                           lambda: self._menu_do(self._selftest_dialog),
+                           icon='\U0001F50D︎', icon_ft=FT_EMOJI,
+                           tip=t('selftest_hint'))
 
     def _bind_focus_autoclose(self, win):
         """Bind FocusOut on a menu/flyout window so losing focus schedules a
@@ -4915,6 +5528,138 @@ class Widget:
         # Give the OS a beat to start the installer before we vanish - the
         # UAC prompt needs to appear while our process still has focus.
         self.root.after(400, self._quit)
+
+    # ── Connection self-test ─────────────────────────
+
+    def _selftest_dialog(self):
+        """Run the connection checks and show each result as it lands.
+
+        The checks run on a worker thread: they make real network calls and
+        would otherwise freeze the widget for several seconds.
+        """
+        dw, dh = self._dlg_size(520, 460)
+        dlg, body = self._build_dialog_frame(t('selftest_title'), dw, dh)
+        state = {'steps': [], 'running': False}
+        actions = {'copy': None, 'rerun': None}
+
+        # Bottom controls first (see the layout contract in _build_dialog_frame).
+        btn_frame = tk.Frame(body, bg=BG)
+        btn_frame.pack(fill='x', side='bottom', pady=(12, 0))
+        status_lbl = tk.Label(body, text=t('selftest_running'), font=FT_DLG_HINT,
+                              fg=DIM, bg=BG, anchor='w', justify='left',
+                              wraplength=dw - 2 * DLG_PAD_X)
+        status_lbl.pack(fill='x', pady=(10, 0), side='bottom')
+
+        tk.Label(body, text=t('selftest_hint'), font=FT_DLG_BODY, fg=DIM, bg=BG,
+                 anchor='w', justify='left',
+                 wraplength=dw - 2 * DLG_PAD_X).pack(fill='x', pady=(0, 10))
+
+        txt_frame = tk.Frame(body, bg=BAR_BG)
+        txt_frame.pack(fill='both', expand=True)
+        txt = tk.Text(txt_frame, font=FT_DLG_BODY, fg=DIM, bg=BAR_BG, bd=0,
+                      highlightthickness=0, wrap='word', padx=12, pady=10,
+                      height=12, relief='flat', cursor='arrow',
+                      spacing3=4, state='disabled')
+        # The status marks are geometry, not text: pinned to FT_DOT so the
+        # Japanese family does not redraw them full-width.
+        for status, colour in (('ok', DOT_GREEN), ('warn', ORANGE),
+                               ('fail', RED), ('skip', DIM)):
+            txt.tag_configure(status, foreground=colour, font=FT_DOT)
+        txt.tag_configure('label', foreground=FG)
+        txt.tag_configure('detail', foreground=DIM, lmargin1=18, lmargin2=18)
+        # The list can outgrow the box on a short screen, and a read-only Text
+        # has no wheel binding of its own. One line per event whatever the
+        # delta: a precision touchpad sends deltas well under a notch, and
+        # dividing them would round away every scroll in one direction.
+        txt.bind('<MouseWheel>',
+                 lambda e: (txt.yview_scroll(-1 if e.delta > 0 else 1, 'units'), 'break')[1])
+        txt.pack(fill='both', expand=True)
+
+        marks = {'ok': '✓', 'warn': '!', 'fail': '✕', 'skip': '–'}
+        colours = {'ok': DOT_GREEN, 'warn': ORANGE, 'fail': RED, 'partial': BLUE}
+
+        def render(step):
+            txt.config(state='normal')
+            txt.insert('end', marks.get(step['status'], '?') + '  ', step['status'])
+            txt.insert('end', step['label'] + '\n', 'label')
+            if step['detail']:
+                txt.insert('end', step['detail'] + '\n', 'detail')
+            txt.see('end')
+            txt.config(state='disabled')
+
+        def copy_report():
+            self.root.clipboard_clear()
+            self.root.clipboard_append(selftest_report(state['steps']))
+            status_lbl.config(text=t('selftest_copied'), fg=DOT_GREEN)
+
+        def build_actions():
+            """Rebuild the button row. The pills are images, so enabling or
+            disabling one means recreating it. While the checks run there is
+            nothing to copy and nothing to re-run, and a pill that looks
+            clickable but ignores clicks is worse than no pill at all."""
+            ready = not state['running']
+            for key in actions:
+                if actions[key] is not None:
+                    actions[key].destroy()
+                actions[key] = None
+            actions['copy'] = self._primary_pill(
+                btn_frame, t('selftest_copy'),
+                copy_report if ready else (lambda: None), enabled=ready)
+            actions['copy'].pack(side='right')
+            if ready:
+                actions['rerun'] = self._secondary_pill(
+                    btn_frame, t('selftest_rerun'), run)
+                actions['rerun'].pack(side='right', padx=(0, 8))
+
+        def finish(steps):
+            state['steps'] = steps
+            state['running'] = False
+            # Back to the top: the list follows along while the checks run, but
+            # what matters once they are done is the first failing line.
+            txt.yview_moveto(0)
+            worst = selftest_verdict(steps)
+            status_lbl.config(text=t('selftest_summary_' + worst), fg=colours[worst])
+            build_actions()
+
+        def post(fn, *args):
+            """Hand a result back to the UI thread.
+
+            The checks keep running for a few seconds after the dialog is
+            closed, so both ends are guarded: scheduling raises once the
+            interpreter is gone, and the callback itself must not touch
+            widgets that no longer exist.
+            """
+            def apply():
+                try:
+                    if dlg.winfo_exists():
+                        fn(*args)
+                except tk.TclError:
+                    pass
+            try:
+                dlg.after(0, apply)
+            except (tk.TclError, RuntimeError):
+                pass
+
+        def worker():
+            steps = run_connection_selftest(self.cfg,
+                                            on_step=lambda s: post(render, s))
+            post(finish, steps)
+
+        def run():
+            if state['running']:
+                return
+            state['running'] = True
+            state['steps'] = []
+            txt.config(state='normal')
+            txt.delete('1.0', 'end')
+            txt.config(state='disabled')
+            status_lbl.config(text=t('selftest_running'), fg=DIM)
+            build_actions()
+            threading.Thread(target=worker, daemon=True).start()
+
+        self._secondary_pill(btn_frame, t('selftest_close'), dlg.destroy).pack(side='left')
+        run()
+        self._place_dialog(dlg, dw, dh_floor=dh)
 
     # ── Open config ──────────────────────────────────
 
