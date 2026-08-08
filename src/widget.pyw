@@ -177,7 +177,7 @@ BAR_DEFAULT_FILL = {'session': BAR_FILL_SESSION,
 BAR_PRESETS = [BAR_FILL_SESSION, BAR_FILL_WEEKLY, BAR_FILL_HIGH, BAR_FILL_PURPLE]
 
 # ─── App ────────────────────────────────────────────
-APP_VERSION = '2.8.50'
+APP_VERSION = '2.8.51'
 
 # ─── Auto-update ────────────────────────────────────
 UPDATE_REPO = 'niccolo-sabato/claude-usage-widget'
@@ -617,7 +617,6 @@ LANG = {
         'menu_refresh': 'Refresh',
         'menu_cat_display': 'Display',
         'menu_cat_data': 'Data & alerts',
-        'menu_cat_account': 'Account',
         'menu_cat_general': 'General',
         'menu_mode_normal': 'Normal mode',
         'menu_mode_essential': 'Essential mode',
@@ -773,7 +772,6 @@ LANG = {
         'menu_refresh': 'Aggiorna',
         'menu_cat_display': 'Visualizzazione',
         'menu_cat_data': 'Dati e avvisi',
-        'menu_cat_account': 'Account',
         'menu_cat_general': 'Generale',
         'menu_mode_normal': 'Modalit\u00e0 normale',
         'menu_mode_essential': 'Modalit\u00e0 essential',
@@ -928,7 +926,6 @@ LANG = {
         'menu_refresh': '\u66f4\u65b0',
         'menu_cat_display': '\u8868\u793a',
         'menu_cat_data': '\u30c7\u30fc\u30bf\u3068\u901a\u77e5',
-        'menu_cat_account': '\u30a2\u30ab\u30a6\u30f3\u30c8',
         'menu_cat_general': '\u4e00\u822c',
         'menu_mode_normal': '\u901a\u5e38\u30e2\u30fc\u30c9',
         'menu_mode_essential': '\u30b7\u30f3\u30d7\u30eb\u30e2\u30fc\u30c9',
@@ -1079,6 +1076,121 @@ def set_lang(code):
 _cfg_lock = threading.RLock()
 
 
+# ─── Session keys ───────────────────────────────────
+# A claude.ai session key is a long opaque string with a stable prefix. That
+# shape is checked wherever a key is about to be stored, because the same
+# cookie is also how the server ENDS a session: `sessionKey=""` with
+# Max-Age=0, or a deletion marker. Taking one of those literally once
+# overwrote a valid key with two quote characters, after which every refresh
+# got a 401 and the only good copy had already rotated out of the backup.
+SESSION_KEY_PREFIX = 'sk-ant-'
+SESSION_KEY_MIN_LEN = 40
+
+
+def plausible_key(value):
+    """True if `value` looks like a session key rather than a cleared cookie.
+
+    Deliberately strict. Refusing a genuine key costs a missed rotation, and
+    the current key keeps working until it expires; accepting a bogus one
+    destroys the stored credential and locks the user out.
+    """
+    return (isinstance(value, str)
+            and value.startswith(SESSION_KEY_PREFIX)
+            and len(value) >= SESSION_KEY_MIN_LEN)
+
+
+def _read_config(path):
+    """The config at `path`: a dict, {} when missing or unusable, or None when
+    the file is there but cannot be read.
+
+    Unknown is not the same as empty. A caller about to discard a backup must
+    not act on a guess, and an antivirus holding the file open for a moment is
+    enough to produce one.
+    """
+    try:
+        with open(path, encoding='utf-8') as f:
+            data = json.load(f)
+    except FileNotFoundError:
+        return {}          # no file, so nothing in it to lose
+    except OSError:
+        return None        # there but unreadable: unknown, not empty
+    except ValueError:
+        return {}          # unparseable: whatever is in there is unusable
+    return data if isinstance(data, dict) else {}
+
+
+def _account_keys(data):
+    """{account id: session key} for every account in `data` that has one."""
+    accounts = data.get('accounts')
+    if not isinstance(accounts, list):
+        return {}
+    return {a.get('id'): a['session_key'] for a in accounts
+            if isinstance(a, dict) and plausible_key(a.get('session_key'))}
+
+
+def _account_ids(data):
+    """The ids of every account in `data`, with or without a usable key."""
+    accounts = data.get('accounts')
+    if not isinstance(accounts, list):
+        return set()
+    return {a.get('id') for a in accounts if isinstance(a, dict)}
+
+
+def _restore_keys_from_backup(cfg):
+    """Put back session keys that a bad write clobbered. Returns True if any.
+
+    Accounts are matched by id and an existing key is only ever replaced when
+    it no longer looks like a key, so an account the user deleted cannot come
+    back and a genuine rotation is never rolled back. Best effort: if the
+    backup has been overwritten too there is nothing to recover, and the user
+    is asked to paste the key again as before.
+    """
+    accounts = cfg.get('accounts')
+    if not isinstance(accounts, list):
+        return False
+    broken = [a for a in accounts
+              if isinstance(a, dict) and not plausible_key(a.get('session_key'))]
+    if not broken or not CFG_BAK:
+        return False
+    backup = _read_config(CFG_BAK)
+    if not backup:
+        return False
+    saved = _account_keys(backup)
+    legacy = backup.get('session_key') if plausible_key(backup.get('session_key')) else None
+    healed = 0
+    for account in broken:
+        key = saved.get(account.get('id'))
+        if (key is None and legacy and len(broken) == 1 and len(accounts) == 1
+                and not saved):
+            # A config from before multi-account support keeps its key at the
+            # top level, so the account this run just migrated has an id the
+            # backup cannot know. Only when the backup holds nothing else: a
+            # top-level key next to accounts is a mirror of one of them, and
+            # taking it would hand this account somebody else's key.
+            key = legacy
+        if plausible_key(key):
+            account['session_key'] = key
+            healed += 1
+    if healed:
+        mirror_active(cfg)
+        wlog(f'CFG    restored {healed} session key(s) from the backup')
+    return bool(healed)
+
+
+def sync_backup():
+    """Make the backup match the current config, dropping the older generation.
+
+    Called when the user removes an account: without it the backup would keep
+    that account's key, since save_cfg deliberately refuses to overwrite a
+    backup that still holds keys with one that does not.
+    """
+    try:
+        if CFG_BAK and os.path.exists(CFG):
+            shutil.copy2(CFG, CFG_BAK)
+    except OSError:
+        pass
+
+
 def load_cfg():
     """Load config, tolerating a corrupt/truncated primary by recovering from
     the .bak written on the last successful save. Never raises: a hard failure
@@ -1132,6 +1244,8 @@ def load_cfg():
     if 'accounts' not in cfg:  # wrap a legacy single key into the accounts list
         account_migrate(cfg)
         changed = True
+    if _restore_keys_from_backup(cfg):
+        changed = True
     if changed:
         # Never let a heal-write failure turn a recovered-in-memory config into
         # a hard no-start: this function must not raise (see docstring).
@@ -1149,10 +1263,21 @@ def save_cfg(data):
     previous good file is copied to CFG_BAK first for recovery on next load."""
     with _cfg_lock:
         d = os.path.dirname(CFG) or '.'
-        # Snapshot the current good file as the backup before overwriting it.
+        # Snapshot the current good file as the backup before overwriting it,
+        # but not when that would drop the last copy of a key. An account that
+        # is still listed and has lost its key was clobbered, and the backup is
+        # all that is left of it; an account that is gone from the list was
+        # removed on purpose, and its key is meant to go with it. Judging per
+        # account, on that distinction, is what keeps the rule from freezing
+        # the backup forever after a removal.
         try:
             if CFG_BAK and os.path.exists(CFG) and os.path.getsize(CFG) > 0:
-                shutil.copy2(CFG, CFG_BAK)
+                current, backup = _read_config(CFG), _read_config(CFG_BAK)
+                if current is not None and backup is not None:
+                    kept, listed = _account_keys(current), _account_ids(current)
+                    if all(acct not in listed or acct in kept
+                           for acct in _account_keys(backup)):
+                        shutil.copy2(CFG, CFG_BAK)
         except OSError:
             pass
         fd, tmp = tempfile.mkstemp(dir=d, prefix='.cfg-', suffix='.tmp')
@@ -1486,16 +1611,18 @@ def _dot_image(diameter, color):
     return img
 
 
-def _render_pill_image(w, h, color, radius=None):
+def _render_pill_image(w, h, color, radius=None, outline=None, outline_w=1):
     """Render an anti-aliased pill as a PhotoImage.
 
     Supersamples at 4x then downscales with LANCZOS so the curves are smooth
     instead of the aliased staircase that tkinter's native oval produces.
-    Cached by (w, h, color, radius) because buttons rarely change dimensions.
+    `outline` draws a border in that colour, which is how a button that leaves
+    the app is marked without giving it the weight of a filled one. Cached by
+    every parameter because buttons rarely change dimensions.
     """
     if radius is None:
         radius = h // 2
-    key = (w, h, color, radius)
+    key = (w, h, color, radius, outline, outline_w)
     cached = _PILL_IMAGE_CACHE.get(key)
     if cached is not None:
         return cached
@@ -1506,6 +1633,8 @@ def _render_pill_image(w, h, color, radius=None):
         (0, 0, w * scale - 1, h * scale - 1),
         radius=radius * scale,
         fill=_hex_to_rgb(color) + (255,),
+        outline=(_hex_to_rgb(outline) + (255,)) if outline else None,
+        width=outline_w * scale if outline else 0,
     )
     img = img.resize((w, h), Image.LANCZOS)
     photo = ImageTk.PhotoImage(img)
@@ -1514,7 +1643,8 @@ def _render_pill_image(w, h, color, radius=None):
 
 
 def make_pill_button(parent, *, text, font, fg, bg, hover_bg, cmd,
-                     icon=None, icon_font=None, padx=16, pady=8, parent_bg=None):
+                     icon=None, icon_font=None, padx=16, pady=8, parent_bg=None,
+                     outline=None, outline_w=1):
     """Pill-shaped button with smooth (anti-aliased) curves.
 
     The pill background is a PIL image rendered at 4x and downscaled with
@@ -1546,11 +1676,14 @@ def make_pill_button(parent, *, text, font, fg, bg, hover_bg, cmd,
     cv = tk.Canvas(parent, width=btn_w, height=btn_h,
                    bg=canvas_bg, highlightthickness=0, bd=0, cursor='hand2')
 
-    img_normal = _render_pill_image(btn_w, btn_h, bg)
-    img_hover  = _render_pill_image(btn_w, btn_h, hover_bg)
+    img_normal = _render_pill_image(btn_w, btn_h, bg, outline=outline,
+                                    outline_w=outline_w)
+    img_hover  = _render_pill_image(btn_w, btn_h, hover_bg, outline=outline,
+                                    outline_w=outline_w)
     # Keep refs on the widget so Python GC doesn't reap the PhotoImages.
     cv._pill_normal = img_normal
     cv._pill_hover  = img_hover
+    cv._pill_outline = outline
     bg_item = cv.create_image(0, 0, image=img_normal, anchor='nw')
 
     cy = btn_h / 2
@@ -2111,6 +2244,37 @@ def scoped_model(d):
     return None, None, None
 
 
+def _rotated_key(headers, current):
+    """The session key claude.ai issued in this response, or None.
+
+    Two things this must not do, both of which cost the user their stored
+    credential (see plausible_key):
+
+    - read the value from anything other than a real Set-Cookie line. The
+      substring turns up in diagnostic headers as well, and an unanchored
+      search happily took `sessionKey=none` out of one of them.
+    - accept a value that is not a key. The same cookie carries the server's
+      way of ENDING a session, and `sessionKey=""` parsed as a two-character
+      key that then replaced a working one.
+    """
+    for line in headers.splitlines():
+        if not line.lower().startswith('set-cookie:'):
+            continue
+        match = re.search(r'sessionKey=("?)([^;\s"]*)\1', line)
+        if match:
+            new_key = match.group(2)
+            if plausible_key(new_key):
+                return new_key if new_key != current else None
+            # Logged because this is the one place the strict check can be
+            # wrong: if claude.ai ever changes the cookie's shape, every
+            # rotation would be discarded and the only symptom, weeks later,
+            # would be a key that expired. Length and prefix only.
+            wlog(f'NET    ignored a session cookie that is not a key '
+                 f'({len(new_key)} chars, prefix '
+                 f'{"ok" if new_key.startswith(SESSION_KEY_PREFIX) else "no"})')
+    return None
+
+
 def fetch_usage(cfg):
     """Fetch usage data from Claude.ai API. See fetch_org_id for why curl.
 
@@ -2121,6 +2285,14 @@ def fetch_usage(cfg):
     the new key on the wrong account if the user switched accounts mid-fetch.
     The caller applies the rotation on the main thread, targeting the exact
     account the key was issued for (see Widget._apply_rotated_key)."""
+    # No key worth sending: ask for one instead of spending a request every
+    # refresh on a 401 whose answer is already known. Deliberately weaker than
+    # plausible_key, which gates what may be WRITTEN: here a wrong call would
+    # lock the user out of a widget that works, so only a value that cannot be
+    # a key at all counts.
+    if not str(cfg.get('session_key') or '').startswith(SESSION_KEY_PREFIX):
+        wlog('FETCH  no usable key stored, asking for a new one')
+        raise PermissionError(t('session_expired_short'))
     target_id = (active_account(cfg) or {}).get('id')
     url = API_URL.format(cfg['org_id'])
     cookie = f"sessionKey={cfg['session_key']}; lastActiveOrg={cfg['org_id']}"
@@ -2134,9 +2306,9 @@ def fetch_usage(cfg):
         if code >= 400:
             raise RuntimeError(f'HTTP {code}')
     rotation = None
-    km = re.search(r'sessionKey=([^;\s]+)', headers)
-    if km and km.group(1) != cfg.get('session_key'):
-        rotation = (target_id, km.group(1))
+    new_key = _rotated_key(headers, cfg.get('session_key'))
+    if new_key:
+        rotation = (target_id, new_key)
     try:
         return json.loads(body), rotation
     except json.JSONDecodeError as e:
@@ -3642,7 +3814,15 @@ class Widget:
         thread. Writes the key onto the exact account it was issued for (by id),
         never onto 'whatever account is active now' - the user may have switched
         mid-fetch. The top-level mirror is touched only if that account is still
-        the active one."""
+        the active one.
+
+        The value is checked once more here, at the point that actually
+        writes: this is the only path that replaces a working key without the
+        user asking, so it is the one place where a wrong value is silent and
+        permanent."""
+        if not plausible_key(new_key):
+            wlog('FETCH  refused a rotated key that does not look like one')
+            return
         try:
             for a in self.cfg.get('accounts', []):
                 if a.get('id') == acct_id:
@@ -3651,7 +3831,7 @@ class Widget:
             if acct_id is None or self.cfg.get('active_account') == acct_id:
                 self.cfg['session_key'] = new_key
             save_cfg(self.cfg)
-            wlog('FETCH  rotated session key persisted')
+            wlog(f'FETCH  rotated session key persisted ({len(new_key)} chars)')
         except Exception as e:
             # A persist failure must not surface as a fetch error: the usage
             # data already arrived fine and the in-memory key stays valid.
@@ -4295,6 +4475,23 @@ class Widget:
             fg=DIM, bg=BAR_BG, hover_bg=BAR_BG, cmd=lambda: None,
             padx=px, pady=py)
 
+    def _outline_pill(self, parent, text, cmd, icon=None):
+        """Secondary pill drawn as an outline in Claude orange.
+
+        Used for the one action in a dialog that leaves the widget: it reads
+        as a link rather than a command, without competing with the filled
+        buttons next to it."""
+        # The icon is an arrow glyph, so it takes the geometry font: the emoji
+        # family draws it boxed, and the Japanese family draws it full-width.
+        # The border scales with the display like the padding does, or it would
+        # thin out to a hairline at 200% and above.
+        return make_pill_button(
+            parent, text=text, font=FT_DLG_BTN, fg=FG, bg=BG, hover_bg=SOFT_BG,
+            cmd=cmd, outline=CLAUDE, outline_w=self.dp(1),
+            icon=icon, icon_font=FT_DOT if icon else None,
+            padx=self.dp(PILL_PAD_SECONDARY_X),
+            pady=self.dp(PILL_PAD_SECONDARY_Y))
+
     def _secondary_pill(self, parent, text, cmd, icon=None):
         """Secondary pill button (soft surface). Padding scales with DPI."""
         return make_pill_button(
@@ -4432,17 +4629,21 @@ class Widget:
         self._menu_row(m, mode_label, lambda: self._menu_do(self._toggle_essential),
                        icon='\u21F5\uFE0E', icon_ft=FT_EMOJI_11)
         self._menu_sep(m)
-        cats = (
-            ('display', '\uECA5', FT_MDL2_MENU, t('menu_cat_display')),
-            ('data',    '\U0001F514\uFE0E', FT_EMOJI, t('menu_cat_data')),
-            ('account', '\U0001F5DD\uFE0E', FT_EMOJI, t('menu_cat_account')),
-            ('general', '\u2699\uFE0E',     FT_EMOJI, t('menu_cat_general')),
-        )
-        for key, icon, ift, label in cats:
-            r = self._menu_row(m, label, None, icon=icon, icon_ft=ift,
-                               trailing='\u203A')
-            self._bind_subtree(r, '<Button-1>',
-                               lambda e, k=key, rr=r: self._open_flyout(k, rr))
+        def category(key, icon, icon_ft, label):
+            row = self._menu_row(m, label, None, icon=icon, icon_ft=icon_ft,
+                                 trailing='\u203A')
+            self._bind_subtree(row, '<Button-1>',
+                               lambda e, k=key, rr=row: self._open_flyout(k, rr))
+
+        category('display', '\uECA5', FT_MDL2_MENU, t('menu_cat_display'))
+        category('data', '\U0001F514\uFE0E', FT_EMOJI, t('menu_cat_data'))
+        # Accounts is a destination, not a category: its flyout held the
+        # accounts dialog and a single link, and the link now sits inside that
+        # dialog. One row, one click, one window.
+        self._menu_row(m, t('menu_accounts'),
+                       lambda: self._menu_do(self._accounts_dialog),
+                       icon=ICON_KEY, icon_ft=FT_MDL2_MENU)
+        category('general', '\u2699\uFE0E', FT_EMOJI, t('menu_cat_general'))
         self._menu_sep(m)
         self._menu_row(m, t('menu_quit'), lambda: self._menu_do(self._quit),
                        icon='\u2715', icon_ft=FT_EMOJI)
@@ -4670,16 +4871,6 @@ class Widget:
             self._menu_row(m, (t('menu_taskbar_on') if tb else t('menu_taskbar_off')),
                            lambda: self._flyout_set(self._toggle_taskbar),
                            icon='\U0001F4CC︎', icon_ft=FT_EMOJI, tip=t('tip_taskbar'))
-        elif cat == 'account':
-            # No standalone "Session key" entry: a key means nothing without
-            # the account it belongs to, so keys are edited per account from
-            # the accounts dialog (key icon / double-click on a row).
-            self._menu_row(m, t('menu_accounts'),
-                           lambda: self._menu_do(self._accounts_dialog),
-                           icon=ICON_KEY, icon_ft=FT_MDL2_MENU)
-            self._menu_row(m, t('menu_open_claude'),
-                           lambda: self._menu_do(self._open_claude_usage),
-                           icon='↗︎', icon_ft=FT_EMOJI)
         elif cat == 'general':
             self._menu_section(m, t('menu_language'))
             for code, name, ft in (('en', 'English', None), ('it', 'Italiano', None),
@@ -6109,13 +6300,31 @@ class Widget:
         # button below the list stays visible without a cap or scrolling.
         dlg, body = self._build_dialog_frame(t('dlg_accounts_title'), dw, dh)
 
+        # Bottom controls first (see the layout contract in _build_dialog_frame):
+        # a long account list must eat into the list, never into these.
+        add_host = tk.Frame(body, bg=BG)
+        add_host.pack(fill='x', side='bottom')
+        tk.Frame(add_host, bg=BAR_BG, height=1).pack(fill='x', pady=(12, 12))
+        buttons = tk.Frame(add_host, bg=BG)
+        buttons.pack(fill='x')
+        self._secondary_pill(buttons, t('dlg_add_account'),
+                             lambda: self._add_account(rebuild)).pack(side='left')
+        def open_usage_page():
+            # Close first: this dialog is topmost and frameless, so it would
+            # otherwise float over the page the user just asked to read, with
+            # no taskbar button to send it behind.
+            dlg.destroy()
+            self._open_claude_usage()
+
+        # Bare U+2197, no text-presentation selector: the icon is drawn in
+        # Segoe UI, which has no emoji form to suppress, and Tk would measure
+        # the selector as an extra blank advance that pushes the arrow away
+        # from its caption.
+        self._outline_pill(buttons, t('menu_open_claude'),
+                           open_usage_page, icon='↗').pack(side='right')
+
         list_frame = tk.Frame(body, bg=BG)
         list_frame.pack(fill='x')
-        add_host = tk.Frame(body, bg=BG)
-        add_host.pack(fill='x')
-        tk.Frame(add_host, bg=BAR_BG, height=1).pack(fill='x', pady=(12, 12))
-        self._secondary_pill(add_host, t('dlg_add_account'),
-                             lambda: self._add_account(rebuild)).pack(anchor='w')
 
         def rebuild():
             for w in list_frame.winfo_children():
@@ -6235,6 +6444,12 @@ class Widget:
                 accounts = self.cfg['accounts']
                 self.cfg['active_account'] = accounts[0]['id'] if accounts else None
                 mirror_active(self.cfg)
+                if not accounts:
+                    # Nothing active left to mirror: clear it, or the key the
+                    # user just removed would stay in the config and in the
+                    # backup that sync_backup refreshes below.
+                    self.cfg['session_key'] = ''
+                    self.cfg['org_id'] = ''
                 if self.cfg.get('active_account'):
                     self.refresh()
                 else:
@@ -6242,6 +6457,8 @@ class Widget:
                                 action_label=t('action_setup_now'),
                                 action_cmd=self._setup_dialog)
             save_cfg(self.cfg)
+            # Removing an account means removing its key, backup included.
+            sync_backup()
             rebuild()
         self._confirm_dialog(t('dlg_remove'), t('dlg_remove_confirm'), on_yes)
 

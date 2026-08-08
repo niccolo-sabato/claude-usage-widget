@@ -116,7 +116,7 @@ The widget connects to Claude.ai using the same browser session you are already 
 
 ### Accounts
 - **Save multiple Claude logins** and switch between them instantly; the widget refreshes to the selected account right away
-- Each account shows its **name, email and plan**, with a coloured avatar; add, rename or remove them from the Account panel
+- Each account shows its **name, email and plan**, with a coloured avatar; add, rename or remove them from the Accounts window
 - The active account's session key is edited per account, so you always know which login you are updating
 
 ### Authentication and setup
@@ -161,14 +161,14 @@ The widget connects to Claude.ai using the same browser session you are already 
 
 ### Settings menu
 
-Open it with **≡**, the **☰** button, or by right-clicking the bar in essential mode. Quick actions sit at the top; the rest is grouped into categories that open in a side panel.
+Open it with **≡**, the **☰** button, or by right-clicking the bar in essential mode. Quick actions sit at the top, then the categories, which open in a side panel.
 
 ![The settings menu](docs/images/menu.png)
 
 - **Refresh** and the **Normal / Essential** mode toggle (top level)
 - **Display**: countdown as a pulsing dot or a numeric value, the sync-time timestamp on/off, fixed or dynamic bar colours, and which bars to show (each with a colour swatch). Hover any option for a short explanation.
 - **Data & alerts**: refresh interval (10 to 3600 s), threshold notifications, taskbar icon and Win11 progress overlay
-- **Account**: manage your accounts (add, switch, rename, remove, update each session key), open the Claude.ai usage page
+- **Accounts**: opens the accounts window directly (add, switch, rename, remove, update each session key), with a link to the Claude.ai usage page
 - **General**: language (EN / IT / JA), check for updates, open the GitHub repo, open `config.json`, run the connection self-test
 - **Quit** (top level)
 
@@ -178,7 +178,7 @@ The widget manages its own config at `%LOCALAPPDATA%\Claude Usage\config.json`. 
 
 ```jsonc
 {
-  "accounts": [ /* saved logins, managed from the Account panel */ ],
+  "accounts": [ /* saved logins, managed from the Accounts window */ ],
   "active_account": "…",                 // id of the selected account
   "language": "en",                      // "en" | "it" | "ja"
   "refresh_ms": 180000,                  // auto-refresh cadence
@@ -207,7 +207,7 @@ The widget is a single-file Python source (`src/widget.pyw`) using tkinter for t
 ## Known behaviors
 
 - **Windows 10:** square corners (DWM rounded corners require Windows 11)
-- **Session expiry:** Claude.ai session keys typically last about 30 days or until you log out. The widget shows a clear notice when this happens; update the key from **≡ > Account**
+- **Session expiry:** Claude.ai session keys typically last about 30 days or until you log out. The widget shows a clear notice when this happens; update the key from **≡ > Accounts**
 - **TLS via curl:** the widget calls the `curl` found on `PATH` instead of Python's `urllib`, because Cloudflare in front of claude.ai fingerprints the TLS handshake (JA3) and blocks Python's OpenSSL stack. Windows ships a schannel build, which uses the Windows certificate store; the connection self-test says so when a different one comes first
 
 ## Troubleshooting
@@ -221,7 +221,7 @@ Open **≡ > General > Connection self-test**. It follows the path a request act
 | The handshake fails over a blocked revocation lookup, and succeeds without it | A VPN, firewall or security suite is blocking the certificate authority's revocation endpoint (OCSP/CRL). The certificate itself is valid, and the widget's own requests retry without that lookup whenever they hit it. If the first failure was something else, the self-test says so instead. |
 | The handshake fails both ways, with `SEC_E_UNTRUSTED_ROOT` or `unable to get local issuer certificate` | Something is inspecting HTTPS traffic and re-signing it: a corporate proxy, or an antivirus with HTTPS scanning. Its root certificate has to be trusted by Windows. |
 | A warning on `curl and TLS backend` | A curl that does not use the Windows certificate store comes first in `PATH` (MSYS2, conda, or a tool that ships its own). Those builds validate against their own CA bundle, so they can reject certificates the browser accepts. |
-| The usage API reports the key was rejected | The session key expired. Renew it from **≡ > Account**. |
+| The usage API reports the key was rejected | The session key expired. Renew it from **≡ > Accounts**. |
 
 ### Where the logs are
 
