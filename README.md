@@ -66,6 +66,34 @@ Essential mode is flexible. Show just the session bar for the smallest footprint
 - **Or decide what that line carries.** **Display > Under the bars** switches the reset time and the time left independently. Keep both, keep the one you actually read, or turn both off and let the strip come down to what the bars themselves need. Nothing is lost either way: hovering a bar shows the reset in full, along with the account the numbers belong to.
 - **Refresh countdown, your way.** The time to the next data refresh is shown as a quiet pulsing dot on the session bar (default), or as a numeric value if you switch **Countdown** to **Numeric**. A **Sync time** toggle shows or hides the timestamp of the last update.
 
+## How narrow it goes
+
+Every part of the strip is either optional or measured against what it actually
+draws, so the width you end up with is the width of what you chose to see.
+
+| On screen | Minimum width |
+|---|---|
+| One bar, time left only | 150 px |
+| Two bars, time left only | 242 px |
+| Three bars, time left only | 315 px |
+
+![One bar at its minimum width](docs/images/essential-time-left.png)
+
+![Two bars at their minimum width](docs/images/essential-time-left-2bars.png)
+
+![Three bars at their minimum width](docs/images/essential-time-left-3bars.png)
+
+Those are with **Sync time in bar** off and **Under the bars** left with the time
+until reset alone. The defaults show more and need more: 193 px for a single bar
+and 418 px for three.
+
+Up to 2.8.51 much of that width was reserved whether or not anything used it.
+The reset label was always drawn in full, so the widest form set the minimum; the
+word a failed refresh writes was reserved inside every bar even while nothing had
+failed; and each bar was given a fixed amount of room rather than what its own
+contents measure. All three are gone, which is what makes the numbers above
+reachable without anything being clipped.
+
 ## A full view when you want the detail
 
 Want a proper window? Double-click the orange corner dot (or pick **Normal mode** from the menu) and the widget becomes a standard window with a title bar, section labels and reset times. It stacks the same bars you selected, so your choice carries across both modes.
