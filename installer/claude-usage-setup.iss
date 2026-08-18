@@ -2,7 +2,7 @@
 ; Run from the installer/ folder. All Source paths are relative to this script.
 
 #define MyAppName "Claude Usage"
-#define MyAppVersion "2.8.51"
+#define MyAppVersion "2.8.52"
 #define MyAppPublisher "Niccolo Sabato"
 #define MyAppExeName "Claude Usage.exe"
 #define MyAppIcon "claude.ico"
@@ -26,9 +26,15 @@ PrivilegesRequired=admin
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 MinVersion=10.0.17763
-; Close running instances before install/update
+; Close running instances before install/update.
+; The filter decides which of the files we are about to replace get registered
+; with RestartManager, and therefore which locks are detected. Listing only the
+; main exe left every DLL in _internal unwatched: a foreign process holding one
+; of them (measured: Claude Desktop's Chrome native host had VCRUNTIME140.dll
+; loaded) was never closed, the copy failed, and the rollback left the app
+; unable to start, since [InstallDelete] had already removed the old _internal.
 CloseApplications=force
-CloseApplicationsFilter=Claude Usage.exe
+CloseApplicationsFilter=*.exe,*.dll,*.pyd
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
@@ -36,7 +42,12 @@ Name: "italian"; MessagesFile: "compiler:Languages\Italian.isl"
 Name: "japanese"; MessagesFile: "compiler:Languages\Japanese.isl"
 
 [InstallDelete]
-; Clean previous installation to avoid stale files
+; Clean previous installation to avoid stale files. This runs BEFORE the new
+; files are copied, so a failure here is not "the update did not happen" but
+; "the app is gone": the rollback removes what was copied and cannot bring back
+; what this deleted. It stays because a PyInstaller folder with leftovers from
+; another Python version fails in stranger ways, but it is the reason the
+; CloseApplicationsFilter above has to cover every file we replace.
 Type: filesandordirs; Name: "{app}\_internal"
 
 [Files]

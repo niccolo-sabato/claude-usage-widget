@@ -45,7 +45,7 @@ import urllib.request
 import urllib.error
 import tkinter as tk
 import tkinter.font as tkfont
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from PIL import Image, ImageDraw, ImageTk
 
 # ─── DPI awareness ──────────────────────────────────
@@ -177,7 +177,7 @@ BAR_DEFAULT_FILL = {'session': BAR_FILL_SESSION,
 BAR_PRESETS = [BAR_FILL_SESSION, BAR_FILL_WEEKLY, BAR_FILL_HIGH, BAR_FILL_PURPLE]
 
 # ─── App ────────────────────────────────────────────
-APP_VERSION = '2.8.51'
+APP_VERSION = '2.8.52'
 
 # ─── Auto-update ────────────────────────────────────
 UPDATE_REPO = 'niccolo-sabato/claude-usage-widget'
@@ -191,6 +191,7 @@ UPDATE_CHANGELOG_MAX_CHARS = 1400         # truncate release body shown in dialo
 # ─── Layout ──────────────────────────────────────────
 DEF_W    = 280
 MIN_W    = 210
+MIN_W_ESS = 150  # essential strip: no title bar to fit, so it may go smaller
 MIN_H_E  = 46   # essential mode minimum height
 MIN_H_N  = 90   # normal mode minimum height
 PAD      = 12
@@ -199,6 +200,8 @@ TITLE_H  = 28
 DOT_INSET = BAR_H // 2   # dot centre sits on the centre of the bar's right rounded
                          # cap (the ideal circle that completes the end semicircle)
 DOT_DIAM  = 7     # pre-refresh dot diameter (matches the corner dots' footprint)
+SUB_LABEL_PADX = 6   # the reset label's own left inset (Section.lbl_sub)
+ESS_CONTROLS_INSET = 18  # gap the close/refresh/time block is placed at (place x=-18)
 ESS_MENU_W = 62   # hamburger pill width; reserves >= the bottom-right controls'
                   # footprint so the per-bar reset text never collides with them
 REFRESH  = 180_000  # 3 minutes
@@ -598,6 +601,9 @@ LANG = {
         'not_used': 'not used',
         'soon': 'soon',
         'reset_prefix': 'reset',
+        'tip_resize': 'Drag to resize\nDouble-click to switch mode',
+        'tip_expand': 'Click to see every bar',
+        'tip_collapse': 'Click to go back to the strip',
         'days': ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
         'unit_d': 'd', 'unit_h': 'h', 'unit_min': 'min',
         'setup_required': 'Session key required to connect to Claude.ai.',
@@ -654,6 +660,13 @@ LANG = {
         'tip_countdown_dot': 'A pulsing dot signals when the next refresh is near.',
         'tip_countdown_full': 'Show the exact time left until the limit resets.',
         'tip_sync': 'Show the time of the last refresh next to each bar.',
+        'menu_reset_label': 'Under the bars',
+        'menu_reset_time_on': 'Reset time: ON',
+        'menu_reset_time_off': 'Reset time: OFF',
+        'menu_reset_left_on': 'Time left: ON',
+        'menu_reset_left_off': 'Time left: OFF',
+        'tip_reset_time': 'Show the clock time each limit resets at.',
+        'tip_reset_left': 'Show how long is left until each limit resets.\nTurn both off for the narrowest strip: hover a bar to read them.',
         'tip_colors': 'Fixed: each bar keeps its own colour. By usage: every bar is coloured by its consumption (blue, amber, red).',
         'tip_notifications': 'Windows notification when session usage crosses a threshold.',
         'tip_taskbar': 'Show a taskbar button with a usage progress overlay.',
@@ -755,6 +768,9 @@ LANG = {
         'not_used': 'non utilizzato',
         'soon': 'tra poco',
         'reset_prefix': 'reset',
+        'tip_resize': 'Trascina per ridimensionare\nDoppio clic per cambiare modalit\u00e0',
+        'tip_expand': 'Clic per vedere tutte le barre',
+        'tip_collapse': 'Clic per tornare alla striscia',
         'days': ['lun', 'mar', 'mer', 'gio', 'ven', 'sab', 'dom'],
         'unit_d': 'gg', 'unit_h': 'h', 'unit_min': 'min',
         'setup_required': 'Session key necessaria per connettersi a Claude.ai.',
@@ -809,6 +825,13 @@ LANG = {
         'tip_countdown_dot': 'Un puntino che pulsa segnala quando manca poco al prossimo aggiornamento.',
         'tip_countdown_full': 'Mostra il tempo esatto che manca al reset del limite.',
         'tip_sync': 'Mostra accanto a ogni barra quando e stato fatto l ultimo aggiornamento.',
+        'menu_reset_label': 'Sotto le barre',
+        'menu_reset_time_on': 'Orario di reset: visibile',
+        'menu_reset_time_off': 'Orario di reset: nascosto',
+        'menu_reset_left_on': 'Tempo rimanente: visibile',
+        'menu_reset_left_off': 'Tempo rimanente: nascosto',
+        'tip_reset_time': 'Mostra a che ora si azzera ogni limite.',
+        'tip_reset_left': 'Mostra quanto manca all azzeramento di ogni limite.\nSpegnili entrambi per la striscia piu stretta: passa il mouse su una barra per leggerli.',
         'tip_colors': 'Fissi: ogni barra tiene il suo colore. Per consumo: ogni barra e colorata in base al consumo (blu, giallo, rosso).',
         'tip_notifications': 'Notifica di Windows quando il consumo della sessione supera una soglia.',
         'tip_taskbar': 'Mostra un pulsante nella taskbar con la barra di avanzamento del consumo.',
@@ -907,6 +930,9 @@ LANG = {
         'not_used': '\u672a\u4f7f\u7528',
         'soon': '\u307e\u3082\u306a\u304f',
         'reset_prefix': '\u30ea\u30bb\u30c3\u30c8',
+        'tip_resize': '\u30c9\u30e9\u30c3\u30b0\u3067\u30b5\u30a4\u30ba\u5909\u66f4\n\u30c0\u30d6\u30eb\u30af\u30ea\u30c3\u30af\u3067\u8868\u793a\u30e2\u30fc\u30c9\u5207\u66ff',
+        'tip_expand': '\u30af\u30ea\u30c3\u30af\u3067\u5168\u30d0\u30fc\u3092\u8868\u793a',
+        'tip_collapse': '\u30af\u30ea\u30c3\u30af\u3067\u5143\u306e\u8868\u793a\u306b\u623b\u3059',
         'days': ['\u6708', '\u706b', '\u6c34', '\u6728', '\u91d1', '\u571f', '\u65e5'],
         # Latin unit markers rather than the kanji forms: those are full-width
         # and push the reset label past the end of the bar, where it clips.
@@ -963,6 +989,13 @@ LANG = {
         'tip_countdown_dot': '\u6b21\u306e\u66f4\u65b0\u304c\u8fd1\u3065\u304f\u3068\u70b9\u6ec5\u3059\u308b\u30c9\u30c3\u30c8\u3067\u77e5\u3089\u305b\u307e\u3059\u3002',
         'tip_countdown_full': '\u5236\u9650\u306e\u30ea\u30bb\u30c3\u30c8\u307e\u3067\u306e\u6b63\u78ba\u306a\u6b8b\u308a\u6642\u9593\u3092\u8868\u793a\u3057\u307e\u3059\u3002',
         'tip_sync': '\u5404\u30d0\u30fc\u306e\u6a2a\u306b\u6700\u5f8c\u306e\u66f4\u65b0\u6642\u523b\u3092\u8868\u793a\u3057\u307e\u3059\u3002',
+        'menu_reset_label': '\u30d0\u30fc\u306e\u4e0b\u306e\u8868\u793a',
+        'menu_reset_time_on': '\u30ea\u30bb\u30c3\u30c8\u6642\u523b: \u30aa\u30f3',
+        'menu_reset_time_off': '\u30ea\u30bb\u30c3\u30c8\u6642\u523b: \u30aa\u30d5',
+        'menu_reset_left_on': '\u6b8b\u308a\u6642\u9593: \u30aa\u30f3',
+        'menu_reset_left_off': '\u6b8b\u308a\u6642\u9593: \u30aa\u30d5',
+        'tip_reset_time': '\u5404\u5236\u9650\u304c\u30ea\u30bb\u30c3\u30c8\u3055\u308c\u308b\u6642\u523b\u3092\u8868\u793a\u3057\u307e\u3059\u3002',
+        'tip_reset_left': '\u30ea\u30bb\u30c3\u30c8\u307e\u3067\u306e\u6b8b\u308a\u6642\u9593\u3092\u8868\u793a\u3057\u307e\u3059\u3002\n\u4e21\u65b9\u30aa\u30d5\u3067\u6700\u3082\u7d30\u304f\u306a\u308a\u307e\u3059\u3002\u30d0\u30fc\u306b\u30ab\u30fc\u30bd\u30eb\u3092\u5408\u308f\u305b\u308b\u3068\u8aad\u3081\u307e\u3059\u3002',
         'tip_colors': '\u56fa\u5b9a: \u5404\u30d0\u30fc\u304c\u72ec\u81ea\u306e\u8272\u3092\u4fdd\u3061\u307e\u3059\u3002\u6d88\u8cbb\u91cf: \u3059\u3079\u3066\u306e\u30d0\u30fc\u304c\u6d88\u8cbb\u91cf\u306b\u5fdc\u3058\u3066\u8272\u5206\u3051\u3055\u308c\u307e\u3059 (\u9752\u3001\u9ec4\u3001\u8d64)\u3002',
         'tip_notifications': '\u30bb\u30c3\u30b7\u30e7\u30f3\u4f7f\u7528\u91cf\u304c\u3057\u304d\u3044\u5024\u3092\u8d85\u3048\u308b\u3068Windows\u901a\u77e5\u3092\u8868\u793a\u3057\u307e\u3059\u3002',
         'tip_taskbar': '\u30bf\u30b9\u30af\u30d0\u30fc\u306b\u4f7f\u7528\u72b6\u6cc1\u3092\u91cd\u306d\u305f\u30dc\u30bf\u30f3\u3092\u8868\u793a\u3057\u307e\u3059\u3002',
@@ -1064,6 +1097,17 @@ def set_lang(code):
     global _current_lang
     if code in LANG:
         _current_lang = code
+
+
+# What the sub-label under each bar carries: the clock the window resets at,
+# the time left until it does, or both. Module state rather than a parameter
+# threaded through every caller, for the same reason the language is: the
+# formatter is called from measurement code that has no view of the config.
+_reset_parts = {'time': True, 'left': True}
+
+def set_reset_parts(show_time, show_left):
+    _reset_parts['time'] = bool(show_time)
+    _reset_parts['left'] = bool(show_left)
 
 
 # ═══════════════════════════════════════════════════════
@@ -1402,6 +1446,13 @@ DYN_MID  = '#fab219'   # amber - mid usage
 DYN_HIGH = '#d03b3b'   # red   - high usage
 
 
+# How much of the reset label there is room for. Ordered widest first, so a
+# caller can ask for "at least this narrow" with a comparison.
+RESET_FULL = 0        # reset Sat 11:00 (2d 5h)
+RESET_NO_PREFIX = 1   # Sat 11:00 (2d 5h)
+RESET_COMPACT = 2     # 11:00 (2d 5h)
+
+
 def dynamic_fill(pct):
     """Fill colour for the dynamic palette, stepped by usage percentage."""
     if pct >= 85:
@@ -1411,13 +1462,30 @@ def dynamic_fill(pct):
     return DYN_LOW
 
 
-def format_reset(iso_str, compact=False):
-    """Format reset time: 'reset 18:00 (3h 26min)' or 'reset Sat 11:00 (2d 5h)'.
+def format_reset(iso_str, level=RESET_FULL, parts=None):
+    """Format a reset time at one of three widths.
 
-    With compact=True returns the reduced form used by the side-by-side
-    essential bars: just 'reset 3h 26min' / 'reset 2d 5h', with no absolute
-    clock time, no weekday and no parentheses, so it fits under a narrow bar.
+    RESET_FULL       'reset Sat 11:00 (2d 5h)'  the standard form
+    RESET_NO_PREFIX  'Sat 11:00 (2d 5h)'        the word goes first: the clock
+                                                and the countdown already say
+                                                what it is
+    RESET_COMPACT    '11:00 (2d 5h)'            side-by-side bars, where the
+                                                weekday goes too
+
+    The word is the widest part of the label that carries no information, so
+    dropping it is what lets the window shrink below the full label (issue
+    #10).
+
+    Those three are the widths of the FULL label. The user also chooses which
+    halves exist at all (set_reset_parts): with only the clock it reads
+    'reset Sat 11:00', with only the time left 'reset 2d 5h', and the
+    parentheses go with the clock, since they are there to set the countdown
+    apart from a time of day. With neither, there is nothing to draw.
     """
+    show_time, show_left = (parts if parts is not None
+                            else (_reset_parts['time'], _reset_parts['left']))
+    if not (show_time or show_left):
+        return None
     if not iso_str:
         return None
     try:
@@ -1438,14 +1506,20 @@ def format_reset(iso_str, compact=False):
         cd = f'{total_h}{uh} {total_m:02d}{umin}'
     else:
         cd = f'{total_m}{umin}'
-    prefix = t('reset_prefix')
-    if compact:
-        return f'{prefix} {cd}'
+    if not show_time:
+        return (cd if level >= RESET_NO_PREFIX
+                else f'{t("reset_prefix")} {cd}')
     time_str = f'{local:%H:%M}'
-    if local.date() == now_local.date():
-        return f'{prefix} {time_str} ({cd})'
-    days = t('days')
-    return f'{prefix} {days[local.weekday()]} {time_str} ({cd})'
+    if level >= RESET_COMPACT or local.date() == now_local.date():
+        when = time_str
+    else:
+        when = f'{t("days")[local.weekday()]} {time_str}'
+    if not show_left:
+        return (when if level >= RESET_NO_PREFIX
+                else f'{t("reset_prefix")} {when}')
+    if level >= RESET_NO_PREFIX:
+        return f'{when} ({cd})'
+    return f'{t("reset_prefix")} {when} ({cd})'
 
 
 def pill(cv, x, y, w, h, color):
@@ -2725,11 +2799,14 @@ class Section:
         self._trackc = track         # the track colour actually drawn
         self._compact = False
         self._cd_txt = ''  # countdown text appended to pct
+        self._err = False  # a failed refresh, said under the bar not inside it
         self._dot_phase = 'off'      # 'off' | 'on' (pre-refresh breathing dot)
         self._dot_level = 1.0        # breathing brightness 0..1 (0 = invisible)
         self._dot_bg = BAR_BG        # colour behind the dot, for the fade-out
         self._dot_img = None         # keeps the current dot PhotoImage from GC
-        self._reset_compact = False  # reduced reset sub-label for side-by-side bars
+        self._reset_level = RESET_FULL   # width of the reset sub-label
+        self._resets_at = None           # last reset time, to re-render at another width
+        self._state = 'empty'            # 'empty' | 'missing' | 'ok' (see _render_reset)
 
         self.frame = tk.Frame(parent, bg=BG)
         self.frame.pack(fill='x', padx=PAD, pady=(3, 0))
@@ -2793,11 +2870,89 @@ class Section:
             except Exception:
                 pass
 
+    def set_reset_level(self, level):
+        """Redraw the reset label at a different width, from the value already
+        held, so a window resize does not have to wait for the next fetch."""
+        if level == self._reset_level:
+            return
+        self._reset_level = level
+        self._render_reset()
+
+    def set_error(self, on):
+        """Say (or stop saying) that the last refresh failed.
+
+        It goes on the line under the bar, in place of the reset, because that
+        is where the bar's words live and because the bar's interior is what
+        every strip has to reserve room for.
+        """
+        if on == self._err:
+            return
+        self._err = on
+        self._render_reset()
+
+    def redraw_reset(self):
+        """Re-render the sub-label after a change in what it should carry. The
+        level governs how much room the text may take; this governs which parts
+        of it exist at all."""
+        self._render_reset()
+
+    def reset_text(self, level=None):
+        """The reset label as it would read at `level` (default: the current
+        one). Used to measure a form before deciding to switch to it."""
+        return format_reset(self._resets_at,
+                            self._reset_level if level is None else level)
+
+    def reset_display(self, level=None):  # noqa: D401 - see below
+        """Exactly what _render_reset would write at `level`.
+
+        The floor is measured from this and not from reset_text, because two of
+        the three states draw a word instead of a time and neither of them goes
+        through format_reset. Measuring the time alone let the strip shrink
+        until those words ran under the controls.
+        """
+        if self._err:
+            # Ahead of everything else, including the user's choice of what
+            # this line carries: a refresh that failed is not a reset time.
+            return t('error')
+        if self._state == 'empty':
+            return self.lbl_sub.cget('text')
+        if self._state == 'missing':
+            # Said whatever the user chose to see: the setting governs which
+            # parts of a RESET TIME to show, and this is not one, it is the
+            # widget admitting it has no value for this limit. Silencing it
+            # made an unreported limit look pixel-identical to a real 0%, in
+            # the bar and in the hover tip alike.
+            return t('not_available')
+        if not (_reset_parts['time'] or _reset_parts['left']):
+            # Asked for nothing under the bar. Distinct from the state above:
+            # here there IS a value, the user just does not want the reset
+            # spelled out under it.
+            return ''
+        cd = self.reset_text(level)
+        if cd:
+            return cd
+        return t('not_used') if self._pct == 0 else ''
+
+    def _render_reset(self):
+        """Write the sub-label for the current data and width.
+
+        Three states, and they must not be confused: nothing fetched yet says
+        nothing at all, a value claude.ai did not report says 'not available',
+        and a real zero says 'not used'. This runs again on every width change,
+        so the state has to be remembered rather than inferred from the
+        percentage: 'not available' and a genuine 0% both leave _pct at 0.
+        """
+        if self._state == 'empty' and not self._err:
+            return
+        self.lbl_sub.config(text=self.reset_display())
+
     def update(self, pct, resets_at):
+        self._resets_at = resets_at
+        self._state = 'ok' if pct is not None else 'missing'
         if pct is None:
             self._pct = 0
             self._color = BAR_BG
-            self.lbl_sub.config(text=t('not_available'))
+            self._render_reset()
             self._draw(self.cv.winfo_width())
             return
         self._pct = max(0, min(100, pct))
@@ -2807,13 +2962,7 @@ class Section:
         else:
             self._color = self._fill
             self._trackc = self._track
-        cd = format_reset(resets_at, compact=self._reset_compact)
-        if cd:
-            self.lbl_sub.config(text=cd)
-        elif self._pct == 0:
-            self.lbl_sub.config(text=t('not_used'))
-        else:
-            self.lbl_sub.config(text='')
+        self._render_reset()
         self._draw(self.cv.winfo_width())
 
     def set_dynamic(self, on):
@@ -2892,6 +3041,10 @@ class Widget:
         self._model_label = self.cfg.get('model_label', 'Sonnet')
         # Load language from config, default English
         set_lang(self.cfg.get('language', 'en'))
+        # And what the line under the bars carries, for the same reason: the
+        # first measurement happens long before the menu can be opened.
+        set_reset_parts(self.cfg.get('show_reset_time', True),
+                        self.cfg.get('show_reset_left', True))
         self.root = tk.Tk()
         init_fonts(self.root, _current_lang)
         # Surface callback-level exceptions in the log. Tkinter normally
@@ -2926,6 +3079,9 @@ class Widget:
 
         self._job = None
         self._countdown_job = None
+        self._tooltip_hides = []     # close every hover tooltip when a gesture starts
+        self._has_usage = False       # a fetch has landed: the floor may act
+        self._last_width = 0          # last width seen, to skip idle <Configure>
         self._fetch_busy = False      # a fetch is in flight; do not start another
         self._fetch_pending = False   # a refresh asked for while one was running
         self._fetch_lock = threading.Lock()   # guards the two flags above
@@ -3159,6 +3315,12 @@ class Widget:
         # places per-widget bindings used to miss in essential mode.
         self.root.bind('<Button-3>', self._show_menu)
 
+        # The reset labels drop the word 'reset' when the window is dragged
+        # narrower than the full form, so the form has to be re-picked as the
+        # width changes. set_reset_level is a no-op when nothing changed, which
+        # keeps this cheap during a drag.
+        self.root.bind('<Configure>', self._on_root_configure)
+
         # Refresh button - Segoe MDL2 refresh glyph at a compact size so it
         # matches the original ↻ footprint without the thin-arrow look.
         self.btn_r = tk.Label(self.tb, text=f' {ICON_REFRESH} ', font=FT_MDL2_TB,
@@ -3219,7 +3381,19 @@ class Widget:
             sec.lbl_sub.config(width=1)
             sec.set_compact(True)
             sec.frame.pack_forget()     # hidden until essential-collapsed
-        # _reset_compact is set dynamically (reduced only when >1 bar is shown).
+        # The reset-label form is chosen dynamically: see _sync_ess_reset_mode.
+
+        # Whose numbers these are, on hover over the line under a bar. Zero
+        # pixels, and it answers the question a user hit when every bar read
+        # 0% because the widget was watching an account they had stopped using
+        # (issue #11): the bars were right, the account was the surprise.
+        for sec in self._all_sections():
+            tip = (lambda s=sec: self._bar_tip(s))
+            self._tooltip(sec.lbl_sub, tip, delay=700, persistent=True)
+            # The bar itself too, not just the line under it: with both halves
+            # of that line turned off it is blank, and the setting's own help
+            # text tells the user to hover the bar to read the reset.
+            self._tooltip(sec.cv, tip, delay=700, persistent=True)
 
         # Apply the saved palette mode to every bar now that they all exist.
         if self.cfg.get('bar_dynamic', False):
@@ -3256,6 +3430,12 @@ class Widget:
         self.btn_expand.bind('<Enter>', lambda e: self.btn_expand.config(fg=DOT_W_H))
         self.btn_expand.bind('<Leave>', lambda e: self.btn_expand.config(
             fg=DOT_W if self._expanded else DOT_W_D))
+        # Nothing on screen said this dot opens the full view either, and it is
+        # a toggle, so the text has to follow the state: a fixed 'click to
+        # expand' would be wrong half of the time.
+        self._tooltip(self.btn_expand,
+                      lambda: t('tip_collapse' if self._expanded else 'tip_expand'),
+                      delay=500, persistent=True)
 
         # Resize dot - bottom-right (ALWAYS stays here)
         self.btn_resize = tk.Label(self.main, text='\u25cf', font=FT_DOT,
@@ -3264,10 +3444,16 @@ class Widget:
         self.btn_resize.place(relx=1.0, x=-6, rely=1.0, y=-4, anchor='se')
         self.btn_resize.bind('<Button-1>', self._resize_start)
         self.btn_resize.bind('<B1-Motion>', self._resize_move)
-        self.btn_resize.bind('<ButtonRelease-1>', self._save_geometry_user)
+        self.btn_resize.bind('<ButtonRelease-1>', self._save_geometry_resize)
         self.btn_resize.bind('<Double-Button-1>', lambda e: self._toggle_essential())
         self.btn_resize.bind('<Enter>', lambda e: self.btn_resize.config(fg='#E06030'))
         self.btn_resize.bind('<Leave>', lambda e: self.btn_resize.config(fg=OCHRE))
+        # Nothing on screen says this dot resizes the widget, and a user asked
+        # for a feature that has been there all along (issue #10). The tooltip
+        # hides on Button-1, so it never sits in the way of the drag it
+        # describes.
+        self._tooltip(self.btn_resize, lambda: t('tip_resize'), delay=500,
+                      persistent=True)
 
         # Essential mode controls - dynamic stack, right-aligned
         # Visual order left to right: ✕ ↻ HH:MM [resize dot]
@@ -3371,11 +3557,24 @@ class Widget:
 
         cover.lift()  # above the freshly packed widgets, so the reflow is hidden
         self.root.update_idletasks()
+        # Re-floor for the layout now showing, both ways round. Collapsing
+        # into the strip may need a wider minimum than the last compute (bars
+        # added while expanded); expanding raises the floor to the standard-mode
+        # minimum, which the strip is allowed to sit below. Only the collapse
+        # side used to do this, so after an expand the stale lower floor stayed
+        # in place until the next refresh, which then widened the window on its
+        # own, at an arbitrary moment and with no user action behind it.
+        self._update_minsize(keep_height=True)
         if self._essential and not self._expanded:
-            # Collapsing into the side-by-side strip: the bar count may need a
-            # wider minimum than the last compute (e.g. bars added while
-            # expanded), so re-floor the width before measuring/animating.
-            self._update_minsize()
+            # The expanded state floors at the standard-mode minimum, so a
+            # refresh landing while expanded can have widened the window past
+            # what the strip needs. Without this the strip would come back
+            # wider and the next periodic save would store that as the user's
+            # width for this bar count.
+            self._restore_ess_width(keep_height=True)
+            # Let it land: the animation below reads the width back, and a
+            # stale read would re-apply the wider one.
+            self.root.update_idletasks()
         # Size to the freshly-laid-out content in BOTH directions, keeping the
         # bottom edge anchored. A saved collapsed height was wrong when the mode
         # changed between expand and collapse (e.g. expand in essential, switch
@@ -3408,7 +3607,13 @@ class Widget:
             self.bottom_pad.config(height=6)
             self.ess_bar.place(relx=1.0, x=-18, rely=1.0, y=-1, anchor='se')
             self._enter_ess_collapsed()
+            # Standard mode has a higher floor than the strip, so the trip
+            # through it widens the window; without this the strip would come
+            # back at the standard width and the next periodic save would
+            # store that as the user's preference for this bar count.
+            restore_width = True
         else:
+            restore_width = False
             self._expanded = False
             self.ess_bar.place_forget()
             self.content.pack_forget()
@@ -3426,7 +3631,14 @@ class Widget:
         self.root.update_idletasks()
         end_h = self.root.winfo_reqheight()
         end_y = bottom - end_h
-        self._update_minsize()
+        self._update_minsize(keep_height=True)
+        if restore_width:
+            self._restore_ess_width(keep_height=True)
+        # Let a widen from _update_minsize land before reading the geometry
+        # back: the strip may sit below the standard-mode floor, and the stale
+        # x would then be re-applied with the wider width, moving the widget
+        # right instead of growing it leftward as intended.
+        self.root.update_idletasks()
         # Cover content, reset to start, animate
         self.root.geometry(f'{self.root.winfo_width()}x{start_h}+{self.root.winfo_x()}+{start_y}')
         self._start_anim(start_y, start_h, end_y, end_h)
@@ -3449,7 +3661,7 @@ class Widget:
         self.root.geometry(f'{w}x{rh}+{x}+{y}')
         self.root.attributes('-alpha', 0.94)
         self._update_minsize()
-        self._restore_ess_width()
+        self._restore_ess_width(on_launch=True)
 
     # ── Essential-collapsed multi-bar strip ──────────
 
@@ -3482,12 +3694,197 @@ class Widget:
             cv.create_line(cx - half, cy + dy, cx + half, cy + dy,
                            fill=FG, width=1)
 
+    def _active_account_tip(self):
+        """Which account the bars are showing, for the tooltip under them.
+
+        States a fact and never a diagnosis: an account with genuinely no
+        usage looks exactly like the wrong account, so naming the one being
+        watched is all the widget can honestly say."""
+        acc = active_account(self.cfg)
+        if not acc:
+            return ''
+        lines = [acc.get('name') or t('dlg_accounts_title')]
+        if acc.get('email'):
+            lines.append(acc['email'])
+        return '\n'.join(lines)
+
+    def _bar_tip(self, sec):
+        """Hover text for the line under a bar: whose numbers these are, and
+        the reset in full.
+
+        The full form is added whenever the label is not already showing it,
+        which is what makes hiding either half (or both) a fair trade rather
+        than a loss: the strip gets narrower and the reading moves here.
+        """
+        lines = []
+        acc = self._active_account_tip()
+        if acc:
+            lines.append(acc)
+        full = format_reset(sec._resets_at, RESET_FULL, parts=(True, True))
+        shown = sec.reset_display()
+        # Only when it carries something the label does not. The word for
+        # 'reset' is not something: the label drops it precisely because it
+        # says nothing, and repeating the same line one word longer, two pixels
+        # above where it already is, is noise.
+        bare = full.removeprefix(t('reset_prefix') + ' ') if full else ''
+        if full and shown not in (full, bare):
+            lines.append(full)
+        return '\n'.join(lines)
+
+    def _on_root_configure(self, e):
+        """Re-pick the reset-label form when the window's width changes.
+
+        Only for the root's own event, and only on a real width change: this
+        fires for every child too, and several times per pixel during a drag.
+        """
+        if e.widget is not self.root or e.width == self._last_width:
+            return
+        self._last_width = e.width
+        try:
+            self._sync_ess_reset_mode()
+        except Exception as err:
+            wlog(f'LAYOUT reset label: {err}')
+
     def _sync_ess_reset_mode(self):
-        """Reduced reset sub-label ('reset 43min') only when >1 bar is shown;
-        single-bar essential keeps the full 'reset 17:10 (43min)' form."""
-        multi = len(self._essential_bar_ids()) > 1
-        for sec in self.ess_bars.values():
-            sec._reset_compact = multi
+        """Pick how much of the reset label there is room for.
+
+        Side-by-side bars always take the compact form. A single bar keeps the
+        full one while the window is wide enough and drops the word when it is
+        not, which is what lets the window be dragged narrower than the full
+        label (issue #10). The minimum width is computed from the narrow form,
+        so this decision only changes what is shown, never what fits: it cannot
+        feed back into itself.
+        """
+        width = self.root.winfo_width()
+        bars = list(self.ess_bars.values())
+        # Only the bars actually on screen decide, the same set the floor is
+        # computed over: a hidden bar's longer label would otherwise drop the
+        # word on a strip that had room for it.
+        shown = [self.ess_bars[b] for b in self._essential_bar_ids()
+                 if b in self.ess_bars]
+        if len(shown) > 1:
+            ess_level = RESET_COMPACT
+        else:
+            ess_level = self._reset_level_for(shown, width - self._strip_reserved())
+        for sec in bars:
+            sec.set_reset_level(ess_level)
+        stacked = [s for s in self._all_sections() if s not in bars]
+        for sec in stacked:
+            sec.set_reset_level(self._reset_level_for(stacked, width - 2 * PAD))
+
+    def _strip_reserved(self):
+        """Pixels on the essential strip that the reset label cannot use.
+
+        The label starts after the bar frame's padding and its own inset, and
+        the close / refresh / sync-time block is PLACED over the right-hand
+        side rather than packed beside it, so its footprint has to be reserved
+        by hand. Measured, because that block grows with the display scaling
+        while the paddings do not.
+
+        Both the floor and the choice of label form go through this: when they
+        disagreed, the full label came back before there was room for it and
+        ran under the controls (worse the higher the DPI, where the mismatch
+        outgrew the whole gain).
+        """
+        controls = self.ess_bar.winfo_reqwidth()
+        if not self.ess_time.cget('text'):
+            # The clock only appears once the first countdown tick writes it.
+            # Reserve it up front, or the floor (and the label form measured
+            # against it) would change under the user a moment later.
+            controls += FT_S.measure('00:00')   # the label's own padx is already there
+        return PAD + SUB_LABEL_PADX + controls + ESS_CONTROLS_INSET
+
+    def _ess_row_reserve(self, n):
+        """Horizontal space the collapsed strip spends around its `n` bars.
+
+        Exactly what _enter_ess_collapsed packs: PAD outside the first bar, 3px
+        between bars, 3px after the last, then the hamburger with its own
+        (3, PAD) padding. Written once here because the floor has to reserve
+        the same pixels the layout gives away, and the two used to disagree.
+        """
+        return PAD + (n - 1) * 3 + 3 + 3 + ESS_MENU_W + PAD
+
+    def _bar_content_w(self):
+        """Width the bar interior needs: the percentage plus whatever the
+        countdown mode draws next to it, and room for the refresh dot.
+
+        Measured on a worst-case sample rather than on the live text, whose
+        width changes every second as the countdown ticks and would make the
+        floor wobble with it. The sample is spaced exactly as Section._draw
+        spaces it, two blanks and not one, or the reservation comes out a few
+        pixels short of what is drawn.
+
+        The text is centred and the dot sits on the right cap, so what has to
+        be kept clear on each side is the dot's own half plus its inset: the
+        margin below is that clearance, not decoration.
+
+        A failed refresh used to write the word for 'error' here too, which
+        every bar then had to reserve room for whether or not anything had
+        failed. It is said under the bar now (Section.set_error), where the
+        line is already sized for a longer text, so nothing reserves it twice.
+        """
+        sample = '100%'
+        if self.cfg.get('show_sync_time', True):
+            sample += '  00:00'
+        if self._countdown_mode() == 'full':
+            sample += '  (59min 59s)'
+        return FT_BAR.measure(sample) + 2 * (DOT_INSET + DOT_DIAM // 2 + 1)
+
+    @staticmethod
+    def _reset_width(sections, level):
+        """Width in pixels of the widest sub-label these sections would draw at
+        `level`: the reset time when there is one, and the word drawn in its
+        place when there is not."""
+        widths = [FT_S.measure(sec.reset_display(level)) for sec in sections]
+        return max(widths) if widths else 0
+
+    def _reset_samples(self, level):
+        """The reset label at `level` for the widest countdowns the formatter
+        can produce: minutes only, hours and minutes, and each weekday of the
+        days-and-hours form."""
+        now = datetime.now(timezone.utc)
+        offsets = [timedelta(minutes=59), timedelta(hours=47, minutes=59)]
+        offsets += [timedelta(days=d, hours=23) for d in range(2, 9)]
+        out = [format_reset((now + off).isoformat(), level) for off in offsets]
+        return [s for s in out if s]
+
+    def _reset_floor_width(self, sections, level):
+        """Width the floor has to reserve for these sub-labels at `level`.
+
+        Measured on the worst case the formatter can produce, not on the text
+        showing right now: the live width changes as the countdown runs, and a
+        floor that follows it drifted 24px across two bars and 36px across
+        three, widening the window with no user action behind it. Same
+        reasoning as _bar_content_w.
+
+        Used for the side-by-side strip only, where the bar count multiplies
+        the drift and the worst case costs nothing (it is the width the live
+        measure already peaked at). A single bar keeps the live measure: there
+        the worst case would reserve room for the longest countdown even when
+        the reset is minutes away, and the floor would land above the one this
+        release set out to lower.
+        """
+        widths = [0]
+        for sec in sections:
+            if not sec.reset_display(level):
+                continue          # nothing under this bar: nothing to reserve
+            if sec.reset_text(level) is None:
+                # A word rather than a time ('not available' / 'not used'):
+                # already stable, and the samples below would not cover it.
+                widths.append(FT_S.measure(sec.reset_display(level)))
+            else:
+                widths.extend(FT_S.measure(s) for s in self._reset_samples(level))
+        return max(widths)
+
+    def _reset_level_for(self, sections, available):
+        """The widest form that fits in `available` pixels.
+
+        Measured on the live text: this is what the label reads at this moment,
+        and the question is whether it fits. The floor asks a different one and
+        measures the worst case instead (_reset_floor_width).
+        """
+        return (RESET_FULL if self._reset_width(sections, RESET_FULL) <= available
+                else RESET_NO_PREFIX)
 
     def _sonnet_label(self):
         """Localized label for the weekly per-model bar, with the current
@@ -3510,7 +3907,6 @@ class Widget:
         reset-label form for the current bar count."""
         if not d:
             return
-        self._sync_ess_reset_mode()
         fh = d.get('five_hour')
         sd = d.get('seven_day')
         sp, sr, _ = scoped_model(d)
@@ -3519,6 +3915,9 @@ class Widget:
         self.ess_bars['weekly'].update(sd['utilization'] if sd else None,
                                         sd.get('resets_at') if sd else None)
         self.ess_bars['sonnet'].update(sp, sr)
+        # After the data, not before: the form is chosen by measuring the text,
+        # and on the first fetch there was none to measure.
+        self._sync_ess_reset_mode()
 
     def _enter_ess_collapsed(self):
         """Lay out the selected bars side-by-side for collapsed essential mode.
@@ -3634,7 +4033,7 @@ class Widget:
         w.unbind('<B1-Motion>')
         w.unbind('<ButtonRelease-1>')
 
-    def _update_minsize(self):
+    def _update_minsize(self, keep_height=False):
         """Single minimum width for both modes, tuned to essential-mode content.
 
         Both essential and normal mode use the same floor (whichever is wider
@@ -3644,34 +4043,63 @@ class Widget:
         title bar from clipping either.
         """
         self.root.update_idletasks()
-        sub_w = self.s_session.lbl_sub.winfo_reqwidth() + 8
-        # Reserve a little extra right-side padding so the subtitle text
-        # never slides under the essential-mode controls (close / refresh /
-        # time) which are placed on top of the widget via place().
-        ess_w = self.ess_bar.winfo_reqwidth() + 18
+        # Measured on the narrow form over the bars actually on screen, not on
+        # whatever the label happens to be showing: the floor is how small the
+        # user may drag the window, and below the full label the widget
+        # switches forms rather than clipping (see _sync_ess_reset_mode).
+        # Falls back to the rendered width before the first fetch, when there
+        # is no reset time to measure yet.
+        collapsed = self._essential and not self._expanded
+        shown = ([self.ess_bars[b] for b in self._essential_bar_ids()
+                  if b in self.ess_bars] if collapsed else [self.s_session])
+        text_w = self._reset_width(shown, RESET_NO_PREFIX)
         tb_w = self.tb.winfo_reqwidth() + 8
-        needed = max(MIN_W, sub_w + ess_w, tb_w)
+        # The essential strip is allowed below the standard-mode floor: it has
+        # no title bar to fit, and going small is the whole point of it. On the
+        # way back to standard mode the block below widens the window again.
+        # _strip_reserved is the same measure the label form is chosen with, so
+        # the two cannot disagree about how much room the text really has.
+        needed = max(MIN_W_ESS if collapsed else MIN_W,
+                     text_w + self._strip_reserved(), tb_w)
         # Collapsed essential mode with multiple side-by-side bars needs more
         # width: current min already fits 2 bars (each halved); 3 bars need
         # +50% (one extra third) to stay readable.
         if self._essential and not self._expanded:
             n = len(self._essential_bar_ids())
             if n > 1:
-                # Each bar must be wide enough to show its reduced reset text,
-                # plus the reserved hamburger column on the right.
-                # Multi-bar always shows the dot (see _countdown_mode), so each
-                # bar must fit '13% 19:11' + the dot without overlap; the sync
+                # Each bar must fit its own compact reset text, plus the
+                # reserved hamburger column on the right. Multi-bar always
+                # shows the dot (see _countdown_mode), so the bar itself must
+                # also fit '13% 19:11' and the dot without overlap; the sync
                 # time adds width when shown.
-                per_bar = 104 if self.cfg.get('show_sync_time', True) else 92
-                needed = max(needed, n * per_bar + ESS_MENU_W + 2 * PAD)
+                bar_text_w = self._reset_floor_width(shown, RESET_COMPACT)
+                # What the bar itself draws, measured. This used to be a pair
+                # of constants (104 with the sync time, 92 without) that ran
+                # wider than the real content, and since it is multiplied by
+                # the bar count it decided the floor on its own: hiding the
+                # reset text under the bars bought nothing at two or three
+                # bars until this followed the content like everything else.
+                inside = self._bar_content_w()
+                # Each label carries its own inset on both sides, and the bars
+                # are separated by a small gap.
+                per_bar = max(bar_text_w + 2 * SUB_LABEL_PADX + 3, inside)
+                # The strip reserves the hamburger column AND, on the row
+                # below, the placed control block: whichever is wider decides,
+                # and the block is measured so it follows the display scaling
+                # while ESS_MENU_W does not.
+                side = max(self._ess_row_reserve(n), self._strip_reserved())
+                needed = max(needed, n * per_bar + side)
                 if n >= 3:
                     needed = max(needed, int(round(MIN_W * 1.5)))
             else:
-                # Single bar keeps the full reset text, so measure it rather
-                # than using the reduced per-bar estimate. The hamburger takes
-                # the same reserved column here, and the bar shrinks to make
-                # room for it, so the text needs that width back.
-                needed = max(needed, sub_w + ESS_MENU_W + 2 * PAD)
+                # The hamburger takes the same reserved column here, and the
+                # bar shrinks to make room for it, so the text needs that
+                # width back. The bar interior has to be reserved as well, or
+                # the shorter reset label would let the window shrink until the
+                # percentage and countdown drawn inside the bar are the ones
+                # that clip.
+                needed = max(needed, text_w + self._strip_reserved(),
+                             self._bar_content_w() + self._ess_row_reserve(1))
         self.root.minsize(needed, 0)
         # Widen to the minimum only when the current width is below it (never
         # more than needed, and never shrink the user's width). Anchor the
@@ -3681,8 +4109,17 @@ class Widget:
         if cur_w > 1 and cur_w < needed:
             right = self.root.winfo_x() + cur_w
             y = self.root.winfo_y()
-            h = self.root.winfo_reqheight()
+            # keep_height: the caller is about to animate the height itself, so
+            # leave it alone. Writing the height the content asks for would show
+            # the finished size for a frame or two before the animation starts,
+            # because the flush below puts it on screen immediately.
+            h = self.root.winfo_height() if keep_height else self.root.winfo_reqheight()
             self.root.geometry(f'{needed}x{h}+{right - needed}+{y}')
+            # Apply it now. Tk would defer the move to an idle handler, and the
+            # 10ms topmost re-assert can land first and drop it: the window
+            # would take the new width but keep the old x, growing rightward
+            # into whatever the user parked it next to.
+            self.root.update_idletasks()
 
     def _auto_height(self):
         self.root.update_idletasks()
@@ -3691,7 +4128,7 @@ class Widget:
         new_h = self.root.winfo_reqheight()
         self.root.geometry(f'{w}x{new_h}+{x}+{y}')
 
-    def _restore_ess_width(self):
+    def _restore_ess_width(self, on_launch=False, keep_height=False):
         """Essential-collapsed: set the width to the user's saved width for the
         current bar count (if wider than the minimum), else the minimum. Grows
         or shrinks, anchored to the right edge, and updates the height too."""
@@ -3701,17 +4138,39 @@ class Widget:
         minw = self.root.minsize()[0]
         n = str(len(self._essential_bar_ids()))
         saved = self.cfg.get('ess_width', {}).get(n)
-        target = max(minw, saved) if saved else minw
+        if saved:
+            target = max(minw, saved)
+        elif on_launch and not self._has_usage:
+            # No preference to apply, and before the first fetch the minimum is
+            # only an estimate: the labels it is measured from do not exist
+            # yet. Shrinking to it would narrow the strip on launch and snap it
+            # back wide a second later, when the real ones arrive. Only launch
+            # declines: a mode switch or a bar-count change is a deliberate
+            # action and must still bring the strip back down, including on a
+            # widget that is offline and has never had a fetch land.
+            return
+        else:
+            target = minw
         cur = self.root.winfo_width()
         if cur > 1 and cur != target:
             right = self.root.winfo_x() + cur
             y = self.root.winfo_y()
-            h = self.root.winfo_reqheight()
+            # See _update_minsize: when the caller animates the height, writing
+            # the content's height here would flash the finished size first.
+            h = self.root.winfo_height() if keep_height else self.root.winfo_reqheight()
             self.root.geometry(f'{target}x{h}+{right - target}+{y}')
+            # Apply it now, for the reason spelled out in _update_minsize: Tk
+            # defers the move to an idle handler, the 10ms topmost re-assert
+            # can land first and drop it, and the window would then take the
+            # new width while keeping the old x. Two of the four callers add
+            # this flush for their own reasons; the other two used to lose the
+            # move, which walked the strip's right edge sideways.
+            self.root.update_idletasks()
 
     # ── Resize via dot drag ────────────────────────
 
     def _resize_start(self, e):
+        self._hide_tooltips()
         self._rs_x = e.x_root
         self._rs_y = e.y_root
         self._rs_w = self.root.winfo_width()
@@ -3838,6 +4297,14 @@ class Widget:
             wlog(f'FETCH  rotated key persist failed: {e}')
 
     def _on_data(self, d):
+        # _restore_ess_width declines to size the strip on launch, because
+        # before any data the floor is measured from labels that do not exist
+        # yet. That is a deferral, not a skip: this is where it is honoured,
+        # once, now that the real labels are on screen. Without it a width the
+        # floor had pushed the window to was carried into every later session,
+        # since nothing else ever narrows the strip.
+        first_fetch = not self._has_usage
+        self._has_usage = True
         self._clear_error()
         fh = d.get('five_hour')
         self.s_session.update(fh['utilization'] if fh else None,
@@ -3871,9 +4338,20 @@ class Widget:
                                    fh.get('resets_at'))
             self._last_session_pct = fh['utilization']
             self._push_taskbar_state()
-        self._save_geometry()  # auto-save on each refresh (protection against kill)
         self._start_countdown()
         self._update_minsize()
+        # Again, now that the countdown has written the clock into the strip's
+        # control block: that block is what the label form is measured against,
+        # and on the very first fetch it was still missing its widest part.
+        self._sync_ess_reset_mode()
+        if first_fetch:
+            self._restore_ess_width()
+        # Auto-save on each refresh (protection against kill), and only after
+        # the floor above: _save_geometry stores a width above the minimum as
+        # the user's preference for this bar count, and the pre-fetch floor is
+        # systematically lower than the real one, so saving first made the very
+        # first refresh invent a preference the user never set.
+        self._save_geometry()
 
     TOAST_THRESHOLDS = (25, 50, 75, 90, 95, 100)
 
@@ -4029,6 +4507,38 @@ class Widget:
             return 'dot'
         return mode
 
+    def _toggle_reset_part(self, part, close=True):
+        """Show or hide one half of the line under the bars: the clock the
+        window resets at, or the time left until it does.
+
+        Both halves off is allowed. The strip then narrows to what the bars
+        themselves need, which is the point of the setting on a multi-bar
+        strip, and the reading is still one hover away (see _bar_tip). The
+        floor is measured from this text, so everything that depends on it is
+        recomputed here.
+        """
+        key = 'show_reset_time' if part == 'time' else 'show_reset_left'
+        new = not self.cfg.get(key, True)
+        self.cfg[key] = new
+        save_cfg(self.cfg)
+        set_reset_parts(self.cfg.get('show_reset_time', True),
+                        self.cfg.get('show_reset_left', True))
+        wlog(f'RESET  {key} -> {new}')
+        if close:
+            self._close_menu()
+        for sec in self._all_sections():
+            sec.redraw_reset()
+        if self._essential and not self._expanded:
+            self._enter_ess_collapsed()
+            self._update_minsize()
+            # Come down to the narrower floor the change just allowed, unless
+            # the user has a width of their own for this bar count.
+            self._restore_ess_width()
+            self._auto_height()
+        else:
+            self._update_minsize()
+        self._sync_ess_reset_mode()
+
     def _all_sections(self):
         """Every Section instance (originals + the essential-row bars)."""
         secs = [self.s_session, self.s_weekly, self.s_sonnet]
@@ -4141,6 +4651,8 @@ class Widget:
         """Hide the error panel and drop any pending action binding."""
         self.err_btn.pack_forget()
         self.err_frame.pack_forget()
+        for sec in self._all_sections():
+            sec.set_error(False)
         if self._err_action is not None:
             try:
                 self.err_btn.unbind('<Button-1>')
@@ -4167,8 +4679,12 @@ class Widget:
         self.err_frame.pack(fill='x', pady=(4, 0))
         self._set_pulse(False)
         self._apply_dot_phase('off')
+        # Under every bar, and the countdown inside them goes quiet: the word
+        # belongs on the line that carries the bar's words, not in the pill.
+        for sec in self._all_sections():
+            sec.set_error(True)
         for tgt in self._countdown_targets():
-            tgt.set_countdown(t('error'))
+            tgt.set_countdown('')
         self.btn_r.config(fg=DIM)
         self._update_minsize()
 
@@ -4186,7 +4702,17 @@ class Widget:
 
     # ── Drag ─────────────────────────────────────────
 
+    def _hide_tooltips(self):
+        """Close any hover tooltip. Called when a gesture starts, so a tip
+        cannot sit over the widget while it is being moved or resized."""
+        for hide in self._tooltip_hides:
+            try:
+                hide()
+            except Exception:
+                pass
+
     def _drag_start(self, e):
+        self._hide_tooltips()
         self._dx, self._dy = e.x, e.y
 
     def _drag_move(self, e):
@@ -4207,7 +4733,7 @@ class Widget:
                           _MONITOR_DEFAULTTONULL)
         return cur is not None and cur[0] == a.get('device')
 
-    def _save_geometry(self, e=None, update_anchor=None):
+    def _save_geometry(self, e=None, update_anchor=None, user=False):
         """Save current position, size and mode. The 'home' anchor is refreshed
         only when the widget is on its own anchor monitor (or has none yet):
         a deliberate drag/resize passes update_anchor=True; a save taken while
@@ -4230,7 +4756,13 @@ class Widget:
             # width the user set WIDER than the minimum, keyed by how many bars
             # are shown, so it is restored when that bar count is shown again.
             # A width at the minimum stores nothing (means "no preference").
-            if self._essential and not self._expanded:
+            # Only a save the user caused may touch it. The floor follows the
+            # reset text, so it rises on its own as a countdown grows and the
+            # window widens with it; an automatic save wrote that width down as
+            # a deliberate choice, and _restore_ess_width then handed it back at
+            # every mode change and every launch. The user's own width always
+            # comes through here: the resize drag ends on _save_geometry_user.
+            if user and self._essential and not self._expanded:
                 n = str(len(self._essential_bar_ids()))
                 minw = self.root.minsize()[0]
                 store = self.cfg.setdefault('ess_width', {})
@@ -4251,9 +4783,21 @@ class Widget:
             wlog(f'SAVE   save_geometry error: {ex}')
 
     def _save_geometry_user(self, e=None):
-        """Drag/resize release: persist geometry AND refresh the home anchor
-        (the user deliberately moved or resized the widget)."""
+        """Move-drag release: persist geometry AND refresh the home anchor (the
+        user deliberately moved the widget).
+
+        Not user=True: that flag governs the per-bar-count WIDTH memory, and a
+        move says nothing about width. The floor follows the reset text and can
+        push the window wider on its own; without this distinction the next time
+        the user nudged the widget across the desktop, that width would be
+        written down as a deliberate choice and handed back at every launch.
+        """
         self._save_geometry(e, update_anchor=True)
+
+    def _save_geometry_resize(self, e=None):
+        """Resize-dot release: the one gesture that states a width, so the one
+        that may write (or clear) the saved width for this bar count."""
+        self._save_geometry(e, update_anchor=True, user=True)
 
     def _geometry_watchdog(self):
         """Keep the widget where the user put it across live monitor changes.
@@ -4600,6 +5144,7 @@ class Widget:
 
     def _show_menu(self, e=None):
         wlog('MENU   _show_menu called')
+        self._hide_tooltips()   # the menu opens over the same surface
         if self._menu_win and self._menu_win.winfo_exists():
             wlog('MENU   toggle: closing existing menu')
             self._close_menu()
@@ -4851,6 +5396,22 @@ class Widget:
             self._menu_row(m, (t('menu_colors_dynamic') if dyn else t('menu_colors_fixed')),
                            lambda: self._flyout_set(lambda: self._toggle_bar_dynamic(close=False)),
                            icon='\U0001F3A8︎', icon_ft=FT_EMOJI, tip=t('tip_colors'))
+            # Whether the widget has a taskbar button is a question about how it
+            # is shown, so it belongs here rather than beside the alerts.
+            tb = self.cfg.get('show_in_taskbar', False)
+            self._menu_row(m, (t('menu_taskbar_on') if tb else t('menu_taskbar_off')),
+                           lambda: self._flyout_set(self._toggle_taskbar),
+                           icon='\U0001F4CC︎', icon_ft=FT_EMOJI, tip=t('tip_taskbar'))
+            self._menu_sep(m)
+            self._menu_section(m, t('menu_reset_label'))
+            r_time = self.cfg.get('show_reset_time', True)
+            self._menu_row(m, (t('menu_reset_time_on') if r_time else t('menu_reset_time_off')),
+                           lambda: self._flyout_set(lambda: self._toggle_reset_part('time', close=False)),
+                           icon='\U0001F553︎', icon_ft=FT_EMOJI, tip=t('tip_reset_time'))
+            r_left = self.cfg.get('show_reset_left', True)
+            self._menu_row(m, (t('menu_reset_left_on') if r_left else t('menu_reset_left_off')),
+                           lambda: self._flyout_set(lambda: self._toggle_reset_part('left', close=False)),
+                           icon='\u23F3︎', icon_ft=FT_EMOJI, tip=t('tip_reset_left'))
             self._menu_sep(m)
             self._menu_section(m, t('menu_essential_bars'))
             for code, name in (('session', t('current_session')),
@@ -4867,10 +5428,6 @@ class Widget:
             self._menu_row(m, (t('menu_notifications_on') if notif else t('menu_notifications_off')),
                            lambda: self._flyout_set(self._toggle_notifications),
                            icon='\U0001F514︎', icon_ft=FT_EMOJI, tip=t('tip_notifications'))
-            tb = self.cfg.get('show_in_taskbar', False)
-            self._menu_row(m, (t('menu_taskbar_on') if tb else t('menu_taskbar_off')),
-                           lambda: self._flyout_set(self._toggle_taskbar),
-                           icon='\U0001F4CC︎', icon_ft=FT_EMOJI, tip=t('tip_taskbar'))
         elif cat == 'general':
             self._menu_section(m, t('menu_language'))
             for code, name, ft in (('en', 'English', None), ('it', 'Italiano', None),
@@ -5038,6 +5595,18 @@ class Widget:
         self.ess_bars['session'].lbl.config(text=t('current_session'))
         self.ess_bars['weekly'].lbl.config(text=t('all_models'))
         self.ess_bars['sonnet'].lbl.config(text=self._sonnet_label())
+        # And the line under each bar, which carries a weekday and the word for
+        # 'reset'. Waiting for the refresh below was enough only when it
+        # succeeds: on an expired key or offline it never lands, and the old
+        # language stayed under a fully translated UI.
+        for sec in self._all_sections():
+            sec.redraw_reset()
+        # A translated label is a different width, so the room it needs has to
+        # be recomputed with it. Leaving that to the refresh below meant the new
+        # text sat under the essential controls for the length of the request,
+        # and for good when there is no key to refresh with.
+        self._update_minsize()
+        self._sync_ess_reset_mode()
         # Refresh to update reset text + any visible messages
         if self.cfg.get('session_key') and self.cfg.get('org_id'):
             self.refresh()
@@ -5047,6 +5616,10 @@ class Widget:
         self.cfg['countdown_display'] = mode
         save_cfg(self.cfg)
         wlog(f'CDOWN  countdown_display -> {mode}')
+        # The numeric form is wider than the dot, and the strip's minimum
+        # width accounts for whichever is in use (see _bar_content_w), so the
+        # floor has to be recomputed here as it is for the sync-time toggle.
+        self._update_minsize()
         if close:
             self._close_menu()
         # Re-render the countdown / dot right away under the new mode without
@@ -5078,11 +5651,6 @@ class Widget:
             self.root.after_cancel(self._countdown_job)
             self._countdown_job = None
         self._tick_countdown()
-
-    def _all_sections(self):
-        """Every usage bar (normal + essential-strip), for palette changes."""
-        return [self.s_session, self.s_weekly, self.s_sonnet,
-                *self.ess_bars.values()]
 
     def _bar_ft(self, code):
         """(fill, track) for a bar: the user's saved colour or the default,
@@ -5700,16 +6268,61 @@ class Widget:
     def _launch_installer(self, path):
         """Run the downloaded installer silently and exit so it can replace files.
 
-        /VERYSILENT hides the wizard entirely (no language picker, no Next/Finish);
-        /SUPPRESSMSGBOXES swallows info prompts; /NORESTART prevents the rare
-        reboot request. The ISS [Run] section auto-relaunches the widget after
-        install, so the whole cycle is: click Install -> UAC prompt -> brief
-        pause while files are swapped -> new version is up.
+        /VERYSILENT hides the wizard entirely (no language picker, no Next/Finish)
+        and /NORESTART prevents the rare reboot request. The ISS [Run] section
+        auto-relaunches the widget after install, so the whole cycle is: click
+        Install -> brief pause while files are swapped -> new version is up.
+
+        The silent run can fail, and its failure used to be invisible AND
+        destructive: [InstallDelete] has already removed the old _internal by
+        the time a file turns out to be locked, /SUPPRESSMSGBOXES answers the
+        "file in use" box with its default of Abort, Setup rolls back, and the
+        user is left with a widget that cannot start and nothing to read
+        (measured on 2026-08-17: a foreign process had one of our DLLs loaded).
+        Dropping /SUPPRESSMSGBOXES is not the answer either: under /VERYSILENT
+        there is no window to show that box, so it would wait behind whatever
+        the user is looking at, forever, holding a half-written folder.
+
+        So the silent run keeps its suppressed boxes, and a run that failed
+        PART WAY THROUGH is followed by the SAME installer with its wizard
+        visible: the second run can say what is wrong and offer Retry, and its
+        file-in-use prompt has a window to belong to. cmd is what does the
+        chaining, since we must exit immediately for the files to be
+        replaceable at all. The Inno log goes next to ours so the next failure
+        can be read rather than guessed.
+
+        The retry is gated on exit code 3 or above, which is Inno for "this got
+        as far as preparing or installing and then went wrong" (3 and 4 fatal
+        errors, 5 an aborted or cancelled install: the destructive case), and on
+        codes below zero, which is how a process killed by the system reads:
+        0xC0000005 and its family. That case matters most of all, because
+        nothing rolls back when Setup dies outright, so the folder is left
+        exactly as [InstallDelete] and the failed copy left it. Codes 1 and 2
+        are deliberately excluded. 2 in particular is what Setup returns when
+        the user declines the elevation prompt, and re-launching would ask for
+        the same elevation again, for an update they just refused, with the
+        widget already gone from the screen and nothing to explain the second
+        prompt. A refusal is a decision, and a second run cannot improve it.
         """
+        log = os.path.join(DIR, 'install.log')
+        # A second file, because /LOG overwrites: sharing one name would mean a
+        # successful retry erased the log of the failure that called it.
+        run = f'"{path}" /NORESTART "/LOG={os.path.join(DIR, "install-retry.log")}"'
+        # cmd needs the whole chain wrapped in one more pair of quotes when it
+        # starts with a quoted path, and the exe is quoted separately because
+        # both %ProgramFiles% and our own folder have spaces in them.
+        # `if errorlevel N` means "N or above" and compares SIGNED, which is why
+        # the negative case is tested first and separately: `not errorlevel 0`
+        # is true only for a code below zero, i.e. an abnormal termination.
+        # The two branches are exclusive, so the installer runs at most twice.
+        chain = (f'""{path}" /VERYSILENT /SUPPRESSMSGBOXES /NORESTART "/LOG={log}"'
+                 f' & if not errorlevel 0 ({run}) else if errorlevel 3 ({run})"')
         try:
             subprocess.Popen(
-                [path, '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART'],
-                creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP,
+                f'cmd /c {chain}',
+                creationflags=(subprocess.DETACHED_PROCESS
+                               | subprocess.CREATE_NEW_PROCESS_GROUP
+                               | subprocess.CREATE_NO_WINDOW),
                 close_fds=True)
         except Exception as e:
             wlog(f'UPDATE  launch failed: {e}')
@@ -6146,11 +6759,16 @@ class Widget:
 
     # ── Accounts ─────────────────────────────────────
 
-    def _tooltip(self, widget, text, delay=0):
+    def _tooltip(self, widget, text, delay=0, persistent=False):
         """Hover tooltip for icon-only controls. Sits above the control (below
         it when there is no room), clamped to the widget's monitor. Bound with
         add='+' so it composes with the control's own hover handlers. delay=0
-        shows it immediately so the icon meaning is instant."""
+        shows it immediately so the icon meaning is instant.
+
+        `text` may be a callable, read each time the tooltip is shown, for
+        controls that outlive what they describe: the UI language can change
+        under a permanent control, and the active account can change under a
+        bar. Returning an empty string shows nothing."""
         state = {'win': None, 'job': None}
 
         def cancel():
@@ -6174,19 +6792,35 @@ class Widget:
             state['job'] = None
             if state['win'] is not None or not widget.winfo_exists():
                 return
+            label = text() if callable(text) else text
+            if not label:
+                return
             tw = tk.Toplevel(widget)
             tw.overrideredirect(True)
             tw.attributes('-topmost', True)
-            tk.Label(tw, text=text, font=FT_DLG_HINT, fg=FG, bg=MENU_BG,
-                     padx=8, pady=4).pack()
+            tk.Label(tw, text=label, font=FT_DLG_HINT, fg=FG, bg=MENU_BG,
+                     padx=8, pady=4, justify='left').pack()
             tw.update_idletasks()
             tipw, tiph = tw.winfo_reqwidth(), tw.winfo_reqheight()
             x = widget.winfo_rootx() + widget.winfo_width() // 2 - tipw // 2
-            y = widget.winfo_rooty() - tiph - 6
+            # A tip anchored inside the main window has to clear the WHOLE
+            # window, not just its control: the widget re-asserts HWND_TOPMOST
+            # every 10ms, so anywhere the two overlap the window is drawn in
+            # front and the tip is simply invisible. Making the tip owned by
+            # the window does not survive that either (measured). Menus and
+            # dialogs keep the tighter placement: they are their own windows.
+            host = widget.winfo_toplevel()
+            if host is self.root:
+                above_y = host.winfo_rooty() - tiph - 6
+                below_y = host.winfo_rooty() + host.winfo_height() + 6
+            else:
+                above_y = widget.winfo_rooty() - tiph - 6
+                below_y = widget.winfo_rooty() + widget.winfo_height() + 6
+            y = above_y
             ml, mt, mr, mb = self._widget_monitor_area()
             x = max(ml + 4, min(x, mr - tipw - 4))
-            if y < mt + 4:      # no room above: drop below the control
-                y = widget.winfo_rooty() + widget.winfo_height() + 6
+            if y < mt + 4:      # no room above: drop below instead
+                y = below_y
             tw.geometry(f'+{int(x)}+{int(y)}')
             state['win'] = tw
 
@@ -6197,6 +6831,13 @@ class Widget:
         widget.bind('<Leave>', hide, add='+')
         widget.bind('<Button-1>', hide, add='+')
         widget.bind('<Destroy>', hide, add='+')
+        # The Button-1 binding above is not enough on the widget's own surface:
+        # _bind_drag rebinds Button-1 without add='+' when the strip is
+        # (re)built, which drops it, so a gesture has to close these by hand.
+        # Only the permanent ones register: menu rows are rebuilt on every
+        # open, and registering those would grow the list without bound.
+        if persistent:
+            self._tooltip_hides.append(hide)
 
     def _account_bubble(self, parent, acc, size=34):
         base = parent.cget('bg')

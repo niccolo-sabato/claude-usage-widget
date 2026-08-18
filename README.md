@@ -46,7 +46,7 @@ Each bar has its own fixed colour so you can tell them apart at a glance, and yo
 
 This is the feature that sets the widget apart. In **essential mode** it collapses to a single thin bar that fits right into the empty stretch of the taskbar, next to the clock or your pinned icons. You see your usage all the time, and it never gets in the way.
 
-- **Sized for an empty spot of the taskbar.** Switch to essential mode (right-click the bar, or double-click the orange corner dot) and the widget shrinks to a low-profile strip that sits above the taskbar without spilling onto the desktop.
+- **Sized for an empty spot of the taskbar.** Switch to essential mode (right-click the bar, or double-click the orange corner dot) and the widget shrinks to a low-profile strip that sits above the taskbar without spilling onto the desktop. Drag the orange dot to make it as narrow as the gap you have: a single bar goes down to 150 px, three side by side to 315 px, depending on what you keep on screen.
 - **Stays out of the way of every other window.** The widget is a floating tool, hidden by default from the taskbar button list and from Win+Tab, so it never steals focus and never appears in the alt-tab rotation. It uses Win32 `WS_EX_NOACTIVATE`, so clicking the widget never moves your foreground window.
 - **Always on top, even over the taskbar.** Topmost is re-asserted continuously, plus on focus and visibility events, so it never slips behind another app or the taskbar's own panel.
 - **Position is always saved.** Drag it once to wherever you want it (above the taskbar, on a second monitor, in a corner) and it stays there across restarts, refreshes and updates. Auto-saved on every successful refresh as a backstop against force-kills.
@@ -61,7 +61,9 @@ Essential mode is flexible. Show just the session bar for the smallest footprint
 
 - **Pick the bars you want.** The **Bars to show** menu lets you choose which bars appear (any of session, weekly and the per-model bar; at least one is always shown). Bar widths adapt automatically and the window widens only as much as needed, growing to the left so the menu button stays put.
 - **Hamburger menu** on the multi-bar row: a small button opens the settings menu and keeps the reset labels clear of the bottom-right controls.
-- **Reduced reset labels** under every bar (`reset 51min`, `reset 2d 8h`) so you always know when each one refreshes, even in the tightest layout.
+- **The corner dots say what they do.** Hover the orange one and it tells you that dragging resizes the widget and a double-click switches mode; hover the white one and it says whether the click will open the full view or close it again.
+- **Reset labels that shrink with the widget.** A bar reads `reset Sat 11:00 (2d 5h)` when there is room, drops the word to `Sat 11:00 (2d 5h)` as you drag the widget narrower, and shows `11:00 (2d 5h)` under each bar of the side-by-side strip, so you always know when each one refreshes even in the tightest layout.
+- **Or decide what that line carries.** **Display > Under the bars** switches the reset time and the time left independently. Keep both, keep the one you actually read, or turn both off and let the strip come down to what the bars themselves need. Nothing is lost either way: hovering a bar shows the reset in full, along with the account the numbers belong to.
 - **Refresh countdown, your way.** The time to the next data refresh is shown as a quiet pulsing dot on the session bar (default), or as a numeric value if you switch **Countdown** to **Numeric**. A **Sync time** toggle shows or hides the timestamp of the last update.
 
 ## A full view when you want the detail
@@ -158,6 +160,8 @@ The widget connects to Claude.ai using the same browser session you are already 
 | Orange dot (right) | Drag horizontal | Resize widget width |
 | Orange dot (right) | Double-click | Toggle essential / standard mode |
 | ☰ (essential mode) | Click | Open the settings menu |
+| Either dot | Hover | A tooltip says what the gesture does |
+| The line under a bar | Hover | The reset in full, and which account the numbers are for |
 
 ### Settings menu
 
@@ -166,8 +170,8 @@ Open it with **≡**, the **☰** button, or by right-clicking the bar in essent
 ![The settings menu](docs/images/menu.png)
 
 - **Refresh** and the **Normal / Essential** mode toggle (top level)
-- **Display**: countdown as a pulsing dot or a numeric value, the sync-time timestamp on/off, fixed or dynamic bar colours, and which bars to show (each with a colour swatch). Hover any option for a short explanation.
-- **Data & alerts**: refresh interval (10 to 3600 s), threshold notifications, taskbar icon and Win11 progress overlay
+- **Display**: countdown as a pulsing dot or a numeric value, the sync-time timestamp on/off, fixed or dynamic bar colours, the taskbar icon and its Win11 progress overlay, what the line **under the bars** carries (the reset time, the time left, both or neither), and which bars to show (each with a colour swatch). Hover any option for a short explanation.
+- **Data & alerts**: refresh interval (10 to 3600 s) and threshold notifications
 - **Accounts**: opens the accounts window directly (add, switch, rename, remove, update each session key), with a link to the Claude.ai usage page
 - **General**: language (EN / IT / JA), check for updates, open the GitHub repo, open `config.json`, run the connection self-test
 - **Quit** (top level)
@@ -184,6 +188,8 @@ The widget manages its own config at `%LOCALAPPDATA%\Claude Usage\config.json`. 
   "refresh_ms": 180000,                  // auto-refresh cadence
   "countdown_display": "dot",            // "dot" (pulsing) | "full" (numeric)
   "show_sync_time": true,                // show the last-update timestamp
+  "show_reset_time": true,               // the reset clock on the line under the bars
+  "show_reset_left": true,               // the time left on that same line
   "essential_bars": ["session"],         // bars to show, in both modes
   "bar_dynamic": false,                  // colour bars by usage level instead of per bar
   "bar_colors": {},                      // per-bar colour overrides from the picker
