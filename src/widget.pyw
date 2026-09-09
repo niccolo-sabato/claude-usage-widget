@@ -590,6 +590,13 @@ def show_toast(title, lines):
 # ─── API ─────────────────────────────────────────────
 API_URL  = 'https://claude.ai/api/organizations/{}/usage'
 
+# Claude Code keeps a subscription OAuth token on disk and refreshes it every
+# time the CLI runs. An account with auth == CC_AUTH reads that token instead
+# of a pasted session key, so it never needs renewing by hand.
+CC_AUTH = 'claude_code'
+CC_CREDS = os.path.join(os.path.expanduser('~'), '.claude', '.credentials.json')
+CC_USAGE_URL = 'https://api.anthropic.com/api/oauth/usage'
+
 # ─── i18n ───────────────────────────────────────────
 LANG = {
     'en': {
@@ -614,6 +621,10 @@ LANG = {
         'session_expired_short': 'Session expired',
         'action_setup_now': 'Configure now',
         'action_renew_now': 'Renew session',
+        'cc_use_login': 'Use Claude Code login',
+        'cc_no_creds': 'Claude Code login not found. Run `claude` once and sign in.',
+        'cc_token_expired': 'Claude Code login expired. Run `claude` once to refresh it.',
+        'cc_account_name': 'Claude Code',
         # Toast notifications
         'toast_title': 'Claude Usage',
         'toast_line_pct': 'Session: {pct}% reached at {now}',
@@ -1383,6 +1394,15 @@ def mirror_active(cfg):
     if a:
         cfg['session_key'] = a.get('session_key', '')
         cfg['org_id'] = a.get('org_id', '')
+        cfg['auth'] = a.get('auth', '')
+
+
+def has_credentials(cfg):
+    """True when the active account can fetch: a Claude Code login, or a
+    session key with its org."""
+    if cfg.get('auth') == CC_AUTH:
+        return True
+    return bool(cfg.get('session_key') and cfg.get('org_id'))
 
 
 def set_active_key(cfg, key, org_id=None):
@@ -2039,7 +2059,7 @@ def _explain_curl_error(code, message):
     return f'{hint} ({message})' if message else hint
 
 
-def _curl_args(url, cookie, max_time):
+def _curl_args(url, cookie, max_time, headers=()):
     """Argument list every claude.ai request shares.
 
     `-D -` dumps the response headers to stdout ahead of the body so the
@@ -2056,10 +2076,12 @@ def _curl_args(url, cookie, max_time):
             '-H', 'anthropic-client-platform: web_claude_ai']
     if cookie:
         args += ['-H', f'Cookie: {cookie}']
+    for h in headers:
+        args += ['-H', h]
     return args + [url]
 
 
-def _curl_attempt(url, cookie, extra=(), timeout=20):
+def _curl_attempt(url, cookie, extra=(), timeout=20, headers=()):
     """Run curl once. Returns (exit code, stdout bytes, decoded stderr).
 
     NOTE: claude.ai sits behind Cloudflare which fingerprints the TLS
@@ -2089,7 +2111,7 @@ def _curl_attempt(url, cookie, extra=(), timeout=20):
     """
     try:
         result = subprocess.run(
-            ['curl', '-sS'] + list(extra) + _curl_args(url, cookie, timeout),
+            ['curl', '-sS'] + list(extra) + _curl_args(url, cookie, timeout, headers),
             capture_output=True, timeout=timeout + 5,
             creationflags=subprocess.CREATE_NO_WINDOW)
     except subprocess.TimeoutExpired:
@@ -2098,7 +2120,7 @@ def _curl_attempt(url, cookie, extra=(), timeout=20):
             _redact(_first_line(_decode_console(result.stderr))))
 
 
-def _curl_call(url, cookie, timeout=20, retry_transient=True):
+def _curl_call(url, cookie, timeout=20, retry_transient=True, headers=()):
     """Fetch a claude.ai URL; return (headers, body) or raise.
 
     Shared by every call so the transport behaves identically everywhere.
@@ -2116,7 +2138,7 @@ def _curl_call(url, cookie, timeout=20, retry_transient=True):
     extra = []
     tried_no_revoke = tried_transient = False
     while True:
-        code, out, err = _curl_attempt(url, cookie, extra, timeout)
+        code, out, err = _curl_attempt(url, cookie, extra, timeout, headers)
         if code == 0:
             break
         if not tried_no_revoke and any(h in err.lower() for h in _REVOCATION_HINTS):
@@ -2349,6 +2371,41 @@ def _rotated_key(headers, current):
     return None
 
 
+def read_claude_code_token():
+    """(access token, plan) from Claude Code's credential file, or raise
+    PermissionError with a message that says what to do."""
+    try:
+        with open(CC_CREDS, encoding='utf-8') as f:
+            oauth = json.load(f).get('claudeAiOauth') or {}
+    except (OSError, ValueError):
+        raise PermissionError(t('cc_no_creds'))
+    token = oauth.get('accessToken')
+    if not token:
+        raise PermissionError(t('cc_no_creds'))
+    return token, oauth.get('subscriptionType', '')
+
+
+def fetch_usage_claude_code(retry_transient=True):
+    """Usage via the OAuth endpoint Claude Code itself uses. Same five_hour /
+    seven_day shape as the claude.ai endpoint, so _on_data needs no change.
+    A 401 means the token on disk expired: running the CLI refreshes it."""
+    token, _ = read_claude_code_token()
+    headers, body = _curl_call(
+        CC_USAGE_URL, None, retry_transient=retry_transient,
+        headers=(f'Authorization: Bearer {token}', 'anthropic-beta: oauth-2025-04-20'))
+    code = _http_status(headers)
+    if code in (401, 403):
+        raise PermissionError(t('cc_token_expired'))
+    if code and code >= 400:
+        raise RuntimeError(f'HTTP {code}')
+    if not body:
+        raise RuntimeError(t('empty_response'))
+    try:
+        return json.loads(body)
+    except json.JSONDecodeError as e:
+        raise RuntimeError(f'invalid response: {e}')
+
+
 def fetch_usage(cfg):
     """Fetch usage data from Claude.ai API. See fetch_org_id for why curl.
 
@@ -2364,6 +2421,8 @@ def fetch_usage(cfg):
     # plausible_key, which gates what may be WRITTEN: here a wrong call would
     # lock the user out of a widget that works, so only a value that cannot be
     # a key at all counts.
+    if cfg.get('auth') == CC_AUTH:
+        return fetch_usage_claude_code(), None
     if not str(cfg.get('session_key') or '').startswith(SESSION_KEY_PREFIX):
         wlog('FETCH  no usable key stored, asking for a new one')
         raise PermissionError(t('session_expired_short'))
@@ -2551,6 +2610,14 @@ def _selftest_curlrc():
 def _selftest_api(cfg):
     """The end-to-end check: the usage endpoint, with the configured key."""
     account = active_account(cfg) or {}
+    if account.get('auth') == CC_AUTH:
+        try:
+            fetch_usage_claude_code(retry_transient=False)
+        except PermissionError:
+            return 'fail', t('selftest_api_key_rejected')
+        except Exception as e:
+            return 'fail', str(e)
+        return 'ok', t('selftest_api_ok')
     key = account.get('session_key') or cfg.get('session_key')
     org_id = account.get('org_id') or cfg.get('org_id')
     if not key or not org_id:
@@ -3224,7 +3291,7 @@ class Widget:
             self._update_expand_visibility()
             self._auto_height()
 
-        if self.cfg.get('session_key') and self.cfg.get('org_id'):
+        if has_credentials(self.cfg):
             self.refresh()
             self._schedule()
             # Fill a migrated account's identity (name/email/plan) once.
@@ -5608,7 +5675,7 @@ class Widget:
         self._update_minsize()
         self._sync_ess_reset_mode()
         # Refresh to update reset text + any visible messages
-        if self.cfg.get('session_key') and self.cfg.get('org_id'):
+        if has_credentials(self.cfg):
             self.refresh()
 
     def _set_countdown_mode(self, mode, close=True):
@@ -6531,7 +6598,8 @@ class Widget:
     # ── Session key dialog (shared by setup + renew) ──
 
     def _session_key_dialog(self, title, is_setup=False, on_success=None,
-                            prefill=None, show_name=False, name_prefill=''):
+                            prefill=None, show_name=False, name_prefill='',
+                            on_done=None):
         """Key entry dialog, shared by setup / renew / add / edit-key.
 
         on_success(key, info, name): when given, called with the verified key,
@@ -6541,7 +6609,14 @@ class Widget:
         shows the active key (legacy renew flow). show_name adds an account
         name field (add / edit), so the key and name are set together.
         """
-        dw, dh = self._dlg_size(460, 392 if show_name else 320)
+        # The Claude Code shortcut is offered on setup / renew (writes the
+        # active account) and on add (on_done rebuilds the list); not on
+        # edit-key, which targets a specific account this dialog cannot see.
+        show_cc = os.path.exists(CC_CREDS) and (on_success is None or bool(on_done))
+        dh = 392 if show_name else 320
+        if show_cc:
+            dh += 56  # one more pill row above the key entry
+        dw, dh = self._dlg_size(460, dh)
         dlg, body = self._build_dialog_frame(title, dw, dh)
 
         # Bottom controls first (see the layout contract in _build_dialog_frame).
@@ -6559,6 +6634,13 @@ class Widget:
                  anchor='w').pack(fill='x')
         self._secondary_pill(body, t('dlg_open_guide'), self._open_guide,
                              icon='\U0001F4D6').pack(anchor='w', pady=(8, 16))
+
+        # Shortcut past the key entirely when Claude Code is signed in on this
+        # machine: its token refreshes itself, so there is nothing to renew.
+        if show_cc:
+            self._secondary_pill(body, t('cc_use_login'),
+                                 lambda: use_claude_code(),
+                                 icon='\u26A1').pack(anchor='w', pady=(0, 16))
 
         # Step 2 - paste
         tk.Label(body, text=t('dlg_step_paste'), font=FT_DLG_H, fg=FG, bg=BG,
@@ -6695,6 +6777,46 @@ class Widget:
                 status_lbl.config(text=f"{t('dlg_error_prefix')}: {msg}", fg=RED)
                 build_connect(enabled=True)
             threading.Thread(target=detect, daemon=True).start()
+
+        def use_claude_code():
+            build_connect(enabled=False)
+            status_lbl.config(text=t('dlg_verifying'), fg=BLUE)
+
+            def verify():
+                try:
+                    fetch_usage_claude_code()
+                    _, plan = read_claude_code_token()
+                except Exception as e:
+                    dlg.after(0, lambda msg=str(e): (
+                        status_lbl.config(text=f"{t('dlg_error_prefix')}: {msg}", fg=RED),
+                        build_connect(enabled=True)))
+                    return
+                dlg.after(0, lambda: commit_cc(plan))
+
+            def commit_cc(plan):
+                try:
+                    dlg.destroy()
+                except tk.TclError:
+                    pass
+                nm = name_entry.get().strip() if name_entry else ''
+                a = active_account(self.cfg) if on_success is None else None
+                if a is None:
+                    a = {'id': _new_id(), 'name': nm or t('cc_account_name'),
+                         'session_key': '', 'org_id': '', 'email': '', 'plan': plan}
+                    self.cfg.setdefault('accounts', []).append(a)
+                    self.cfg['active_account'] = a['id']
+                else:
+                    a['session_key'], a['org_id'], a['plan'] = '', '', plan
+                a['auth'] = CC_AUTH
+                mirror_active(self.cfg)
+                save_cfg(self.cfg)
+                self._clear_error()
+                if is_setup:
+                    self._schedule()
+                self.refresh()
+                if on_done:
+                    on_done()
+            threading.Thread(target=verify, daemon=True).start()
 
         build_connect(enabled=True)
         entry.bind('<Return>', lambda e: save_key())
@@ -7044,7 +7166,7 @@ class Widget:
             self.refresh()
             rebuild()
         self._session_key_dialog(t('dlg_add_account'), on_success=on_success,
-                                 prefill='', show_name=True)
+                                 prefill='', show_name=True, on_done=rebuild)
 
     def _edit_account_key(self, acc, rebuild):
         def on_success(key, info, name):
