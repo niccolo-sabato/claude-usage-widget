@@ -5945,7 +5945,11 @@ class Widget:
             cell = tk.Frame(row, bg=MENU_BG, width=ICON_CELL_W, height=ICON_CELL_H)
             cell.pack(side='left', pady=2)
             cell.pack_propagate(False)
-            if icon_ft is None and isinstance(icon, tk.PhotoImage):
+            # Anything that is not a glyph is an image. Testing for
+            # tk.PhotoImage missed the tinted one, which is an
+            # ImageTk.PhotoImage and not a subclass of it: the row then drew
+            # the image's internal name as text.
+            if icon_ft is None and not isinstance(icon, str):
                 il = tk.Label(cell, image=icon, bg=MENU_BG, bd=0, highlightthickness=0)
             else:
                 il = tk.Label(cell, text=icon, font=icon_ft, fg=FG, bg=MENU_BG)
