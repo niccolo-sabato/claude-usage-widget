@@ -140,12 +140,20 @@ BAR_BG   = '#3a3a38'
 FG       = '#e4e4e4'
 DIM      = '#d0d0ce'
 CLAUDE   = '#DA7756'
+# The accent as a fill is the product's colour and never changes. As TEXT it
+# has to hold against the surface behind it: on a light card #DA7756 reads at
+# 2.4:1, so the light theme darkens it and the dark theme keeps it as it is.
+CLAUDE_TEXT = '#DA7756'
 RED      = '#E85858'
 ORANGE   = '#E8A838'
 BLUE     = '#5B9BD5'
 PURPLE   = '#9B72CF'
 HOVER_BG = '#3a3a38'
 OCHRE    = '#C8962A'
+# The percentage printed inside a bar sits on the track when the bar is
+# nearly empty and on the fill when it is full. White works on the dark
+# theme's tracks; on the light theme's pale ones it disappears.
+BAR_TEXT = '#ffffff'
 DOT_W    = '#d0d0d0'
 DOT_W_H  = '#ffffff'
 DOT_W_D  = '#a0a09e'
@@ -177,7 +185,7 @@ BAR_DEFAULT_FILL = {'session': BAR_FILL_SESSION,
 BAR_PRESETS = [BAR_FILL_SESSION, BAR_FILL_WEEKLY, BAR_FILL_HIGH, BAR_FILL_PURPLE]
 
 # ─── App ────────────────────────────────────────────
-APP_VERSION = '2.8.52'
+APP_VERSION = '2.9.0-test2'
 
 # ─── Auto-update ────────────────────────────────────
 UPDATE_REPO = 'niccolo-sabato/claude-usage-widget'
@@ -293,8 +301,43 @@ ICON_KEY    = '\uE192'    # Segoe MDL2 Permissions (key) - edit account key
 ICON_EDIT   = '\uE70F'    # Segoe MDL2 Edit (pencil) - rename account
 ICON_DELETE = '\uE74D'    # Segoe MDL2 Delete (trash) - remove account
 ICON_ADD    = '\uE710'    # Segoe MDL2 Add (plus) - add account
+ICON_RESTART = '\uE777'  # Segoe MDL2 UpdateRestore - restart the widget
 
 # Surface / state colors used by dialogs and menus (complement the theme)
+# The light theme. Only the surfaces, the text and the tracks change: the
+# bar fills and the Claude accent are the product's identity and stay put. Tk
+# keeps the colour a widget was created with, so this is applied once at
+# start-up (apply_theme) and a change asks for a restart.
+LIGHT_THEME = {
+    'BG': '#f4f3f1', 'BG_TITLE': '#e8e6e3', 'BAR_BG': '#e2e0dd',
+    'FG': '#20201e', 'DIM': '#6a6a67', 'HOVER_BG': '#eceae7',
+    'MENU_BG': '#fbfaf9', 'SOFT_BG': '#eceae7', 'SOFT_BG_HV': '#e0ddd9',
+    'CLOSE_HV': '#f6dcdc', 'OCHRE': '#B5811A',
+    'RED': '#C43D3D', 'ORANGE': '#B8801A', 'BLUE': '#2A6FB0', 'PURPLE': '#7A50B0',
+    'CLAUDE_TEXT': '#A8482A', 'BAR_TEXT': '#20201e',
+    # Matched to the weight the dark dots carry (measured as contrast against
+    # their own background), not to their hex values.
+    'DOT_W': '#5f5f5c', 'DOT_W_H': '#2a2a28', 'DOT_W_D': '#7b7b78',
+    'BAR_TRACK_SESSION': '#f7e7c4', 'BAR_TRACK_WEEKLY': '#d8e6f7',
+    'BAR_TRACK_HIGH': '#f7dcdc', 'BAR_TRACK_PURPLE': '#e9e0f6',
+}
+_DARK_THEME = {}
+
+
+def apply_theme(name):
+    """Rebind the colour globals for `name` ('dark' or 'light').
+
+    Must run before any widget is built. The dark values are captured on the
+    first call, so switching back restores the originals rather than a copy of
+    them that could drift.
+    """
+    g = globals()
+    if not _DARK_THEME:
+        _DARK_THEME.update({k: g[k] for k in LIGHT_THEME})
+    source = LIGHT_THEME if name == 'light' else _DARK_THEME
+    g.update(source)
+
+
 SOFT_BG    = '#2e2e2c'   # secondary pill button / card surface
 SOFT_BG_HV = '#363634'   # secondary pill hover
 PRIMARY_HV = '#E08060'   # primary pill hover
@@ -591,11 +634,16 @@ def show_toast(title, lines):
 API_URL  = 'https://claude.ai/api/organizations/{}/usage'
 
 # Claude Code keeps a subscription OAuth token on disk and refreshes it every
-# time the CLI runs. An account with auth == CC_AUTH reads that token instead
-# of a pasted session key, so it never needs renewing by hand.
-CC_AUTH = 'claude_code'
+# time the CLI runs. An account marked cc_linked reads that token instead of
+# a pasted session key, so it never needs renewing by hand.
 CC_CREDS = os.path.join(os.path.expanduser('~'), '.claude', '.credentials.json')
 CC_USAGE_URL = 'https://api.anthropic.com/api/oauth/usage'
+# Who the token belongs to. Without this the login is blind: the widget
+# would read somebody's numbers with no way to say whose they are, and
+# would show them under whatever name the account happens to carry.
+CC_PROFILE_URL = 'https://api.anthropic.com/api/oauth/profile'
+# How an account chooses which credential to read with.
+AUTH_AUTO, AUTH_KEY, AUTH_CC = 'auto', 'key', 'claude_code'
 
 # ─── i18n ───────────────────────────────────────────
 LANG = {
@@ -671,6 +719,12 @@ LANG = {
         'tip_countdown_dot': 'A pulsing dot signals when the next refresh is near.',
         'tip_countdown_full': 'Show the exact time left until the limit resets.',
         'tip_sync': 'Show the time of the last refresh next to each bar.',
+        'menu_theme': 'Theme',
+        'theme_dark': 'Dark',
+        'theme_light': 'Light',
+        'menu_restart': 'Restart the widget',
+        'tip_restart': 'A new theme is built into the interface, so it appears '
+                       'when the widget starts again.',
         'menu_reset_label': 'Under the bars',
         'menu_reset_time_on': 'Reset time: ON',
         'menu_reset_time_off': 'Reset time: OFF',
@@ -678,6 +732,62 @@ LANG = {
         'menu_reset_left_off': 'Time left: OFF',
         'tip_reset_time': 'Show the clock time each limit resets at.',
         'tip_reset_left': 'Show how long is left until each limit resets.\nTurn both off for the narrowest strip: hover a bar to read them.',
+        'info_read_with': 'Read with',
+        'dlg_add_how': 'How do you want to connect it?',
+        'dlg_add_cc_detail': 'Use the Claude Code login already on this computer. Nothing to paste, and it renews itself.',
+        'dlg_add_key_detail': 'Paste a session key taken from the browser. It lasts about a month.',
+        'dlg_account_info': 'Details',
+        'info_plan': 'Plan',
+        'info_subscription': 'Subscription',
+        'info_org': 'Organisation',
+        'info_extra': 'Extra usage',
+        'info_on': 'on',
+        'info_off': 'off',
+        'info_session_reset': 'Session resets',
+        'info_week_reset': 'Week resets',
+        'pref_title': 'Read with',
+        'pref_auto': 'Automatic',
+        'cc_expires': 'expires {when}',
+        'dlg_remove_account': 'Remove account',
+        'dlg_last_credential_title': 'Last credential',
+        'dlg_last_credential': 'This is the only way this account can be read. Removing it keeps the account and its details, and you can add a credential again later.',
+        'auth_claude_code': 'Claude Code login',
+        'auth_key': 'Session key',
+        'cc_here': 'Claude Code on this computer: {email}',
+        'cc_here_checking': 'Checking the Claude Code login...',
+        'cc_here_none': 'No Claude Code login on this computer',
+        'cc_other_account': 'That login belongs to {email}',
+        'cc_state_linked': 'Linked',
+        'cc_state_available': 'Available on this computer',
+        'cc_state_absent': 'Not found on this computer',
+        'cc_link': 'Link',
+        'cc_relink': 'Relink',
+        'cc_unlink': 'Unlink',
+        'key_add': 'Add a key',
+        'key_remove': 'Remove',
+        'key_state_present': 'Saved',
+        'key_state_absent': 'Not set',
+        'sub_active': 'Active',
+        'sub_canceled': 'Cancelled',
+        'sub_past_due': 'Payment overdue',
+        'dlg_avatar_title': 'Account avatar',
+        'avatar_kind_initials': 'Initials',
+        'avatar_kind_text': 'Text',
+        'avatar_kind_icon': 'Icon',
+        'avatar_text_hint': 'Up to three characters.',
+        'avatar_bg': 'Background',
+        'avatar_fg': 'Symbol',
+        'dlg_custom': 'Custom\u2026',
+        'dlg_account_details': 'Account',
+        'dlg_account_color': 'Colour',
+        'dlg_account_unknown': 'Identity not known yet',
+        'dlg_account_credentials': 'How this account is read',
+        'dlg_account_reading_with': 'Using: {method}',
+        'dlg_account_no_method': 'No credential',
+        'dlg_account_manage': 'Manage',
+        'dlg_cc_here': 'Claude Code',
+        'dlg_account_exists_title': 'Account already added',
+        'dlg_account_exists': 'This is the same account as "{name}". Update it instead of adding a second one?',
         'tip_colors': 'Fixed: each bar keeps its own colour. By usage: every bar is coloured by its consumption (blue, amber, red).',
         'tip_notifications': 'Windows notification when session usage crosses a threshold.',
         'tip_taskbar': 'Show a taskbar button with a usage progress overlay.',
@@ -835,15 +945,81 @@ LANG = {
         'menu_sync_off': 'Orario sync nella barra: disattivo',
         'tip_countdown_dot': 'Un puntino che pulsa segnala quando manca poco al prossimo aggiornamento.',
         'tip_countdown_full': 'Mostra il tempo esatto che manca al reset del limite.',
-        'tip_sync': 'Mostra accanto a ogni barra quando e stato fatto l ultimo aggiornamento.',
+        'tip_sync': 'Mostra accanto a ogni barra quando \u00e8 stato fatto l\u2019ultimo aggiornamento.',
+        'menu_theme': 'Tema',
+        'theme_dark': 'Scuro',
+        'theme_light': 'Chiaro',
+        'menu_restart': 'Riavvia il widget',
+        'tip_restart': 'Il tema fa parte di come viene costruita l\u2019interfaccia, '
+                       'quindi si vede al riavvio del widget.',
         'menu_reset_label': 'Sotto le barre',
         'menu_reset_time_on': 'Orario di reset: visibile',
         'menu_reset_time_off': 'Orario di reset: nascosto',
         'menu_reset_left_on': 'Tempo rimanente: visibile',
         'menu_reset_left_off': 'Tempo rimanente: nascosto',
         'tip_reset_time': 'Mostra a che ora si azzera ogni limite.',
-        'tip_reset_left': 'Mostra quanto manca all azzeramento di ogni limite.\nSpegnili entrambi per la striscia piu stretta: passa il mouse su una barra per leggerli.',
-        'tip_colors': 'Fissi: ogni barra tiene il suo colore. Per consumo: ogni barra e colorata in base al consumo (blu, giallo, rosso).',
+        'tip_reset_left': 'Mostra quanto manca all\u2019azzeramento di ogni limite.\nSpegnili entrambi per la striscia pi\u00f9 stretta: passa il mouse su una barra per leggerli.',
+        'info_read_with': 'Letto con',
+        'dlg_add_how': 'Come vuoi collegarlo?',
+        'dlg_add_cc_detail': 'Usa il login di Claude Code gi\u00e0 presente su questo computer. Niente da incollare, e si rinnova da solo.',
+        'dlg_add_key_detail': 'Incolla una chiave di sessione presa dal browser. Dura circa un mese.',
+        'dlg_account_info': 'Informazioni',
+        'info_plan': 'Piano',
+        'info_subscription': 'Abbonamento',
+        'info_org': 'Organizzazione',
+        'info_extra': 'Crediti extra',
+        'info_on': 'attivi',
+        'info_off': 'non attivi',
+        'info_session_reset': 'La sessione si azzera',
+        'info_week_reset': 'La settimana si azzera',
+        'pref_title': 'Legge con',
+        'pref_auto': 'Automatico',
+        'cc_expires': 'scade il {when}',
+        'dlg_remove_account': 'Rimuovi account',
+        'dlg_last_credential_title': 'Ultima credenziale',
+        'dlg_last_credential': '\u00c8 l\u2019unico modo in cui questo account pu\u00f2 essere letto. Rimuovendolo, l\u2019account e le sue informazioni restano, e potrai aggiungere una credenziale pi\u00f9 avanti.',
+        'cc_account_name': 'Claude Code',
+        'cc_token_expired': 'Login di Claude Code scaduto. Esegui `claude` una volta per rinnovarlo.',
+        'cc_no_creds': 'Login di Claude Code non trovato. Esegui `claude` una volta e accedi.',
+        'cc_use_login': 'Usa il login di Claude Code',
+        'auth_claude_code': 'Login di Claude Code',
+        'auth_key': 'Chiave di sessione',
+        'cc_here': 'Claude Code su questo computer: {email}',
+        'cc_here_checking': 'Controllo del login di Claude Code...',
+        'cc_here_none': 'Nessun login di Claude Code su questo computer',
+        'cc_other_account': 'Quel login appartiene a {email}',
+        'cc_state_linked': 'Collegato',
+        'cc_state_available': 'Disponibile su questo computer',
+        'cc_state_absent': 'Non presente su questo computer',
+        'cc_link': 'Collega',
+        'cc_relink': 'Ricollega',
+        'cc_unlink': 'Scollega',
+        'key_add': 'Aggiungi una chiave',
+        'key_remove': 'Rimuovi',
+        'key_state_present': 'Salvata',
+        'key_state_absent': 'Non impostata',
+        'sub_active': 'Attivo',
+        'sub_canceled': 'Disdetto',
+        'sub_past_due': 'Pagamento in ritardo',
+        'dlg_avatar_title': 'Aspetto dell\u2019account',
+        'avatar_kind_initials': 'Iniziali',
+        'avatar_kind_text': 'Testo',
+        'avatar_kind_icon': 'Icona',
+        'avatar_text_hint': 'Fino a tre caratteri.',
+        'avatar_bg': 'Sfondo',
+        'avatar_fg': 'Simbolo',
+        'dlg_custom': 'Personalizza\u2026',
+        'dlg_account_details': 'Account',
+        'dlg_account_color': 'Colore',
+        'dlg_account_unknown': 'Identit\u00e0 non ancora nota',
+        'dlg_account_credentials': 'Come vengono letti i dati',
+        'dlg_account_reading_with': 'In uso: {method}',
+        'dlg_account_no_method': 'Nessuna credenziale',
+        'dlg_account_manage': 'Gestisci',
+        'dlg_cc_here': 'Claude Code',
+        'dlg_account_exists_title': 'Account gi\u00e0 presente',
+        'dlg_account_exists': '\u00c8 lo stesso account di "{name}". Vuoi aggiornarlo invece di aggiungerne un altro?',
+        'tip_colors': 'Fissi: ogni barra tiene il suo colore. Per consumo: ogni barra \u00e8 colorata in base al consumo (blu, giallo, rosso).',
         'tip_notifications': 'Notifica di Windows quando il consumo della sessione supera una soglia.',
         'tip_taskbar': 'Mostra un pulsante nella taskbar con la barra di avanzamento del consumo.',
         'menu_refresh_interval': 'Intervallo aggiornamento\u2026',
@@ -1000,6 +1176,12 @@ LANG = {
         'tip_countdown_dot': '\u6b21\u306e\u66f4\u65b0\u304c\u8fd1\u3065\u304f\u3068\u70b9\u6ec5\u3059\u308b\u30c9\u30c3\u30c8\u3067\u77e5\u3089\u305b\u307e\u3059\u3002',
         'tip_countdown_full': '\u5236\u9650\u306e\u30ea\u30bb\u30c3\u30c8\u307e\u3067\u306e\u6b63\u78ba\u306a\u6b8b\u308a\u6642\u9593\u3092\u8868\u793a\u3057\u307e\u3059\u3002',
         'tip_sync': '\u5404\u30d0\u30fc\u306e\u6a2a\u306b\u6700\u5f8c\u306e\u66f4\u65b0\u6642\u523b\u3092\u8868\u793a\u3057\u307e\u3059\u3002',
+        'menu_theme': '\u30c6\u30fc\u30de',
+        'theme_dark': '\u30c0\u30fc\u30af',
+        'theme_light': '\u30e9\u30a4\u30c8',
+        'menu_restart': '\u30a6\u30a3\u30b8\u30a7\u30c3\u30c8\u3092\u518d\u8d77\u52d5',
+        'tip_restart': '\u30c6\u30fc\u30de\u306f\u753b\u9762\u3092\u4f5c\u308b\u6bb5\u968e\u3067\u6c7a\u307e\u308b\u305f\u3081\u3001'
+                       '\u518d\u8d77\u52d5\u5f8c\u306b\u53cd\u6620\u3055\u308c\u307e\u3059\u3002',
         'menu_reset_label': '\u30d0\u30fc\u306e\u4e0b\u306e\u8868\u793a',
         'menu_reset_time_on': '\u30ea\u30bb\u30c3\u30c8\u6642\u523b: \u30aa\u30f3',
         'menu_reset_time_off': '\u30ea\u30bb\u30c3\u30c8\u6642\u523b: \u30aa\u30d5',
@@ -1007,6 +1189,66 @@ LANG = {
         'menu_reset_left_off': '\u6b8b\u308a\u6642\u9593: \u30aa\u30d5',
         'tip_reset_time': '\u5404\u5236\u9650\u304c\u30ea\u30bb\u30c3\u30c8\u3055\u308c\u308b\u6642\u523b\u3092\u8868\u793a\u3057\u307e\u3059\u3002',
         'tip_reset_left': '\u30ea\u30bb\u30c3\u30c8\u307e\u3067\u306e\u6b8b\u308a\u6642\u9593\u3092\u8868\u793a\u3057\u307e\u3059\u3002\n\u4e21\u65b9\u30aa\u30d5\u3067\u6700\u3082\u7d30\u304f\u306a\u308a\u307e\u3059\u3002\u30d0\u30fc\u306b\u30ab\u30fc\u30bd\u30eb\u3092\u5408\u308f\u305b\u308b\u3068\u8aad\u3081\u307e\u3059\u3002',
+        'info_read_with': '\u53d6\u5f97\u65b9\u6cd5',
+        'dlg_add_how': '\u3069\u306e\u65b9\u6cd5\u3067\u63a5\u7d9a\u3057\u307e\u3059\u304b\uff1f',
+        'dlg_add_cc_detail': '\u3053\u306ePC\u306b\u3042\u308bClaude Code\u306e\u30ed\u30b0\u30a4\u30f3\u3092\u4f7f\u3044\u307e\u3059\u3002\u8cbc\u308a\u4ed8\u3051\u306f\u4e0d\u8981\u3067\u3001\u81ea\u52d5\u7684\u306b\u66f4\u65b0\u3055\u308c\u307e\u3059\u3002',
+        'dlg_add_key_detail': '\u30d6\u30e9\u30a6\u30b6\u304b\u3089\u53d6\u5f97\u3057\u305f\u30bb\u30c3\u30b7\u30e7\u30f3\u30ad\u30fc\u3092\u8cbc\u308a\u4ed8\u3051\u307e\u3059\u3002\u6709\u52b9\u671f\u9593\u306f\u7d041\u304b\u6708\u3067\u3059\u3002',
+        'dlg_account_info': '\u8a73\u7d30',
+        'info_plan': '\u30d7\u30e9\u30f3',
+        'info_subscription': '\u30b5\u30d6\u30b9\u30af\u30ea\u30d7\u30b7\u30e7\u30f3',
+        'info_org': '\u7d44\u7e54',
+        'info_extra': '\u8ffd\u52a0\u30af\u30ec\u30b8\u30c3\u30c8',
+        'info_on': '\u30aa\u30f3',
+        'info_off': '\u30aa\u30d5',
+        'info_session_reset': '\u30bb\u30c3\u30b7\u30e7\u30f3\u306e\u30ea\u30bb\u30c3\u30c8',
+        'info_week_reset': '\u9031\u306e\u30ea\u30bb\u30c3\u30c8',
+        'pref_title': '\u53d6\u5f97\u65b9\u6cd5',
+        'pref_auto': '\u81ea\u52d5',
+        'cc_expires': '{when} \u307e\u3067\u6709\u52b9',
+        'dlg_remove_account': '\u30a2\u30ab\u30a6\u30f3\u30c8\u3092\u524a\u9664',
+        'dlg_last_credential_title': '\u6700\u5f8c\u306e\u8a8d\u8a3c\u60c5\u5831',
+        'dlg_last_credential': '\u3053\u306e\u30a2\u30ab\u30a6\u30f3\u30c8\u3092\u53d6\u5f97\u3059\u308b\u552f\u4e00\u306e\u65b9\u6cd5\u3067\u3059\u3002\u524a\u9664\u3057\u3066\u3082\u30a2\u30ab\u30a6\u30f3\u30c8\u3068\u60c5\u5831\u306f\u6b8b\u308a\u3001\u5f8c\u3067\u8a8d\u8a3c\u60c5\u5831\u3092\u8ffd\u52a0\u3067\u304d\u307e\u3059\u3002',
+        'cc_account_name': 'Claude Code',
+        'cc_token_expired': 'Claude Code \u306e\u30ed\u30b0\u30a4\u30f3\u306e\u6709\u52b9\u671f\u9650\u304c\u5207\u308c\u307e\u3057\u305f\u3002`claude` \u3092\u4e00\u5ea6\u5b9f\u884c\u3057\u3066\u66f4\u65b0\u3057\u3066\u304f\u3060\u3055\u3044\u3002',
+        'cc_no_creds': 'Claude Code \u306e\u30ed\u30b0\u30a4\u30f3\u304c\u898b\u3064\u304b\u308a\u307e\u305b\u3093\u3002`claude` \u3092\u4e00\u5ea6\u5b9f\u884c\u3057\u3066\u30b5\u30a4\u30f3\u30a4\u30f3\u3057\u3066\u304f\u3060\u3055\u3044\u3002',
+        'cc_use_login': 'Claude Code \u306e\u30ed\u30b0\u30a4\u30f3\u3092\u4f7f\u3046',
+        'auth_claude_code': 'Claude Code \u30ed\u30b0\u30a4\u30f3',
+        'auth_key': '\u30bb\u30c3\u30b7\u30e7\u30f3\u30ad\u30fc',
+        'cc_here': '\u3053\u306ePC\u306eClaude Code: {email}',
+        'cc_here_checking': 'Claude Code\u306e\u30ed\u30b0\u30a4\u30f3\u3092\u78ba\u8a8d\u3057\u3066\u3044\u307e\u3059...',
+        'cc_here_none': '\u3053\u306ePC\u306bClaude Code\u306e\u30ed\u30b0\u30a4\u30f3\u306f\u3042\u308a\u307e\u305b\u3093',
+        'cc_other_account': '\u305d\u306e\u30ed\u30b0\u30a4\u30f3\u306f {email} \u306e\u3082\u306e\u3067\u3059',
+        'cc_state_linked': '\u9023\u643a\u6e08\u307f',
+        'cc_state_available': '\u3053\u306ePC\u3067\u5229\u7528\u3067\u304d\u307e\u3059',
+        'cc_state_absent': '\u3053\u306ePC\u306b\u306f\u3042\u308a\u307e\u305b\u3093',
+        'cc_link': '\u9023\u643a',
+        'cc_relink': '\u518d\u9023\u643a',
+        'cc_unlink': '\u89e3\u9664',
+        'key_add': '\u30ad\u30fc\u3092\u8ffd\u52a0',
+        'key_remove': '\u524a\u9664',
+        'key_state_present': '\u4fdd\u5b58\u6e08\u307f',
+        'key_state_absent': '\u672a\u8a2d\u5b9a',
+        'sub_active': '\u6709\u52b9',
+        'sub_canceled': '\u89e3\u7d04\u6e08\u307f',
+        'sub_past_due': '\u652f\u6255\u3044\u672a\u5b8c\u4e86',
+        'dlg_avatar_title': '\u30a2\u30ab\u30a6\u30f3\u30c8\u306e\u8868\u793a',
+        'avatar_kind_initials': '\u982d\u6587\u5b57',
+        'avatar_kind_text': '\u30c6\u30ad\u30b9\u30c8',
+        'avatar_kind_icon': '\u30a2\u30a4\u30b3\u30f3',
+        'avatar_text_hint': '3\u6587\u5b57\u307e\u3067\u3067\u3059\u3002',
+        'avatar_bg': '\u80cc\u666f',
+        'avatar_fg': '\u8a18\u53f7',
+        'dlg_custom': '\u30ab\u30b9\u30bf\u30e0\u2026',
+        'dlg_account_details': '\u30a2\u30ab\u30a6\u30f3\u30c8',
+        'dlg_account_color': '\u8272',
+        'dlg_account_unknown': '\u60c5\u5831\u306f\u672a\u53d6\u5f97\u3067\u3059',
+        'dlg_account_credentials': '\u30c7\u30fc\u30bf\u306e\u53d6\u5f97\u65b9\u6cd5',
+        'dlg_account_reading_with': '\u4f7f\u7528\u4e2d: {method}',
+        'dlg_account_no_method': '\u8a8d\u8a3c\u60c5\u5831\u306a\u3057',
+        'dlg_account_manage': '\u7ba1\u7406',
+        'dlg_cc_here': 'Claude Code',
+        'dlg_account_exists_title': '\u65e2\u306b\u8ffd\u52a0\u6e08\u307f',
+        'dlg_account_exists': '\u300c{name}\u300d\u3068\u540c\u3058\u30a2\u30ab\u30a6\u30f3\u30c8\u3067\u3059\u3002\u65b0\u3057\u304f\u8ffd\u52a0\u305b\u305a\u306b\u66f4\u65b0\u3057\u307e\u3059\u304b\uff1f',
         'tip_colors': '\u56fa\u5b9a: \u5404\u30d0\u30fc\u304c\u72ec\u81ea\u306e\u8272\u3092\u4fdd\u3061\u307e\u3059\u3002\u6d88\u8cbb\u91cf: \u3059\u3079\u3066\u306e\u30d0\u30fc\u304c\u6d88\u8cbb\u91cf\u306b\u5fdc\u3058\u3066\u8272\u5206\u3051\u3055\u308c\u307e\u3059 (\u9752\u3001\u9ec4\u3001\u8d64)\u3002',
         'tip_notifications': '\u30bb\u30c3\u30b7\u30e7\u30f3\u4f7f\u7528\u91cf\u304c\u3057\u304d\u3044\u5024\u3092\u8d85\u3048\u308b\u3068Windows\u901a\u77e5\u3092\u8868\u793a\u3057\u307e\u3059\u3002',
         'tip_taskbar': '\u30bf\u30b9\u30af\u30d0\u30fc\u306b\u4f7f\u7528\u72b6\u6cc1\u3092\u91cd\u306d\u305f\u30dc\u30bf\u30f3\u3092\u8868\u793a\u3057\u307e\u3059\u3002',
@@ -1394,15 +1636,113 @@ def mirror_active(cfg):
     if a:
         cfg['session_key'] = a.get('session_key', '')
         cfg['org_id'] = a.get('org_id', '')
-        cfg['auth'] = a.get('auth', '')
+        cfg['cc_linked'] = bool(a.get('cc_linked'))
+
+
+def pretty_date(iso, with_time=False):
+    """An ISO timestamp as a date somebody can read, or '' if it is not one."""
+    if not iso:
+        return ''
+    try:
+        d = datetime.fromisoformat(str(iso).replace('Z', '+00:00')).astimezone()
+    except (ValueError, TypeError):
+        return ''
+    return f'{d:%d/%m/%Y %H:%M}' if with_time else f'{d:%d/%m/%Y}'
+
+
+def token_expiry():
+    """When the Claude Code token on disk stops being accepted, or ''.
+
+    Worth showing: these last hours rather than weeks, which is the reason the
+    widget keeps a session key as a fall-back instead of trusting the login on
+    its own.
+    """
+    try:
+        with open(CC_CREDS, encoding='utf-8') as f:
+            exp = (json.load(f).get('claudeAiOauth') or {}).get('expiresAt')
+    except (OSError, ValueError):
+        return ''
+    if not exp:
+        return ''
+    try:
+        return f'{datetime.fromtimestamp(exp / 1000):%d/%m/%Y %H:%M}'
+    except (ValueError, OSError, OverflowError):
+        return ''
+
+
+def account_methods(acc):
+    """Which ways in this account has, best first.
+
+    On auto the Claude Code login comes first, because it renews itself for as
+    long as the CLI is used, while a session key has to be pasted again by hand
+    every few weeks. An explicit preference moves its own method to the front.
+    """
+    out = []
+    if acc.get('cc_linked'):
+        out.append(AUTH_CC)
+    if str(acc.get('session_key') or '').startswith(SESSION_KEY_PREFIX):
+        out.append(AUTH_KEY)
+    pref = acc.get('auth_pref', AUTH_AUTO)
+    if pref in out:
+        out.remove(pref)
+        out.insert(0, pref)
+    return tuple(out)
+
+
+def find_account_by_identity(cfg, org_id, email, skip_id=None):
+    """The account that already is this account, credentials or not.
+
+    The organization decides, because it is what the usage is counted against.
+    The email is the safety net for an account whose organization was never
+    resolved. An account keeps both after its credentials are removed, which is
+    what lets a later re-add find it instead of making a copy.
+    """
+    hit = find_account_by_org(cfg, org_id, skip_id)
+    if hit is not None:
+        return hit
+    if not email:
+        return None
+    for a in cfg.get('accounts', []):
+        if a.get('email') and a['email'].lower() == email.lower() \
+                and a.get('id') != skip_id:
+            return a
+    return None
+
+
+def find_account_by_org(cfg, org_id, skip_id=None):
+    """The account already tracking this organization, if any.
+
+    The organization is the identity: two credentials that resolve to it are
+    two doors into the same usage counter, so the second one belongs on the
+    account that is already there rather than on a copy of it.
+    """
+    if not org_id:
+        return None
+    for a in cfg.get('accounts', []):
+        if a.get('org_id') == org_id and a.get('id') != skip_id:
+            return a
+    return None
+
+
+def migrate_cc_accounts(cfg):
+    """Carry the first shape of the Claude Code login forward.
+
+    It marked an account with auth='claude_code', which said how to read but
+    not who the account was. The flag becomes cc_linked; the identity is filled
+    in on the next successful read.
+    """
+    for a in cfg.get('accounts', []):
+        if a.pop('auth', None) == AUTH_CC:
+            a['cc_linked'] = True
 
 
 def has_credentials(cfg):
-    """True when the active account can fetch: a Claude Code login, or a
-    session key with its org."""
-    if cfg.get('auth') == CC_AUTH:
-        return True
+    """True when the active account has any way of reading its usage."""
+    acc = active_account(cfg)
+    if acc is not None:
+        return bool(account_methods(acc))
     return bool(cfg.get('session_key') and cfg.get('org_id'))
+
 
 
 def set_active_key(cfg, key, org_id=None):
@@ -1429,6 +1769,43 @@ def account_initials(name):
     if len(parts) == 1:
         return parts[0][:2].upper()
     return (parts[0][0] + parts[1][0]).upper()
+
+
+# Glyphs offered as an account avatar. Segoe MDL2 Assets is on every
+# Windows 10/11 and draws them all at one visual weight, so the set stays
+# coherent and there is nothing to ship. Grouped by sense, six per row in the
+# picker: who, what work, tools, marks, messages and time, then places.
+AVATAR_ICONS = [
+    '\uE77B', '\uE80F', '\uE821', '\uE731', '\uE825', '\uE7BE',
+    '\uE943', '\uE99A', '\uE950', '\uE90F', '\uE713', '\uE945',
+    '\uE82F', '\uE735', '\uE8D7', '\uE83D', '\uE8EC', '\uE909',
+    '\uE715', '\uE90A', '\uE787', '\uE823', '\uE916', '\uE908',
+    '\uE82D', '\uE7BF', '\uE8BE', '\uE7EC', '\uE709', '\uE76E',
+]
+# Symbol colours. White and near-black carry most cases; the four tints are
+# there for a dark bubble that wants a softer mark than pure white.
+AVATAR_FG_PRESETS = ['#ffffff', '#1e1e1c', '#FFE0B2', '#BBDEFB', '#C8E6C9',
+                     '#F8BBD0']
+
+
+def account_avatar(acc):
+    """What the bubble shows: (mark, kind, colour).
+
+    The initials of the name, unless the account was given a short text or one
+    of the glyphs. `kind` is 'icon' or 'text' and decides the font.
+    """
+    av = acc.get('avatar') or {}
+    fg = av.get('fg') or '#ffffff'
+    if av.get('kind') == 'icon' and av.get('icon'):
+        return av['icon'], 'icon', fg
+    if av.get('kind') == 'text' and (av.get('text') or '').strip():
+        return av['text'].strip()[:3], 'text', fg
+    return account_initials(acc.get('name')), 'text', fg
+
+
+def account_color(acc):
+    """The account's avatar tint: the one it was given, else the derived one."""
+    return acc.get('color') or bubble_color(acc.get('id'))
 
 
 def bubble_color(acc_id):
@@ -2385,10 +2762,78 @@ def read_claude_code_token():
     return token, oauth.get('subscriptionType', '')
 
 
-def fetch_usage_claude_code(retry_transient=True):
+_CC_PROFILE_CACHE = {}
+
+
+def fetch_claude_code_profile(force=False):
+    """Who the Claude Code login on this machine belongs to.
+
+    Cached against the token itself: the CLI renews the token often, while the
+    identity behind it changes only when somebody else signs in, and that
+    changes the token too. One login exists at a time, so a new token empties
+    the cache rather than adding to it.
+    """
+    token, plan = read_claude_code_token()
+    tail = token[-12:]
+    if not force and tail in _CC_PROFILE_CACHE:
+        return _CC_PROFILE_CACHE[tail]
+    headers, body = _curl_call(
+        CC_PROFILE_URL, None,
+        headers=(f'Authorization: Bearer {token}',
+                 'anthropic-beta: oauth-2025-04-20'))
+    code = _http_status(headers)
+    if code in (401, 403):
+        raise PermissionError(t('cc_token_expired'))
+    if code and code >= 400:
+        raise RuntimeError(f'HTTP {code}')
+    try:
+        d = json.loads(body or '{}')
+    except json.JSONDecodeError as e:
+        raise RuntimeError(f'invalid response: {e}')
+    acct, org = d.get('account') or {}, d.get('organization') or {}
+    # Everything the details window can honestly show. The payload carries no
+    # renewal or expiry date, and the dates it does carry (when the account was
+    # opened, when the subscription started) say nothing a user needs, so they
+    # are left out rather than shown for the sake of filling space.
+    prof = {'org_id': org.get('uuid') or '',
+            'email': acct.get('email_address') or acct.get('email') or '',
+            'name': acct.get('display_name') or acct.get('full_name') or '',
+            'org_name': org.get('name') or '',
+            'org_type': org.get('organization_type') or '',
+            'billing': org.get('billing_type') or '',
+            'sub_status': org.get('subscription_status') or '',
+            'extra_usage': bool(org.get('has_extra_usage_enabled')),
+            'plan': plan_label(org.get('rate_limit_tier')) or plan}
+    _CC_PROFILE_CACHE.clear()
+    _CC_PROFILE_CACHE[tail] = prof
+    return prof
+
+
+def claude_code_status():
+    """The login on this machine, or None, without raising.
+
+    For the account window, which has to say which account Claude Code is
+    signed in as right now: that is a different question from which account
+    the widget is showing, and the two are often not the same.
+    """
+    try:
+        return fetch_claude_code_profile()
+    except Exception:
+        return None
+
+
+def fetch_usage_claude_code(retry_transient=True, expect_org=None):
     """Usage via the OAuth endpoint Claude Code itself uses. Same five_hour /
     seven_day shape as the claude.ai endpoint, so _on_data needs no change.
     A 401 means the token on disk expired: running the CLI refreshes it."""
+    if expect_org:
+        # The token follows whoever signed in last. Reading it for an account
+        # it does not belong to would put one account's numbers under another
+        # account's name, which is the confusion issue #11 was filed about.
+        prof = fetch_claude_code_profile()
+        if prof.get('org_id') and prof['org_id'] != expect_org:
+            raise PermissionError(
+                t('cc_other_account').format(email=prof.get('email') or '?'))
     token, _ = read_claude_code_token()
     headers, body = _curl_call(
         CC_USAGE_URL, None, retry_transient=retry_transient,
@@ -2406,29 +2851,11 @@ def fetch_usage_claude_code(retry_transient=True):
         raise RuntimeError(f'invalid response: {e}')
 
 
-def fetch_usage(cfg):
-    """Fetch usage data from Claude.ai API. See fetch_org_id for why curl.
-
-    Returns (data, rotation): rotation is None, or (account_id, new_key) when
-    Claude.ai rotated the session key. The persist is deliberately NOT done
-    here: this runs on the refresh worker thread, and writing cfg off-thread
-    could (a) serialise the dict while the UI thread mutates it and (b) land
-    the new key on the wrong account if the user switched accounts mid-fetch.
-    The caller applies the rotation on the main thread, targeting the exact
-    account the key was issued for (see Widget._apply_rotated_key)."""
-    # No key worth sending: ask for one instead of spending a request every
-    # refresh on a 401 whose answer is already known. Deliberately weaker than
-    # plausible_key, which gates what may be WRITTEN: here a wrong call would
-    # lock the user out of a widget that works, so only a value that cannot be
-    # a key at all counts.
-    if cfg.get('auth') == CC_AUTH:
-        return fetch_usage_claude_code(), None
-    if not str(cfg.get('session_key') or '').startswith(SESSION_KEY_PREFIX):
-        wlog('FETCH  no usable key stored, asking for a new one')
-        raise PermissionError(t('session_expired_short'))
-    target_id = (active_account(cfg) or {}).get('id')
-    url = API_URL.format(cfg['org_id'])
-    cookie = f"sessionKey={cfg['session_key']}; lastActiveOrg={cfg['org_id']}"
+def _fetch_usage_key(src):
+    """The session-key read. `src` is the active account, or the config itself
+    for a layout old enough not to have one."""
+    url = API_URL.format(src['org_id'])
+    cookie = f"sessionKey={src['session_key']}; lastActiveOrg={src['org_id']}"
     headers, body = _curl_call(url, cookie)
     if not body:
         raise RuntimeError(t('empty_response'))
@@ -2439,13 +2866,54 @@ def fetch_usage(cfg):
         if code >= 400:
             raise RuntimeError(f'HTTP {code}')
     rotation = None
-    new_key = _rotated_key(headers, cfg.get('session_key'))
+    new_key = _rotated_key(headers, src.get('session_key'))
     if new_key:
-        rotation = (target_id, new_key)
+        rotation = (src.get('id'), new_key)
     try:
         return json.loads(body), rotation
     except json.JSONDecodeError as e:
         raise RuntimeError(f'invalid response: {e}')
+
+
+def fetch_usage(cfg):
+    """Fetch usage data for the active account. See fetch_org_id for why curl.
+
+    Returns (data, rotation): rotation is None, or (account_id, new_key) when
+    Claude.ai rotated the session key. The persist is deliberately NOT done
+    here: this runs on the refresh worker thread, and writing cfg off-thread
+    could (a) serialise the dict while the UI thread mutates it and (b) land
+    the new key on the wrong account if the user switched accounts mid-fetch.
+    The caller applies the rotation on the main thread, targeting the exact
+    account the key was issued for (see Widget._apply_rotated_key).
+
+    An account may hold both credentials. They are tried in preference order,
+    and falling back is silent on purpose: a token that expired while a good
+    key is on file is not something the user has to act on, and saying so would
+    train them to ignore the message that does matter. Only when nothing is
+    left does the error of the preferred method surface.
+    """
+    acc = active_account(cfg)
+    methods = account_methods(acc) if acc is not None else ()
+    if not methods:
+        # Deliberately weaker than plausible_key, which gates what may be
+        # WRITTEN: here a wrong call would lock the user out of a widget that
+        # works, so only a value that cannot be a credential at all counts.
+        if acc is None and str(cfg.get('session_key') or '').startswith(SESSION_KEY_PREFIX):
+            return _fetch_usage_key(cfg)
+        wlog('FETCH  no usable credential stored, asking for one')
+        raise PermissionError(t('session_expired_short'))
+    first_error = None
+    for method in methods:
+        try:
+            if method == AUTH_CC:
+                return fetch_usage_claude_code(expect_org=acc.get('org_id')), None
+            return _fetch_usage_key(acc)
+        except Exception as e:
+            if len(methods) > 1:
+                wlog(f'FETCH  {method} did not answer, trying the other way')
+            first_error = first_error if first_error is not None else e
+    raise first_error
+
 
 
 # ═══════════════════════════════════════════════════════
@@ -2610,9 +3078,10 @@ def _selftest_curlrc():
 def _selftest_api(cfg):
     """The end-to-end check: the usage endpoint, with the configured key."""
     account = active_account(cfg) or {}
-    if account.get('auth') == CC_AUTH:
+    if AUTH_CC in account_methods(account):
         try:
-            fetch_usage_claude_code(retry_transient=False)
+            fetch_usage_claude_code(retry_transient=False,
+                                    expect_org=account.get('org_id'))
         except PermissionError:
             return 'fail', t('selftest_api_key_rejected')
         except Exception as e:
@@ -3073,7 +3542,7 @@ class Section:
         else:
             txt = pct_str
         self.cv.create_text(w / 2, BAR_H / 2 - 1, text=txt,
-                            fill='#ffffff', font=FT_BAR, anchor='center')
+                            fill=BAR_TEXT, font=FT_BAR, anchor='center')
         # Pre-refresh breathing dot, centred on the bar's right rounded cap
         # (the centre of the ideal circle that completes the end semicircle).
         # Same glyph + size as the corner dots, at the pct text's vertical
@@ -3099,6 +3568,9 @@ class Widget:
 
     def __init__(self):
         self.cfg = load_cfg()
+        # An account written by the first version of the Claude Code login
+        # carries a flag that said how to read but not who the account was.
+        migrate_cc_accounts(self.cfg)
         # Keep the top-level key/org in sync with the active account (config
         # could have been hand-edited, or an account removed).
         mirror_active(self.cfg)
@@ -3106,6 +3578,9 @@ class Widget:
         # usage payload (see scoped_model); persist the last-seen name so the
         # bar reads correctly before the first fetch of a new session.
         self._model_label = self.cfg.get('model_label', 'Sonnet')
+        # The theme decides the colour of every widget about to be created,
+        # so it goes first: Tk has no way to repaint one afterwards.
+        apply_theme(self.cfg.get('theme', 'dark'))
         # Load language from config, default English
         set_lang(self.cfg.get('language', 'en'))
         # And what the line under the bars carries, for the same reason: the
@@ -3348,7 +3823,7 @@ class Widget:
             ico = tk.Label(self.tb, image=self._bar_icon, bg=BG_TITLE, padx=4)
         else:
             ico = tk.Label(self.tb, text=' \u2731', font=('Segoe UI', 11),
-                           fg=CLAUDE, bg=BG_TITLE)
+                           fg=CLAUDE_TEXT, bg=BG_TITLE)
         ico.pack(side='left', padx=(6, 0))
         ico.bind('<Button-1>', self._drag_start)
         ico.bind('<B1-Motion>', self._drag_move)
@@ -4574,6 +5049,47 @@ class Widget:
             return 'dot'
         return mode
 
+    def _set_theme(self, name):
+        """Remember the theme. It takes effect on the next start, and the menu
+        offers that restart right below."""
+        if self.cfg.get('theme', 'dark') == name:
+            return
+        self.cfg['theme'] = name
+        save_cfg(self.cfg)
+        wlog(f'THEME  theme -> {name}')
+
+    def _restart_widget(self):
+        """Relaunch and quit, so a new theme is built into the interface.
+
+        Order matters. The geometry is written first, because the new process
+        reads the config while this one is still alive. Then the
+        single-instance lock is let go: the new process checks it on start,
+        and with this one still holding it the child would raise this window
+        and exit, leaving nothing running a moment later. If the lock cannot
+        be released, nothing is restarted and the widget stays up.
+        """
+        self._save_geometry()
+        mutex = globals().get('_mutex')
+        if mutex:
+            try:
+                k32 = ctypes.WinDLL('kernel32', use_last_error=True)
+                k32.ReleaseMutex(mutex)
+                k32.CloseHandle(mutex)
+                globals()['_mutex'] = None
+            except Exception as e:
+                wlog(f'RESTART single-instance lock not released: {e}')
+                return
+        try:
+            args = ([sys.executable] if getattr(sys, 'frozen', False)
+                    else [sys.executable, os.path.abspath(__file__)])
+            subprocess.Popen(args, creationflags=subprocess.DETACHED_PROCESS
+                             | subprocess.CREATE_NEW_PROCESS_GROUP, close_fds=True)
+        except Exception as e:
+            wlog(f'RESTART failed: {e}')
+            return
+        wlog('RESTART relaunched, quitting')
+        self._quit()
+
     def _toggle_reset_part(self, part, close=True):
         """Show or hide one half of the line under the bars: the clock the
         window resets at, or the time left until it does.
@@ -5086,6 +5602,45 @@ class Widget:
             fg=DIM, bg=BAR_BG, hover_bg=BAR_BG, cmd=lambda: None,
             padx=px, pady=py)
 
+    def _chosen_pill(self, parent, text, cmd):
+        """The selected option among small pills: same size, Claude fill."""
+        return make_pill_button(
+            parent, text=text, font=FT_DLG_HINT, fg='#ffffff', bg=CLAUDE,
+            hover_bg=CLAUDE, cmd=cmd,
+            padx=self.dp(12), pady=self.dp(5))
+
+    def _pill_flow(self, parent, items, width):
+        """Lay small pills left to right, wrapping to a new line when the next
+        one would not fit. Label lengths differ by half between languages, so a
+        single row is a guess that only holds in the language it was tried in.
+        """
+        rows = [tk.Frame(parent, bg=parent.cget('bg'))]
+        rows[0].pack(fill='x')
+        used = 0
+        for label, cmd, chosen in items:
+            maker = self._chosen_pill if chosen else self._small_pill
+            pill = maker(rows[-1], label, cmd)
+            pill.update_idletasks()
+            need = pill.winfo_reqwidth() + self.dp(6)
+            if used and used + need > width:
+                pill.destroy()
+                rows.append(tk.Frame(parent, bg=parent.cget('bg')))
+                rows[-1].pack(fill='x', pady=(6, 0))
+                used = 0
+                pill = maker(rows[-1], label, cmd)
+                pill.update_idletasks()
+                need = pill.winfo_reqwidth() + self.dp(6)
+            pill.pack(side='left', padx=(0, self.dp(6)))
+            used += need
+        return rows
+
+    def _small_pill(self, parent, text, cmd):
+        """Compact secondary pill, for rows that hold several actions."""
+        return make_pill_button(
+            parent, text=text, font=FT_DLG_HINT, fg=FG, bg=SOFT_BG,
+            hover_bg=SOFT_BG_HV, cmd=cmd,
+            padx=self.dp(12), pady=self.dp(5))
+
     def _outline_pill(self, parent, text, cmd, icon=None):
         """Secondary pill drawn as an outline in Claude orange.
 
@@ -5293,7 +5848,13 @@ class Widget:
         tk.Frame(parent, bg=BAR_BG, height=1).pack(fill='x', padx=12, pady=4)
 
     def _menu_section(self, parent, text):
-        tk.Label(parent, text=text, font=FT_DLG_HINT, fg=DIM, bg=MENU_BG,
+        """A quiet heading. It takes the surface it sits on: the same label is
+        used inside dialogs, where the menu's own shade drew a visible band."""
+        try:
+            surface = parent.cget('bg')
+        except tk.TclError:
+            surface = MENU_BG
+        tk.Label(parent, text=text, font=FT_DLG_HINT, fg=DIM, bg=surface,
                  anchor='w', padx=14, pady=2).pack(fill='x', pady=(6, 0))
 
     def _menu_do(self, fn):
@@ -5469,6 +6030,17 @@ class Widget:
             self._menu_row(m, (t('menu_taskbar_on') if tb else t('menu_taskbar_off')),
                            lambda: self._flyout_set(self._toggle_taskbar),
                            icon='\U0001F4CC︎', icon_ft=FT_EMOJI, tip=t('tip_taskbar'))
+            self._menu_sep(m)
+            self._menu_section(m, t('menu_theme'))
+            theme = self.cfg.get('theme', 'dark')
+            for value, label in (('dark', t('theme_dark')), ('light', t('theme_light'))):
+                self._menu_row(m, label,
+                               lambda v=value: self._flyout_set(lambda: self._set_theme(v)),
+                               marker=('\u25cf' if theme == value else '\u25cb'))
+            self._menu_row(m, t('menu_restart'),
+                           lambda: self._menu_do(self._restart_widget),
+                           icon=ICON_RESTART, icon_ft=FT_MDL2_MENU,
+                           tip=t('tip_restart'))
             self._menu_sep(m)
             self._menu_section(m, t('menu_reset_label'))
             r_time = self.cfg.get('show_reset_time', True)
@@ -5740,6 +6312,175 @@ class Widget:
         self._close_menu()
         self._color_picker_dialog(t('dlg_bar_color'), self._bar_ft(code)[0],
                                   lambda hexv: self._set_bar_color(code, hexv))
+
+    def _avatar_dialog(self, acc, state, on_done):
+        """Pick what the account's bubble shows, and in which two colours.
+
+        Works on a draft: the account is written by the details window when it
+        is saved, so leaving here with Cancel has to change nothing.
+        """
+        dw, dh = self._dlg_size(330, 300)
+        dlg, body = self._build_dialog_frame(t('dlg_avatar_title'), dw, dh)
+        draft = {'color': state['color'],
+                 'avatar': dict(state.get('avatar') or {})}
+        draft['avatar'].setdefault('kind', 'initials')
+        draft['avatar'].setdefault('fg', '#ffffff')
+        text_var = tk.StringVar(value=(draft['avatar'].get('text') or ''))
+
+        # Bottom-up first: Tk gives space in packing order, so the controls
+        # that must never disappear are packed before the content that grows.
+        btns = tk.Frame(body, bg=BG)
+        btns.pack(fill='x', side='bottom', pady=(14, 0))
+        colors = tk.Frame(body, bg=BG)
+        colors.pack(fill='x', side='bottom', pady=(12, 0))
+
+        def confirm():
+            av = dict(draft['avatar'])
+            av['text'] = (text_var.get() or '').strip()[:3]
+            # An empty custom text would show an empty bubble: fall back to
+            # the initials rather than to nothing.
+            if av['kind'] == 'text' and not av['text']:
+                av['kind'] = 'initials'
+            if av['kind'] == 'icon' and not av.get('icon'):
+                av['kind'] = 'initials'
+            on_done(draft['color'], av)
+            dlg.destroy()
+
+        self._primary_pill(btns, t('dlg_save'), confirm).pack(side='right')
+        self._secondary_pill(btns, t('dlg_cancel'), dlg.destroy).pack(
+            side='right', padx=(0, 8))
+
+        # ── what it will look like ──
+        preview_host = tk.Frame(body, bg=BG)
+        preview_host.pack(pady=(0, 12))
+
+        def preview_acc():
+            av = dict(draft['avatar'])
+            av['text'] = (text_var.get() or '').strip()[:3]
+            return dict(acc, color=draft['color'], avatar=av)
+
+        def draw_preview():
+            for w in preview_host.winfo_children():
+                w.destroy()
+            self._account_bubble(preview_host, preview_acc(), size=64).pack()
+
+        # ── initials, a text of your own, or a glyph ──
+        kinds = tk.Frame(body, bg=BG)
+        kinds.pack(fill='x', pady=(0, 10))
+        area = tk.Frame(body, bg=BG)
+        area.pack(fill='x')
+
+        def set_kind(kind):
+            draft['avatar']['kind'] = kind
+            render_kinds()
+            render_area()
+            draw_preview()
+
+        def render_kinds():
+            for w in kinds.winfo_children():
+                w.destroy()
+            cur = draft['avatar'].get('kind')
+            self._pill_flow(kinds, [
+                (t('avatar_kind_initials'), lambda: set_kind('initials'),
+                 cur == 'initials'),
+                (t('avatar_kind_text'), lambda: set_kind('text'), cur == 'text'),
+                (t('avatar_kind_icon'), lambda: set_kind('icon'), cur == 'icon'),
+            ], dw - self.dp(44))
+
+        def pick_icon(glyph):
+            draft['avatar']['icon'] = glyph
+            render_area()
+            draw_preview()
+
+        def render_area():
+            for w in area.winfo_children():
+                w.destroy()
+            kind = draft['avatar'].get('kind')
+            if kind == 'text':
+                wrap = tk.Frame(area, bg=BAR_BG)
+                wrap.pack(fill='x')
+                ent = tk.Entry(wrap, textvariable=text_var, font=FT_DLG_BODY,
+                               bg=BAR_BG, fg=FG, insertbackground=FG, bd=0,
+                               relief='flat', highlightthickness=0,
+                               justify='center')
+                ent.pack(fill='x', ipady=7, ipadx=10)
+                ent.bind('<FocusIn>', lambda e: wrap.configure(bg=FOCUS_RING))
+                ent.bind('<FocusOut>', lambda e: wrap.configure(bg=BAR_BG))
+                ent.bind('<KeyRelease>', lambda e: draw_preview())
+                tk.Label(area, text=t('avatar_text_hint'), font=FT_DLG_HINT,
+                         fg=DIM, bg=BG, anchor='w').pack(fill='x', pady=(6, 0))
+                ent.focus_set()
+            elif kind == 'icon':
+                grid = tk.Frame(area, bg=BG)
+                grid.pack()
+                chosen = draft['avatar'].get('icon')
+                cw, ch = self.dp(36), self.dp(30)
+                for i, glyph in enumerate(AVATAR_ICONS):
+                    on = glyph == chosen
+                    cell = tk.Canvas(grid, width=cw, height=ch,
+                                     bg=CLAUDE if on else SOFT_BG,
+                                     highlightthickness=0, bd=0, cursor='hand2')
+                    cell.create_text(cw / 2, ch / 2, text=glyph,
+                                     fill='#ffffff' if on else FG,
+                                     font=('Segoe MDL2 Assets', 13))
+                    cell.grid(row=i // 6, column=i % 6, padx=2, pady=2)
+                    cell.bind('<Button-1>', lambda e, g=glyph: pick_icon(g))
+                    if not on:
+                        cell.bind('<Enter>',
+                                  lambda e, c=cell: c.configure(bg=SOFT_BG_HV))
+                        cell.bind('<Leave>',
+                                  lambda e, c=cell: c.configure(bg=SOFT_BG))
+            else:
+                tk.Label(area, text=account_initials(acc.get('name')),
+                         font=FT_DLG_HINT, fg=DIM, bg=BG, anchor='w').pack(
+                             fill='x')
+            # The window was measured for the section it opened on; the glyph
+            # grid is three times taller than a text field, so it is measured
+            # again every time the section changes.
+            self._place_dialog(dlg, dw, dh_floor=dh)
+
+        # ── the two colours ──
+        def swatch_row(label, presets, current, on_set):
+            tk.Label(colors, text=label, font=FT_DLG_HINT, fg=DIM, bg=BG,
+                     anchor='w').pack(fill='x', pady=(0, 4))
+            row = tk.Frame(colors, bg=BG)
+            row.pack(fill='x', pady=(0, 8))
+            for hexv in presets:
+                c = tk.Canvas(row, width=26, height=26, bg=BG,
+                              highlightthickness=0, bd=0, cursor='hand2')
+                if hexv.lower() == (current or '').lower():
+                    c._ring = _dot_image(26, FG)
+                    c.create_image(13, 13, image=c._ring, anchor='center')
+                c._img = _dot_image(18, hexv)
+                c.create_image(13, 13, image=c._img, anchor='center')
+                c.pack(side='left', padx=(0, 6))
+                c.bind('<Button-1>', lambda e, hv=hexv: on_set(hv))
+            self._small_pill(row, t('dlg_custom'),
+                             lambda: self._color_picker_dialog(
+                                 label, current, on_set)).pack(side='left')
+
+        def set_bg(hexv):
+            draft['color'] = hexv
+            render_colors()
+            draw_preview()
+
+        def set_fg(hexv):
+            draft['avatar']['fg'] = hexv
+            render_colors()
+            draw_preview()
+
+        def render_colors():
+            for w in colors.winfo_children():
+                w.destroy()
+            swatch_row(t('avatar_bg'), _BUBBLE_COLORS, draft['color'], set_bg)
+            swatch_row(t('avatar_fg'), AVATAR_FG_PRESETS,
+                       draft['avatar'].get('fg'), set_fg)
+
+        render_kinds()
+        render_colors()
+        render_area()
+        draw_preview()
+        self._place_dialog(dlg, dw, dh_floor=dh)
 
     def _color_picker_dialog(self, title, initial, on_pick):
         """In-tool HSV colour picker: preset swatches + a saturation/value
@@ -6215,7 +6956,7 @@ class Widget:
 
         subtitle = t('update_dlg_subtitle').format(
             version=info['version'], current=APP_VERSION)
-        tk.Label(body, text=subtitle, font=FT_DLG_H, fg=CLAUDE, bg=BG,
+        tk.Label(body, text=subtitle, font=FT_DLG_H, fg=CLAUDE_TEXT, bg=BG,
                  anchor='w').pack(fill='x')
 
         tk.Label(body, text=t('update_dlg_changelog'), font=FT_DLG_BODY, fg=FG,
@@ -6599,7 +7340,7 @@ class Widget:
 
     def _session_key_dialog(self, title, is_setup=False, on_success=None,
                             prefill=None, show_name=False, name_prefill='',
-                            on_done=None):
+                            on_done=None, offer_cc=True, start_cc=False):
         """Key entry dialog, shared by setup / renew / add / edit-key.
 
         on_success(key, info, name): when given, called with the verified key,
@@ -6612,7 +7353,8 @@ class Widget:
         # The Claude Code shortcut is offered on setup / renew (writes the
         # active account) and on add (on_done rebuilds the list); not on
         # edit-key, which targets a specific account this dialog cannot see.
-        show_cc = os.path.exists(CC_CREDS) and (on_success is None or bool(on_done))
+        show_cc = (offer_cc and os.path.exists(CC_CREDS)
+                   and (on_success is None or bool(on_done)))
         dh = 392 if show_name else 320
         if show_cc:
             dh += 56  # one more pill row above the key entry
@@ -6785,39 +7527,70 @@ class Widget:
         def use_claude_code():
             build_connect(enabled=False)
             status_lbl.config(text=t('dlg_verifying'), fg=BLUE)
+            # Read before anything can close the dialog: an Entry outlives its
+            # window as a Python object, and reading it afterwards raises.
+            nm = name_entry.get().strip() if name_entry else ''
+
+            def fail(msg):
+                status_lbl.config(text=f"{t('dlg_error_prefix')}: {msg}", fg=RED)
+                build_connect(enabled=True)
 
             def verify():
                 try:
-                    fetch_usage_claude_code()
-                    _, plan = read_claude_code_token()
+                    prof = fetch_claude_code_profile(force=True)
+                    fetch_usage_claude_code(expect_org=prof.get('org_id'))
                 except Exception as e:
-                    dlg.after(0, lambda msg=str(e): (
-                        status_lbl.config(text=f"{t('dlg_error_prefix')}: {msg}", fg=RED),
-                        build_connect(enabled=True)))
+                    dlg.after(0, lambda msg=str(e): fail(msg))
                     return
-                dlg.after(0, lambda: commit_cc(plan))
+                dlg.after(0, lambda: decide(prof))
 
-            def commit_cc(plan):
-                # The name is read BEFORE the dialog goes. Reading an entry after
-                # destroy raises TclError, and the `if name_entry` guard does not
-                # catch it: the Python object outlives the widget, so the call
-                # reaches Tk and fails there. Adding an account through the new
-                # pill wrote nothing at all, in silence. The key path passes the
-                # name into commit() before closing, for the same reason.
-                nm = name_entry.get().strip() if name_entry else ''
+            def close():
                 try:
                     dlg.destroy()
                 except tk.TclError:
                     pass
-                a = active_account(self.cfg) if on_success is None else None
-                if a is None:
-                    a = {'id': _new_id(), 'name': nm or t('cc_account_name'),
-                         'session_key': '', 'org_id': '', 'email': '', 'plan': plan}
-                    self.cfg.setdefault('accounts', []).append(a)
-                    self.cfg['active_account'] = a['id']
-                else:
-                    a['session_key'], a['org_id'], a['plan'] = '', '', plan
-                a['auth'] = CC_AUTH
+
+            def decide(prof):
+                # The identity decides where this login belongs: on the account
+                # that already is this account, or on a new one. Two rows for
+                # one Claude account would count the same usage twice and put
+                # the user in front of a choice that has no right answer.
+                target = active_account(self.cfg) if on_success is None else None
+                existing = find_account_by_identity(self.cfg, prof.get('org_id'),
+                                                    prof.get('email'))
+                if existing is not None and existing is not target:
+                    close()
+                    self._confirm_dialog(
+                        t('dlg_account_exists_title'),
+                        t('dlg_account_exists').format(
+                            name=existing.get('name') or '-'),
+                        lambda: attach(existing, prof))
+                    return
+                close()
+                attach(target, prof)
+
+            def attach(acc, prof):
+                if acc is None:
+                    acc = {'id': _new_id(), 'name': '', 'session_key': '',
+                           'org_id': '', 'email': '', 'plan': ''}
+                    self.cfg.setdefault('accounts', []).append(acc)
+                self.cfg['active_account'] = acc['id']
+                acc['cc_linked'] = True
+                # The identity comes from the profile. A session key already on
+                # the account is left alone: the two credentials cover for each
+                # other now, and throwing one away to add the other would undo
+                # the only protection against an expired token.
+                for field, value in (('org_id', prof.get('org_id')),
+                                     ('email', prof.get('email')),
+                                     ('plan', prof.get('plan'))):
+                    if value:
+                        acc[field] = value
+                        acc['profile'] = {k: v for k, v in prof.items()
+                                          if k not in ('org_id', 'email', 'plan')}
+                if nm:
+                    acc['name'] = nm
+                elif not acc.get('name'):
+                    acc['name'] = prof.get('name') or t('cc_account_name')
                 mirror_active(self.cfg)
                 save_cfg(self.cfg)
                 self._clear_error()
@@ -6826,10 +7599,16 @@ class Widget:
                 self.refresh()
                 if on_done:
                     on_done()
+
             threading.Thread(target=verify, daemon=True).start()
+
 
         build_connect(enabled=True)
         entry.bind('<Return>', lambda e: save_key())
+        if start_cc:
+            # The user already chose the login on the previous screen; do not
+            # make them choose again on this one.
+            dlg.after(60, use_claude_code)
 
     def _setup_dialog(self):
         self._session_key_dialog(t('dlg_setup_title'), is_setup=True)
@@ -6977,19 +7756,321 @@ class Widget:
                        highlightthickness=0, bd=0, cursor='hand2')
         # Anti-aliased disc (Canvas ovals are jagged): render smooth via the
         # shared 4x-downscaled circle image, then overlay the initials.
-        img = _dot_image(size, bubble_color(acc.get('id')))
+        img = _dot_image(size, account_color(acc))
         cv._bubble_img = img
         cv.create_image(size / 2, size / 2, image=img, anchor='center')
-        cv.create_text(size / 2, size / 2 + 1, text=account_initials(acc.get('name')),
-                       fill='#ffffff', font=FT_DLG_BTN_B)
+        mark, kind, fg = account_avatar(acc)
+        if kind == 'icon':
+            # MDL2 glyphs are centred in their em box, so they need no optical
+            # nudge; text does.
+            cv.create_text(size / 2, size / 2, text=mark, fill=fg,
+                           font=('Segoe MDL2 Assets', max(8, int(size * 0.38))))
+        else:
+            # Three characters have to fit the disc that two were drawn for.
+            scale = 0.40 if len(mark) < 3 else 0.30
+            cv.create_text(size / 2, size / 2 + 1, text=mark, fill=fg,
+                           font=(FT_DLG_BTN_B.cget('family'),
+                                 max(7, int(size * scale)), 'bold'))
         return cv
 
-    def _account_row(self, parent, acc, rebuild):
+    def _link_claude_code(self, acc, on_done, status=None):
+        """Attach the Claude Code login on this machine to `acc`.
+
+        The login is only attached when it belongs to this account. Attaching
+        somebody else's would make the widget show one account's numbers under
+        another account's name, which is the whole reason the identity is
+        checked at all.
+        """
+        def work():
+            try:
+                prof = fetch_claude_code_profile(force=True)
+            except Exception as e:
+                self.root.after(0, lambda msg=str(e): done(None, msg))
+                return
+            self.root.after(0, lambda: done(prof, None))
+
+        def done(prof, err):
+            if err:
+                if status is not None:
+                    status.config(text=err, fg=RED)
+                return
+            org = acc.get('org_id')
+            if org and prof.get('org_id') and prof['org_id'] != org:
+                if status is not None:
+                    status.config(text=t('cc_other_account').format(
+                        email=prof.get('email') or '?'), fg=RED)
+                return
+            acc['cc_linked'] = True
+            # An account created from the login had no identity of its own
+            # until now: fill it in, so the list stops showing a nameless row.
+            for key, value in (('org_id', prof.get('org_id')),
+                               ('email', prof.get('email')),
+                               ('plan', prof.get('plan'))):
+                if value and not acc.get(key):
+                    acc[key] = value
+                    acc['profile'] = {k: v for k, v in prof.items()
+                                      if k not in ('org_id', 'email', 'plan')}
+            if not acc.get('name') and prof.get('name'):
+                acc['name'] = prof['name']
+            mirror_active(self.cfg)
+            save_cfg(self.cfg)
+            self._clear_error()
+            self.refresh()
+            on_done()
+
+        if status is not None:
+            status.config(text=t('dlg_verifying'), fg=BLUE)
+        threading.Thread(target=work, daemon=True).start()
+
+    def _info_row(self, parent, label, value):
+        """One `label   value` line, aligned, for the details window."""
+        row = tk.Frame(parent, bg=BG)
+        row.pack(fill='x', pady=1)
+        tk.Label(row, text=label, font=FT_DLG_HINT, fg=DIM, bg=BG, anchor='w',
+                 width=18).pack(side='left')
+        tk.Label(row, text=value, font=FT_DLG_HINT, fg=FG, bg=BG, anchor='w',
+                 justify='left').pack(side='left', fill='x', expand=True)
+        return row
+
+    def _account_details_dialog(self, acc, rebuild):
+        """Everything about one account in one place: who it is, what its plan
+        says, how the widget reads it, and what can be changed."""
+        st = {'color': account_color(acc), 'avatar': dict(acc.get('avatar') or {})}
+        dw, dh = self._dlg_size(470, 260)
+        dlg, body = self._build_dialog_frame(t('dlg_account_details'), dw, dh)
+
+        def close_and(fn=None):
+            try:
+                dlg.destroy()
+            except tk.TclError:
+                pass
+            rebuild()
+            if fn:
+                fn()
+
+        def reopen():
+            close_and(lambda: self._account_details_dialog(acc, rebuild))
+
+        # Bottom controls first: the layout contract in _build_dialog_frame.
+        bottom = tk.Frame(body, bg=BG)
+        bottom.pack(fill='x', side='bottom')
+        tk.Frame(bottom, bg=BAR_BG, height=1).pack(fill='x', pady=(14, 12))
+        row_btn = tk.Frame(bottom, bg=BG)
+        row_btn.pack(fill='x')
+
+        def save_and_close():
+            name = name_entry.get().strip()
+            if name:
+                acc['name'] = name
+            acc['color'] = st['color']
+            if st['avatar']:
+                acc['avatar'] = st['avatar']
+            mirror_active(self.cfg)
+            save_cfg(self.cfg)
+            close_and()
+
+        self._primary_pill(row_btn, t('dlg_save'), save_and_close).pack(side='right')
+        self._outline_pill(row_btn, t('dlg_remove_account'),
+                           lambda: close_and(
+                               lambda: self._remove_account(acc, rebuild))).pack(side='left')
+
+        # ── identity: the avatar is also the colour control ──
+        head = tk.Frame(body, bg=BG)
+        head.pack(fill='x')
+        bub_host = tk.Frame(head, bg=BG)
+        bub_host.pack(side='left', padx=(0, 12))
+
+        def draw_bubble():
+            for w in bub_host.winfo_children():
+                w.destroy()
+            # The name being typed feeds the initials, so the bubble is a
+            # preview of a change that has not been saved yet.
+            try:
+                typed = name_entry.get().strip()
+            except NameError:
+                typed = ''
+            b = self._account_bubble(bub_host, dict(acc, color=st['color'],
+                                                    avatar=st['avatar'],
+                                                    name=typed or acc.get('name')),
+                                     size=44)
+            b.pack()
+            b.bind('<Button-1>', lambda e: pick_avatar())
+            self._tooltip(b, t('dlg_avatar_title'))
+
+        def pick_avatar():
+            def on_done(hexval, avatar):
+                st['color'], st['avatar'] = hexval, avatar
+                draw_bubble()
+            self._avatar_dialog(acc, st, on_done)
+
+        fields = tk.Frame(head, bg=BG)
+        fields.pack(side='left', fill='x', expand=True)
+        name_wrap = tk.Frame(fields, bg=BAR_BG)
+        name_wrap.pack(fill='x')
+        name_entry = tk.Entry(name_wrap, font=FT_DLG_BODY, bg=BAR_BG, fg=FG,
+                              insertbackground=FG, relief='flat', bd=0,
+                              highlightthickness=0)
+        name_entry.pack(fill='x', ipady=7, ipadx=10)
+        name_entry.insert(0, acc.get('name') or '')
+        name_entry.bind('<FocusIn>', lambda e: name_wrap.configure(bg=FOCUS_RING))
+        name_entry.bind('<FocusOut>', lambda e: name_wrap.configure(bg=BAR_BG))
+        name_entry.bind('<KeyRelease>', lambda e: draw_bubble())
+        tk.Label(fields, text=acc.get('email') or t('dlg_account_unknown'),
+                 font=FT_DLG_HINT, fg=DIM, bg=BG, anchor='w').pack(fill='x', pady=(6, 0))
+        draw_bubble()
+
+        # ── what the plan says ──
+        prof = acc.get('profile') or {}
+        self._menu_section(body, t('dlg_account_info'))
+        info = tk.Frame(body, bg=BG)
+        info.pack(fill='x', pady=(0, 4))
+        if acc.get('plan'):
+            self._info_row(info, t('info_plan'), acc['plan'])
+        if prof.get('sub_status'):
+            known = {'active': t('sub_active'), 'canceled': t('sub_canceled'),
+                     'cancelled': t('sub_canceled'), 'past_due': t('sub_past_due')}
+            self._info_row(info, t('info_subscription'),
+                           known.get(prof['sub_status'], prof['sub_status']))
+        if prof.get('org_name'):
+            self._info_row(info, t('info_org'), prof['org_name'])
+        if prof:
+            self._info_row(info, t('info_extra'),
+                           t('info_on') if prof.get('extra_usage') else t('info_off'))
+        methods = account_methods(acc)
+        self._info_row(info, t('info_read_with'),
+                       t('auth_claude_code') if methods and methods[0] == AUTH_CC
+                       else t('auth_key') if methods else t('dlg_account_no_method'))
+        # The windows that do renew, for the account actually being shown.
+        if acc.get('id') == self.cfg.get('active_account') and self._last_data:
+            for key, label in (('five_hour', t('info_session_reset')),
+                               ('seven_day', t('info_week_reset'))):
+                when = pretty_date((self._last_data.get(key) or {}).get('resets_at'),
+                                   with_time=True)
+                if when:
+                    self._info_row(info, label, when)
+
+        # ── how it is read ──
+        self._menu_section(body, t('dlg_account_credentials'))
+
+        def set_pref(value):
+            acc['auth_pref'] = value
+            mirror_active(self.cfg)
+            save_cfg(self.cfg)
+            self.refresh()
+            reopen()
+
+        # Pills, sized for a panel and wrapped when they do not fit: the first
+        # attempt used dialog-sized pills on one row, which fitted in English
+        # and ran off the edge in Italian.
+        current = acc.get('auth_pref', AUTH_AUTO)
+        pref_box = tk.Frame(body, bg=BG)
+        pref_box.pack(fill='x', pady=(0, 12))
+        self._pill_flow(pref_box, [
+            (t('pref_auto'), lambda: set_pref(AUTH_AUTO), current == AUTH_AUTO),
+            (t('auth_claude_code'), lambda: set_pref(AUTH_CC), current == AUTH_CC),
+            (t('auth_key'), lambda: set_pref(AUTH_KEY), current == AUTH_KEY),
+        ], dw - self.dp(44))
+
+        # Packed only when it has something to say: an empty label still
+        # takes its line, and there were enough of those in this window.
+        status_lbl = tk.Label(body, text='', font=FT_DLG_HINT, fg=RED, bg=BG,
+                              anchor='w', wraplength=dw - 60, justify='left')
+        _orig_status_config = status_lbl.config
+
+        def status_config(**kw):
+            _orig_status_config(**kw)
+            if kw.get('text'):
+                status_lbl.pack(fill='x', pady=(4, 0))
+
+        status_lbl.config = status_config
+
+        def card(title, state_text, actions, on):
+            """One credential: what it is, how it stands, what can be done."""
+            box = tk.Frame(body, bg=BAR_BG)
+            box.pack(fill='x', pady=(0, 8))
+            inner = tk.Frame(box, bg=BAR_BG)
+            inner.pack(fill='x', padx=12, pady=10)
+            head = tk.Frame(inner, bg=BAR_BG)
+            head.pack(fill='x')
+            tk.Label(head, text=title, font=FT_DLG_BTN_B, fg=FG, bg=BAR_BG,
+                     anchor='w').pack(side='left')
+            tk.Label(head, text=state_text, font=FT_DLG_HINT,
+                     fg=CLAUDE_TEXT if on else DIM, bg=BAR_BG,
+                     anchor='e').pack(side='right')
+            if actions:
+                row = tk.Frame(inner, bg=BAR_BG)
+                row.pack(fill='x', pady=(8, 0))
+                for label, cmd in actions:
+                    self._small_pill(row, label, cmd).pack(side='left', padx=(0, 6))
+
+        def unlink():
+            if AUTH_KEY not in methods:
+                self._confirm_dialog(t('dlg_last_credential_title'),
+                                     t('dlg_last_credential'), do_unlink)
+                return
+            do_unlink()
+
+        def do_unlink():
+            acc.pop('cc_linked', None)
+            mirror_active(self.cfg)
+            save_cfg(self.cfg)
+            reopen()
+
+        linked = bool(acc.get('cc_linked'))
+        if linked:
+            expiry = token_expiry()
+            state = t('cc_state_linked')
+            if expiry:
+                state += ' \u00b7 ' + t('cc_expires').format(when=expiry)
+            actions = [(t('cc_relink'),
+                        lambda: self._link_claude_code(acc, reopen, status_lbl)),
+                       (t('cc_unlink'), unlink)]
+        elif os.path.exists(CC_CREDS):
+            state = t('cc_state_available')
+            actions = [(t('cc_link'),
+                        lambda: self._link_claude_code(acc, reopen, status_lbl))]
+        else:
+            state, actions = t('cc_state_absent'), []
+        card(t('auth_claude_code'), state, actions, linked)
+
+        def drop_key():
+            if not acc.get('cc_linked'):
+                self._confirm_dialog(t('dlg_last_credential_title'),
+                                     t('dlg_last_credential'), do_drop_key)
+                return
+            do_drop_key()
+
+        def do_drop_key():
+            acc['session_key'] = ''
+            mirror_active(self.cfg)
+            save_cfg(self.cfg)
+            reopen()
+
+        has_key = AUTH_KEY in methods
+        key_actions = [(t('dlg_update_key') if has_key else t('key_add'),
+                        lambda: close_and(
+                            lambda: self._edit_account_key(acc, rebuild)))]
+        if has_key:
+            key_actions.append((t('key_remove'), drop_key))
+        card(t('auth_key'),
+             t('key_state_present') if has_key else t('key_state_absent'),
+             key_actions, has_key)
+
+
+        self._place_dialog(dlg, dw, dh_floor=dh)
+
+
+    def _account_row(self, parent, acc, rebuild, cc_org=None):
+        """One account in the list.
+
+        Two different things can be true of a row and they are shown apart: the
+        account the widget is displaying, and the account Claude Code is signed
+        in as on this computer right now. They are often not the same, and
+        reading one as the other is exactly the confusion issue #11 was about.
+        """
         active = acc.get('id') == self.cfg.get('active_account')
-        # Uniform background for every row: the active one is marked by a left
-        # accent stripe, not a lighter panel (which read as a floating overlay).
         base = BG
-        accent = bubble_color(acc.get('id'))
+        accent = account_color(acc)
         row = tk.Frame(parent, bg=base, cursor='hand2')
         row.pack(fill='x', pady=1)
         cells = [row]
@@ -7001,70 +8082,54 @@ class Widget:
         bubble.pack(side='left', padx=(8, 10), pady=8)
         cells.append(bubble)
 
-        def icon_btn(glyph, cmd, tip, fg=DIM):
-            b = tk.Label(row, text=glyph, font=FT_MDL2_MENU, fg=fg, bg=base,
-                         cursor='hand2', padx=6, pady=8)
-            b.pack(side='right')
-            b.bind('<Button-1>', lambda e: (cmd(), 'break')[1])
-            b.bind('<Enter>', lambda e, w=b: w.config(fg=FG))
-            b.bind('<Leave>', lambda e, w=b, c=fg: w.config(fg=c))
-            self._tooltip(b, tip)   # icon-only: say what it does
-            cells.append(b)
-
-        icon_btn(ICON_DELETE, lambda: self._remove_account(acc, rebuild),
-                 t('dlg_remove'))
-        icon_btn(ICON_EDIT, lambda: self._rename_account(acc, rebuild),
-                 t('dlg_rename'))
-        icon_btn(ICON_KEY, lambda: self._edit_account_key(acc, rebuild),
-                 t('dlg_update_key'), fg=CLAUDE)
+        # One clear control instead of three small icons: everything about the
+        # account lives on its own page now.
+        btn = self._secondary_pill(row, t('dlg_account_manage'),
+                                   lambda: self._account_details_dialog(acc, rebuild))
+        btn.pack(side='right', padx=(6, 8))
+        cells.append(btn)
 
         txt = tk.Frame(row, bg=base)
         txt.pack(side='left', fill='x', expand=True)
         cells.append(txt)
-        name_lbl = tk.Label(txt, text=acc.get('name') or '-', font=FT_DLG_BTN_B,
+
+        head = tk.Frame(txt, bg=base)
+        head.pack(fill='x')
+        cells.append(head)
+        name_lbl = tk.Label(head, text=acc.get('name') or '-', font=FT_DLG_BTN_B,
                             fg=FG, bg=base, anchor='w')
-        name_lbl.pack(fill='x')
+        name_lbl.pack(side='left')
         cells.append(name_lbl)
-        sub = ' · '.join([x for x in (acc.get('email'), acc.get('plan')) if x])
+
+        def badge(text_, color):
+            b = tk.Label(head, text=text_, font=FT_DLG_HINT, fg=color, bg=base,
+                         padx=6)
+            b.pack(side='left', padx=(6, 0))
+            cells.append(b)
+
         if active:
-            sub = (sub + ' · ' if sub else '') + t('dlg_active')
-        sub_lbl = tk.Label(txt, text=sub, font=FT_DLG_HINT, fg=DIM,
+            badge(t('dlg_active'), accent)
+        if cc_org and acc.get('org_id') == cc_org:
+            # Whose login is currently on this machine, which is a fact about
+            # Claude Code and not about what the widget is showing.
+            badge(t('dlg_cc_here'), BLUE)
+
+        methods = account_methods(acc)
+        how = (t('auth_claude_code') if methods and methods[0] == AUTH_CC
+               else t('auth_key') if methods else t('dlg_account_no_method'))
+        sub_txt = ' \u00b7 '.join([x for x in (acc.get('email'), acc.get('plan'), how) if x])
+        sub_lbl = tk.Label(txt, text=sub_txt, font=FT_DLG_HINT, fg=DIM,
                            bg=base, anchor='w')
         sub_lbl.pack(fill='x')
         cells.append(sub_lbl)
 
-        def switch(e=None):
-            self._switch_account(acc['id'], rebuild)
+        def switch(_e=None):
+            self._switch_account(acc.get('id'), rebuild)
 
-        def edit_key(e=None):
-            self._edit_account_key(acc, rebuild)
-            return 'break'
-        for c in (row, bubble, txt, name_lbl, sub_lbl):
-            c.bind('<Button-1>', switch)
-            c.bind('<Double-Button-1>', edit_key)
+        for c in cells:
+            if c is not btn:
+                c.bind('<Button-1>', switch)
 
-        # Hover affordance. The stripe is not recoloured (it keeps the active
-        # accent), but every widget in the row shares the same enter/leave so
-        # the highlight does not flicker as the pointer crosses children: on
-        # leave we repaint only when the pointer is truly outside the row, not
-        # merely over one of its children.
-        def paint(bg):
-            for c in cells:
-                try:
-                    c.config(bg=bg)
-                except tk.TclError:
-                    pass
-
-        def on_leave(e):
-            try:
-                w = row.winfo_containing(*row.winfo_pointerxy())
-            except Exception:
-                w = None
-            if not (w is row or (w is not None and str(w).startswith(str(row) + '.'))):
-                paint(base)
-        for c in cells + [stripe]:
-            c.bind('<Enter>', lambda e: paint(HOVER_BG), add='+')
-            c.bind('<Leave>', on_leave, add='+')
 
     def _accounts_dialog(self):
         dw, dh = self._dlg_size(480, 150)
@@ -7096,6 +8161,14 @@ class Widget:
         self._outline_pill(buttons, t('menu_open_claude'),
                            open_usage_page, icon='↗').pack(side='right')
 
+        # Which account Claude Code is signed in as on this machine. It is a
+        # fact about the computer, not about the widget, so it sits above the
+        # list rather than on any single row.
+        st = {'cc_org': None}
+        cc_lbl = tk.Label(body, text=t('cc_here_checking'), font=FT_DLG_HINT,
+                          fg=DIM, bg=BG, anchor='w')
+        cc_lbl.pack(fill='x', pady=(0, 10))
+
         list_frame = tk.Frame(body, bg=BG)
         list_frame.pack(fill='x')
 
@@ -7107,9 +8180,30 @@ class Widget:
                 tk.Label(list_frame, text=t('dlg_no_accounts'), font=FT_DLG_BODY,
                          fg=DIM, bg=BG, anchor='w').pack(fill='x', padx=8, pady=10)
             for acc in accounts:
-                self._account_row(list_frame, acc, rebuild)
+                self._account_row(list_frame, acc, rebuild, st['cc_org'])
             self._place_dialog(dlg, dw)
         rebuild()
+
+        def probe_cc():
+            prof = claude_code_status()
+
+            def apply():
+                if not cc_lbl.winfo_exists():
+                    return
+                if prof:
+                    st['cc_org'] = prof.get('org_id')
+                    cc_lbl.config(text=t('cc_here').format(
+                        email=prof.get('email') or '?'))
+                else:
+                    cc_lbl.config(text=t('cc_here_none'))
+                rebuild()
+
+            try:
+                dlg.after(0, apply)
+            except tk.TclError:
+                pass
+
+        threading.Thread(target=probe_cc, daemon=True).start()
 
     def _backfill_identity(self):
         """One-time identity fill for the active account. A config migrated
@@ -7162,7 +8256,20 @@ class Widget:
             rebuild()
 
     def _add_account(self, rebuild):
+        """Pick a way in, then run it. Both ways end on the same account model,
+        and both check whether that account is already in the list."""
         def on_success(key, info, name):
+            existing = find_account_by_identity(self.cfg, info.get('org_id'),
+                                                info.get('email'))
+            if existing is not None:
+                # Not a second account: the same one, reached with another
+                # credential. Offer to bring it up to date instead of leaving
+                # two rows counting the same usage.
+                self._confirm_dialog(
+                    t('dlg_account_exists_title'),
+                    t('dlg_account_exists').format(name=existing.get('name') or '-'),
+                    lambda: adopt(existing, key, info, name))
+                return
             n = len(self.cfg.get('accounts', [])) + 1
             acc = {'id': _new_id(),
                    'name': name or info.get('name') or f'Account {n}',
@@ -7170,13 +8277,76 @@ class Widget:
                    'email': info.get('email', ''), 'plan': info.get('plan', '')}
             self.cfg.setdefault('accounts', []).append(acc)
             self.cfg['active_account'] = acc['id']
+            finish()
+
+        def adopt(acc, key, info, name):
+            acc['session_key'] = key
+            acc['org_id'] = info.get('org_id') or acc.get('org_id')
+            if name:
+                acc['name'] = name
+            for field in ('email', 'plan'):
+                if info.get(field):
+                    acc[field] = info[field]
+            self.cfg['active_account'] = acc['id']
+            finish()
+
+        def finish():
             mirror_active(self.cfg)
             save_cfg(self.cfg)
             self._clear_error()
             self.refresh()
             rebuild()
-        self._session_key_dialog(t('dlg_add_account'), on_success=on_success,
-                                 prefill='', show_name=True, on_done=rebuild)
+
+        def with_key():
+            close()
+            self._session_key_dialog(t('dlg_add_account'), on_success=on_success,
+                                     prefill='', show_name=True, on_done=rebuild,
+                                     offer_cc=False)
+
+        def with_login():
+            close()
+            self._session_key_dialog(t('dlg_add_account'), on_success=on_success,
+                                     prefill='', show_name=True, on_done=rebuild,
+                                     start_cc=True)
+
+        def close():
+            try:
+                dlg.destroy()
+            except tk.TclError:
+                pass
+
+        dw, dh = self._dlg_size(460, 250)
+        dlg, body = self._build_dialog_frame(t('dlg_add_account'), dw, dh)
+        tk.Label(body, text=t('dlg_add_how'), font=FT_DLG_H, fg=FG, bg=BG,
+                 anchor='w').pack(fill='x', pady=(0, 12))
+
+        def option(title, detail, cmd, enabled=True):
+            card = tk.Frame(body, bg=BAR_BG, cursor='hand2' if enabled else 'arrow')
+            card.pack(fill='x', pady=(0, 10), ipady=10)
+            inner = tk.Frame(card, bg=BAR_BG)
+            inner.pack(fill='x', padx=14)
+            tk.Label(inner, text=title, font=FT_DLG_BTN_B,
+                     fg=FG if enabled else DIM, bg=BAR_BG, anchor='w').pack(fill='x')
+            tk.Label(inner, text=detail, font=FT_DLG_HINT, fg=DIM, bg=BAR_BG,
+                     anchor='w', wraplength=dw - 70, justify='left').pack(fill='x')
+            if enabled:
+                for w in (card, inner, *inner.winfo_children()):
+                    w.bind('<Button-1>', lambda e: cmd())
+                    w.bind('<Enter>', lambda e, c=card: c.configure(bg=SOFT_BG_HV))
+                    w.bind('<Leave>', lambda e, c=card: c.configure(bg=BAR_BG))
+            return card
+
+        cc_there = os.path.exists(CC_CREDS)
+        option(t('auth_claude_code'),
+               t('dlg_add_cc_detail') if cc_there else t('cc_state_absent'),
+               with_login, enabled=cc_there)
+        option(t('auth_key'), t('dlg_add_key_detail'), with_key)
+
+        buttons = tk.Frame(body, bg=BG)
+        buttons.pack(fill='x', pady=(4, 0))
+        self._outline_pill(buttons, t('dlg_cancel'), close).pack(side='right')
+        self._place_dialog(dlg, dw, dh_floor=dh)
+
 
     def _edit_account_key(self, acc, rebuild):
         def on_success(key, info, name):

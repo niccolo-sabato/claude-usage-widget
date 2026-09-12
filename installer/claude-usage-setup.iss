@@ -2,7 +2,7 @@
 ; Run from the installer/ folder. All Source paths are relative to this script.
 
 #define MyAppName "Claude Usage"
-#define MyAppVersion "2.8.52"
+#define MyAppVersion "2.9.0-test2"
 #define MyAppPublisher "Niccolo Sabato"
 #define MyAppExeName "Claude Usage.exe"
 #define MyAppIcon "claude.ico"
@@ -79,6 +79,13 @@ Name: "{group}\Uninstall {#MyAppName}"; Filename: "{uninstallexe}"
 ; token; on machines where the standard user is not the elevating admin, the
 ; widget would read/write config under the admin profile's LocalAppData and the
 ; user's own settings would appear to vanish on the next normal start.
+; Let the antivirus finish with the files we have just written before the
+; widget imports them. Measured once on this machine: the relaunch came up
+; while _ssl.pyd was still being scanned, the import failed with "Unhandled
+; exception in script", and starting the widget by hand a moment later worked
+; with the files intact. The wait costs two seconds; reading the module that
+; failed pushes the scan to complete here rather than inside the widget.
+Filename: "{cmd}"; Parameters: "/c ping -n 3 127.0.0.1 >nul & type ""{app}\_internal\_ssl.pyd"" >nul"; Flags: runhidden waituntilterminated
 Filename: "{app}\{#MyAppExeName}"; Flags: nowait runasoriginaluser
 
 [UninstallDelete]
