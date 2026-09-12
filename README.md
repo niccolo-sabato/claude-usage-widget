@@ -223,7 +223,8 @@ The widget manages its own config at `%LOCALAPPDATA%\Claude Usage\config.json`. 
 
 ```jsonc
 {
-  "accounts": [ /* saved logins, managed from the Accounts window */ ],
+  "accounts": [ /* one entry per account: name, credentials, colour and
+                   avatar, managed from the Accounts window */ ],
   "active_account": "…",                 // id of the selected account
   "language": "en",                      // "en" | "it" | "ja"
   "theme": "dark",                       // "dark" | "light", applied at start-up
