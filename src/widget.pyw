@@ -150,15 +150,10 @@ BLUE     = '#5B9BD5'
 PURPLE   = '#9B72CF'
 HOVER_BG = '#3a3a38'
 OCHRE    = '#C8962A'
-# The percentage printed inside a bar sits on the track when the bar is
-# nearly empty and on the fill when it is full. White works on the dark
-# theme's tracks; on the light theme's pale ones it disappears.
-BAR_TEXT = '#ffffff'
 DOT_W    = '#d0d0d0'
 DOT_W_H  = '#ffffff'
 DOT_W_D  = '#a0a09e'
-DOT_GREEN   = '#6BC275'  # pre-refresh breathing dot (matches lbl_info green)
-PCT_FG   = '#ffffff'
+DOT_GREEN   = '#6BC275'  # pre-refresh breathing dot, and the header's info text
 MENU_BG  = '#2c2c2a'
 
 # ─── Bar palette (fixed per bar) ─────────────────────
@@ -314,7 +309,7 @@ LIGHT_THEME = {
     'MENU_BG': '#fbfaf9', 'SOFT_BG': '#eceae7', 'SOFT_BG_HV': '#e0ddd9',
     'CLOSE_HV': '#f6dcdc', 'OCHRE': '#B5811A',
     'RED': '#C43D3D', 'ORANGE': '#B8801A', 'BLUE': '#2A6FB0', 'PURPLE': '#7A50B0',
-    'CLAUDE_TEXT': '#A8482A', 'BAR_TEXT': '#20201e',
+    'CLAUDE_TEXT': '#A8482A', 'DOT_GREEN': '#2F6F35',
     # Matched to the weight the dark dots carry (measured as contrast against
     # their own background), not to their hex values.
     'DOT_W': '#5f5f5c', 'DOT_W_H': '#2a2a28', 'DOT_W_D': '#7b7b78',
@@ -322,6 +317,9 @@ LIGHT_THEME = {
     'BAR_TRACK_HIGH': '#f7dcdc', 'BAR_TRACK_PURPLE': '#e9e0f6',
 }
 _DARK_THEME = {}
+
+
+THEME = 'dark'
 
 
 def apply_theme(name):
@@ -334,8 +332,10 @@ def apply_theme(name):
     g = globals()
     if not _DARK_THEME:
         _DARK_THEME.update({k: g[k] for k in LIGHT_THEME})
-    source = LIGHT_THEME if name == 'light' else _DARK_THEME
-    g.update(source)
+    light = name == 'light'
+    g.update(LIGHT_THEME if light else _DARK_THEME)
+    g['THEME'] = 'light' if light else 'dark'
+    _INK_CACHE.clear()
 
 
 SOFT_BG    = '#2e2e2c'   # secondary pill button / card surface
@@ -1840,12 +1840,19 @@ def _rgb_to_hex(rgb):
 
 
 def derive_track(fill_hex):
-    """Dark 'unused' track colour for a bar fill, reproducing the darkening of
-    Claude's official fill/track pairs: keep the hue, push saturation up a
-    touch (x1.123, clamped) and drop value to a fixed low 0.229."""
+    """The 'unused' track colour for a bar fill, in the current theme.
+
+    Dark theme: Claude's official fill/track pairs, keeping the hue, pushing
+    saturation up a touch (x1.123, clamped) and dropping value to a fixed low
+    0.229. Light theme: the same hue washed out instead of darkened, which is
+    what the four hand-picked light tracks do, so a colour picked from the
+    wheel or the usage-driven palette lands in the same family as them."""
     r, g, b = [c / 255 for c in _hex_to_rgb(fill_hex)]
     h, s, v = colorsys.rgb_to_hsv(r, g, b)
-    r, g, b = colorsys.hsv_to_rgb(h, min(1.0, s * 1.123), 0.229)
+    if THEME == 'light':
+        r, g, b = colorsys.hsv_to_rgb(h, min(1.0, s * 0.22), 0.97)
+    else:
+        r, g, b = colorsys.hsv_to_rgb(h, min(1.0, s * 1.123), 0.229)
     return _rgb_to_hex((r * 255, g * 255, b * 255))
 
 
@@ -1861,6 +1868,41 @@ DYN_HIGH = '#d03b3b'   # red   - high usage
 RESET_FULL = 0        # reset Sat 11:00 (2d 5h)
 RESET_NO_PREFIX = 1   # Sat 11:00 (2d 5h)
 RESET_COMPACT = 2     # 11:00 (2d 5h)
+
+
+INK_LIGHT, INK_DARK = '#ffffff', '#20201e'
+_INK_CACHE = {}
+
+
+def _relative_luminance(hex_color):
+    """WCAG relative luminance, 0 (black) to 1 (white)."""
+    out = []
+    for c in (c / 255 for c in _hex_to_rgb(hex_color)):
+        out.append(c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4)
+    return 0.2126 * out[0] + 0.7152 * out[1] + 0.0722 * out[2]
+
+
+def contrast_ratio(a, b):
+    """How far apart two colours read, 1 (identical) to 21 (black on white)."""
+    la, lb = _relative_luminance(a), _relative_luminance(b)
+    hi, lo = max(la, lb), min(la, lb)
+    return (hi + 0.05) / (lo + 0.05)
+
+
+def ink_on(color):
+    """The text colour to use on `color`: white unless white would not read.
+
+    Bar colours are chosen by the user, so neither ink is right everywhere:
+    white measures 1.8:1 on the default amber fill and 1.2:1 on a pale track,
+    while dark ink disappears on the deep tracks of the dark theme. White is
+    kept wherever it clears 3:1, which is where the eye still reads it, and
+    dark ink takes over only where it does not.
+    """
+    hit = _INK_CACHE.get(color)
+    if hit is None:
+        hit = INK_LIGHT if contrast_ratio(color, INK_LIGHT) >= 3.0 else INK_DARK
+        _INK_CACHE[color] = hit
+    return hit
 
 
 def dynamic_fill(pct):
@@ -3364,7 +3406,7 @@ class Section:
         self.hdr.pack(fill='x')
         self.lbl = tk.Label(self.hdr, text=label, font=FT, fg=FG, bg=BG)
         self.lbl.pack(side='left')
-        self.lbl_info = tk.Label(self.hdr, text='', font=FT_S, fg='#6BC275', bg=BG)
+        self.lbl_info = tk.Label(self.hdr, text='', font=FT_S, fg=DOT_GREEN, bg=BG)
         self.lbl_info.pack(side='right')
 
         self.cv = tk.Canvas(self.frame, height=BAR_H, bg=BG,
@@ -3554,8 +3596,11 @@ class Section:
             txt = f'{pct_str}  {self._cd_txt}'
         else:
             txt = pct_str
+        # The text is centred, so it sits on the fill once the bar is past
+        # half and on the track before that. Ask the one it is actually on.
+        behind = self._color if (self._pct > 0 and fw >= w / 2) else track
         self.cv.create_text(w / 2, BAR_H / 2 - 1, text=txt,
-                            fill=BAR_TEXT, font=FT_BAR, anchor='center')
+                            fill=ink_on(behind), font=FT_BAR, anchor='center')
         # Pre-refresh breathing dot, centred on the bar's right rounded cap
         # (the centre of the ideal circle that completes the end semicircle).
         # Same glyph + size as the corner dots, at the pct text's vertical
@@ -3740,10 +3785,15 @@ class Widget:
         # rendered to PNG (assets/icon-github-24.png) at build time so we
         # don't have to ship an SVG renderer; recoloured to match the
         # menu's FG so it lines up with the other icons.
+        # The asset is a white silhouette, which is invisible on a light
+        # menu, so it is tinted to the menu's own text colour at load.
         self._gh_icon = None
         try:
             if os.path.isfile(ICO_GITHUB):
-                self._gh_icon = tk.PhotoImage(file=ICO_GITHUB)
+                shape = Image.open(ICO_GITHUB).convert('RGBA')
+                tinted = Image.new('RGBA', shape.size, _hex_to_rgb(FG) + (0,))
+                tinted.putalpha(shape.getchannel('A'))
+                self._gh_icon = ImageTk.PhotoImage(tinted)
         except Exception:
             pass
 
@@ -3886,7 +3936,7 @@ class Widget:
         self.btn_r.bind('<Leave>', lambda e: self.btn_r.config(fg=DIM))
 
         # Last update time
-        self.lbl_time = tk.Label(self.tb, text='', font=FT_S, fg='#ffffff', bg=BG_TITLE)
+        self.lbl_time = tk.Label(self.tb, text='', font=FT_S, fg=FG, bg=BG_TITLE)
         self.lbl_time.pack(side='right', padx=(0, 2))
         self.lbl_time.bind('<Button-1>', self._drag_start)
         self.lbl_time.bind('<B1-Motion>', self._drag_move)
@@ -4027,7 +4077,7 @@ class Widget:
         self.ess_refresh.bind('<Button-1>', lambda e: self.refresh())
         self.ess_refresh.bind('<Enter>', lambda e: self.ess_refresh.config(fg=BLUE))
         self.ess_refresh.bind('<Leave>', lambda e: self.ess_refresh.config(fg=DIM))
-        self.ess_time = tk.Label(self.ess_bar, text='', font=FT_S, fg='#ffffff', bg=BG,
+        self.ess_time = tk.Label(self.ess_bar, text='', font=FT_S, fg=FG, bg=BG,
                                  bd=0, highlightthickness=0, padx=4, pady=0)
         self.ess_time.pack(side='left')
 
