@@ -148,13 +148,13 @@ The widget connects to Claude.ai using the same browser session you are already 
 ### Accounts
 - **Save multiple Claude logins** and switch between them instantly; the widget refreshes to the selected account right away
 - Each row shows the **name, email, plan and how that account is read**, next to an avatar of your own: its initials, a short text of up to three characters, or one of thirty monochrome icons, over a background and a symbol colour you pick
-- The accounts window also says **which account Claude Code is signed in as on this computer**, which is not necessarily the account the widget is showing
+- The accounts window also says **which account Claude Code is signed in as on that machine**, which is not necessarily the account the widget is showing
 - **One page per account**: open it with Manage to see the plan, the subscription status, the organisation and the extra-usage state, rename it, pick its colour, and manage both credentials in one place
 - Adding an account that is **already in the list** updates it instead of creating a duplicate: the organisation decides, with the email as a fallback, so the same account is recognised however it was added
 
 ### Signing in with Claude Code
 
-- The widget can read your usage through the **OAuth token Claude Code keeps on this computer**, instead of a pasted session key. Nothing to copy, and it renews itself every time the CLI runs
+- The widget can read your usage through the **OAuth token Claude Code already keeps on your machine**, instead of a pasted session key. Nothing to copy, and it renews itself every time the CLI runs
 - Works with **Claude Code from the terminal and from the VS Code extension**, which share the same login. It does **not** work with the Claude Desktop app, which keeps its credentials elsewhere
 - An account can hold **both credentials at once**. The login is preferred because it maintains itself, and if the token has expired the widget falls back to the session key without saying anything. You can also pin an account to one of the two
 - The token is tied to whoever signed in last. The widget checks that it belongs to the account it is about to display, so switching Claude Code accounts never shows one account's numbers under another account's name
