@@ -79,13 +79,18 @@ Name: "{group}\Uninstall {#MyAppName}"; Filename: "{uninstallexe}"
 ; token; on machines where the standard user is not the elevating admin, the
 ; widget would read/write config under the admin profile's LocalAppData and the
 ; user's own settings would appear to vanish on the next normal start.
-; Let the antivirus finish with the files we have just written before the
-; widget imports them. Measured once on this machine: the relaunch came up
-; while _ssl.pyd was still being scanned, the import failed with "Unhandled
-; exception in script", and starting the widget by hand a moment later worked
-; with the files intact. The wait costs two seconds; reading the module that
-; failed pushes the scan to complete here rather than inside the widget.
+; The relaunch races the antivirus, which still holds the files we have just
+; written: the widget then dies at import with "DLL load failed while
+; importing _ssl", and starting it by hand a moment later works with the files
+; intact. Measured twice on this machine.
+; Reading the module that fails first pushes that scan to complete here.
 Filename: "{cmd}"; Parameters: "/c ping -n 3 127.0.0.1 >nul & type ""{app}\_internal\_ssl.pyd"" >nul"; Flags: runhidden waituntilterminated
+Filename: "{app}\{#MyAppExeName}"; Flags: nowait runasoriginaluser
+; And it is started a second time a few seconds later, which is what actually
+; recovers the case where the first one lost the race: a widget that is
+; already up makes the second launch a no-op, since a second instance finds
+; the single-instance mutex taken, raises the running window and exits.
+Filename: "{cmd}"; Parameters: "/c ping -n 9 127.0.0.1 >nul"; Flags: runhidden waituntilterminated
 Filename: "{app}\{#MyAppExeName}"; Flags: nowait runasoriginaluser
 
 [UninstallDelete]
