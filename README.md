@@ -139,6 +139,7 @@ The widget connects to Claude.ai using the same browser session you are already 
 - **Standard mode** for desktop placement: full title bar, the selected bars stacked with labels and section dividers
 - **Bars to show** picker: choose which bars appear; the same choice drives both modes
 - **Bar colours**: a fixed colour per bar chosen from an in-app picker (four presets plus a full colour wheel), or a dynamic palette that colours every bar by its usage level
+- **Dark or light theme**: the light one is a full palette, not an inverted dark one. Tk builds a widget with the colour it is given, so the choice applies when the widget starts and the menu has a restart right under it
 - **Countdown as a pulsing green dot** (default) or as a numeric value, your choice
 - **Sync time** display toggle for the last-update timestamp
 - Native Windows 11 design language: DWM rounded corners, translucent background, anti-aliased pill buttons rendered with a 4x supersample
@@ -146,13 +147,24 @@ The widget connects to Claude.ai using the same browser session you are already 
 
 ### Accounts
 - **Save multiple Claude logins** and switch between them instantly; the widget refreshes to the selected account right away
-- Each account shows its **name, email and plan**, with a coloured avatar; add, rename or remove them from the Accounts window
-- The active account's session key is edited per account, so you always know which login you are updating
+- Each row shows the **name, email, plan and how that account is read**, next to an avatar of your own: its initials, a short text of up to three characters, or one of thirty monochrome icons, over a background and a symbol colour you pick
+- The accounts window also says **which account Claude Code is signed in as on this computer**, which is not necessarily the account the widget is showing
+- **One page per account**: open it with Manage to see the plan, the subscription status, the organisation and the extra-usage state, rename it, pick its colour, and manage both credentials in one place
+- Adding an account that is **already in the list** updates it instead of creating a duplicate: the organisation decides, with the email as a fallback, so the same account is recognised however it was added
+
+### Signing in with Claude Code
+
+- The widget can read your usage through the **OAuth token Claude Code keeps on this computer**, instead of a pasted session key. Nothing to copy, and it renews itself every time the CLI runs
+- Works with **Claude Code from the terminal and from the VS Code extension**, which share the same login. It does **not** work with the Claude Desktop app, which keeps its credentials elsewhere
+- An account can hold **both credentials at once**. The login is preferred because it maintains itself, and if the token has expired the widget falls back to the session key without saying anything. You can also pin an account to one of the two
+- The token is tied to whoever signed in last. The widget checks that it belongs to the account it is about to display, so switching Claude Code accounts never shows one account's numbers under another account's name
+- Tokens last hours, not weeks. When one expires and there is no key to fall back on, the widget says to run `claude` once
 
 ### Authentication and setup
 - Companion **[Claude Session Key](https://chromewebstore.google.com/detail/claude-session-key/ppofmhjkjfinjpidlidepeonimpjmadj) extension** copies your session key with one click; works on Chrome, Edge, Brave and any Chromium browser
 - Built-in setup guide with manual fallback (browser settings or DevTools) if you would rather not install the extension
-- **Multiple accounts**: save more than one Claude login and switch between them in a click; each keeps its own session key, name, email and plan
+- **Multiple accounts**: save more than one Claude login and switch between them in a click; each keeps its own credentials, name, email and plan
+- **Two ways in**: a session key from the browser, or the Claude Code login already on the machine. Adding an account starts by choosing between them
 - **Multi-organization support**: if an account belongs to more than one Claude org (personal + work), the widget uses `/api/bootstrap` to track the org Claude.ai itself routes to, not just the first one in the API response
 
 ### Localization
@@ -198,7 +210,8 @@ Open it with **≡**, the **☰** button, or by right-clicking the bar in essent
 ![The settings menu](docs/images/menu.png)
 
 - **Refresh** and the **Normal / Essential** mode toggle (top level)
-- **Display**: countdown as a pulsing dot or a numeric value, the sync-time timestamp on/off, fixed or dynamic bar colours, the taskbar icon and its Win11 progress overlay, what the line **under the bars** carries (the reset time, the time left, both or neither), and which bars to show (each with a colour swatch). Hover any option for a short explanation.
+- **Display**: countdown as a pulsing dot or a numeric value, the sync-time timestamp on/off, fixed or dynamic bar colours, the dark or light theme with a restart button
+  beside it, the taskbar icon and its Win11 progress overlay, what the line **under the bars** carries (the reset time, the time left, both or neither), and which bars to show (each with a colour swatch). Hover any option for a short explanation.
 - **Data & alerts**: refresh interval (10 to 3600 s) and threshold notifications
 - **Accounts**: opens the accounts window directly (add, switch, rename, remove, update each session key), with a link to the Claude.ai usage page
 - **General**: language (EN / IT / JA), check for updates, open the GitHub repo, open `config.json`, run the connection self-test
@@ -213,6 +226,7 @@ The widget manages its own config at `%LOCALAPPDATA%\Claude Usage\config.json`. 
   "accounts": [ /* saved logins, managed from the Accounts window */ ],
   "active_account": "…",                 // id of the selected account
   "language": "en",                      // "en" | "it" | "ja"
+  "theme": "dark",                       // "dark" | "light", applied at start-up
   "refresh_ms": 180000,                  // auto-refresh cadence
   "countdown_display": "dot",            // "dot" (pulsing) | "full" (numeric)
   "show_sync_time": true,                // show the last-update timestamp
