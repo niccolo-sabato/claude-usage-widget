@@ -6763,6 +6763,10 @@ class Widget:
                 else:
                     a['session_key'] = key
                     a['org_id'] = info['org_id']
+                    # A key puts the account back on the session-key path:
+                    # leaving auth set would keep every fetch on the Claude
+                    # Code token and quietly ignore the key just entered.
+                    a.pop('auth', None)
                     if info.get('email'):
                         a['email'] = info['email']
                     if info.get('plan'):
@@ -6794,11 +6798,17 @@ class Widget:
                 dlg.after(0, lambda: commit_cc(plan))
 
             def commit_cc(plan):
+                # The name is read BEFORE the dialog goes. Reading an entry after
+                # destroy raises TclError, and the `if name_entry` guard does not
+                # catch it: the Python object outlives the widget, so the call
+                # reaches Tk and fails there. Adding an account through the new
+                # pill wrote nothing at all, in silence. The key path passes the
+                # name into commit() before closing, for the same reason.
+                nm = name_entry.get().strip() if name_entry else ''
                 try:
                     dlg.destroy()
                 except tk.TclError:
                     pass
-                nm = name_entry.get().strip() if name_entry else ''
                 a = active_account(self.cfg) if on_success is None else None
                 if a is None:
                     a = {'id': _new_id(), 'name': nm or t('cc_account_name'),
@@ -7172,6 +7182,10 @@ class Widget:
         def on_success(key, info, name):
             acc['session_key'] = key
             acc['org_id'] = info['org_id']
+            # A key puts the account back on the session-key path: leaving
+            # auth set would keep every fetch on the Claude Code token and
+            # quietly ignore the key just entered.
+            acc.pop('auth', None)
             if name:
                 acc['name'] = name
             if info.get('email'):
