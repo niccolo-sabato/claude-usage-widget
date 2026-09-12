@@ -185,7 +185,7 @@ BAR_DEFAULT_FILL = {'session': BAR_FILL_SESSION,
 BAR_PRESETS = [BAR_FILL_SESSION, BAR_FILL_WEEKLY, BAR_FILL_HIGH, BAR_FILL_PURPLE]
 
 # ─── App ────────────────────────────────────────────
-APP_VERSION = '2.9.0-test2'
+APP_VERSION = '2.9.0-test3'
 
 # ─── Auto-update ────────────────────────────────────
 UPDATE_REPO = 'niccolo-sabato/claude-usage-widget'
@@ -748,6 +748,9 @@ LANG = {
         'pref_title': 'Read with',
         'pref_auto': 'Automatic',
         'cc_expires': 'expires {when}',
+        'tip_cc_expires': 'Claude Code renews the token whenever it runs. If it '
+                          'does lapse, the widget uses the session key, when '
+                          'the account has one.',
         'dlg_remove_account': 'Remove account',
         'dlg_last_credential_title': 'Last credential',
         'dlg_last_credential': 'This is the only way this account can be read. Removing it keeps the account and its details, and you can add a credential again later.',
@@ -975,6 +978,9 @@ LANG = {
         'pref_title': 'Legge con',
         'pref_auto': 'Automatico',
         'cc_expires': 'scade il {when}',
+        'tip_cc_expires': 'Claude Code rinnova il token ogni volta che lo usi. '
+                          'Se scade, il widget passa alla chiave di sessione, '
+                          'quando l\u2019account ne ha una.',
         'dlg_remove_account': 'Rimuovi account',
         'dlg_last_credential_title': 'Ultima credenziale',
         'dlg_last_credential': '\u00c8 l\u2019unico modo in cui questo account pu\u00f2 essere letto. Rimuovendolo, l\u2019account e le sue informazioni restano, e potrai aggiungere una credenziale pi\u00f9 avanti.',
@@ -1205,6 +1211,13 @@ LANG = {
         'pref_title': '\u53d6\u5f97\u65b9\u6cd5',
         'pref_auto': '\u81ea\u52d5',
         'cc_expires': '{when} \u307e\u3067\u6709\u52b9',
+        'tip_cc_expires': '\u30c8\u30fc\u30af\u30f3\u306f Claude Code '
+                          '\u3092\u4f7f\u3046\u305f\u3073\u306b\u66f4\u65b0'
+                          '\u3055\u308c\u307e\u3059\u3002\u671f\u9650\u304c'
+                          '\u5207\u308c\u305f\u5834\u5408\u306f\u3001'
+                          '\u30bb\u30c3\u30b7\u30e7\u30f3\u30ad\u30fc\u304c'
+                          '\u3042\u308c\u3070\u305d\u3061\u3089\u3092'
+                          '\u4f7f\u3044\u307e\u3059\u3002',
         'dlg_remove_account': '\u30a2\u30ab\u30a6\u30f3\u30c8\u3092\u524a\u9664',
         'dlg_last_credential_title': '\u6700\u5f8c\u306e\u8a8d\u8a3c\u60c5\u5831',
         'dlg_last_credential': '\u3053\u306e\u30a2\u30ab\u30a6\u30f3\u30c8\u3092\u53d6\u5f97\u3059\u308b\u552f\u4e00\u306e\u65b9\u6cd5\u3067\u3059\u3002\u524a\u9664\u3057\u3066\u3082\u30a2\u30ab\u30a6\u30f3\u30c8\u3068\u60c5\u5831\u306f\u6b8b\u308a\u3001\u5f8c\u3067\u8a8d\u8a3c\u60c5\u5831\u3092\u8ffd\u52a0\u3067\u304d\u307e\u3059\u3002',
@@ -7984,7 +7997,7 @@ class Widget:
 
         status_lbl.config = status_config
 
-        def card(title, state_text, actions, on):
+        def card(title, state_text, actions, on, tip=None):
             """One credential: what it is, how it stands, what can be done."""
             box = tk.Frame(body, bg=BAR_BG)
             box.pack(fill='x', pady=(0, 8))
@@ -7994,9 +8007,12 @@ class Widget:
             head.pack(fill='x')
             tk.Label(head, text=title, font=FT_DLG_BTN_B, fg=FG, bg=BAR_BG,
                      anchor='w').pack(side='left')
-            tk.Label(head, text=state_text, font=FT_DLG_HINT,
-                     fg=CLAUDE_TEXT if on else DIM, bg=BAR_BG,
-                     anchor='e').pack(side='right')
+            state = tk.Label(head, text=state_text, font=FT_DLG_HINT,
+                             fg=CLAUDE_TEXT if on else DIM, bg=BAR_BG,
+                             anchor='e')
+            state.pack(side='right')
+            if tip:
+                self._tooltip(state, tip)
             if actions:
                 row = tk.Frame(inner, bg=BAR_BG)
                 row.pack(fill='x', pady=(8, 0))
@@ -8031,7 +8047,8 @@ class Widget:
                         lambda: self._link_claude_code(acc, reopen, status_lbl))]
         else:
             state, actions = t('cc_state_absent'), []
-        card(t('auth_claude_code'), state, actions, linked)
+        card(t('auth_claude_code'), state, actions, linked,
+             tip=t('tip_cc_expires') if linked else None)
 
         def drop_key():
             if not acc.get('cc_linked'):
