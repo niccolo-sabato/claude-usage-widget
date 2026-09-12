@@ -140,6 +140,9 @@ The widget connects to Claude.ai using the same browser session you are already 
 - **Bars to show** picker: choose which bars appear; the same choice drives both modes
 - **Bar colours**: a fixed colour per bar chosen from an in-app picker (four presets plus a full colour wheel), or a dynamic palette that colours every bar by its usage level
 - **Dark or light theme**: the light one is a full palette, not an inverted dark one. Tk builds a widget with the colour it is given, so the choice applies when the widget starts and the menu has a restart right under it
+
+![The widget in the light theme](docs/images/normal-light.png)
+
 - **Countdown as a pulsing green dot** (default) or as a numeric value, your choice
 - **Sync time** display toggle for the last-update timestamp
 - Native Windows 11 design language: DWM rounded corners, translucent background, anti-aliased pill buttons rendered with a 4x supersample
@@ -151,6 +154,14 @@ The widget connects to Claude.ai using the same browser session you are already 
 - The accounts window also says **which account Claude Code is signed in as on that machine**, which is not necessarily the account the widget is showing
 - **One page per account**: open it with Manage to see the plan, the subscription status, the organisation and the extra-usage state, rename it, pick its colour, and manage both credentials in one place
 - Adding an account that is **already in the list** updates it instead of creating a duplicate: the organisation decides, with the email as a fallback, so the same account is recognised however it was added
+
+![The accounts window](docs/images/accounts.png)
+
+The account page, behind **Manage**, and the avatar picker behind the circle:
+
+![The account page](docs/images/account-page.png)
+![Choosing an account avatar](docs/images/account-avatar.png)
+
 
 ### Signing in with Claude Code
 
