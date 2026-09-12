@@ -141,12 +141,12 @@ The widget connects to Claude.ai using the same browser session you are already 
 - **Bar colours**: a fixed colour per bar chosen from an in-app picker (four presets plus a full colour wheel), or a dynamic palette that colours every bar by its usage level
 - **Dark or light theme**: the light one is a full palette, not an inverted dark one. Tk builds a widget with the colour it is given, so the choice applies when the widget starts and the menu has a restart right under it
 
-![The widget in the light theme](docs/images/normal-light.png)
-
 - **Countdown as a pulsing green dot** (default) or as a numeric value, your choice
 - **Sync time** display toggle for the last-update timestamp
 - Native Windows 11 design language: DWM rounded corners, translucent background, anti-aliased pill buttons rendered with a 4x supersample
 - DPI-aware: tested at 100 %, 125 %, 150 %, 175 % and 200 % scaling; dialogs auto-size so nothing is clipped on high-DPI displays
+
+![The widget in the light theme](docs/images/normal-light.png)
 
 ### Accounts
 - **Save multiple Claude logins** and switch between them instantly; the widget refreshes to the selected account right away

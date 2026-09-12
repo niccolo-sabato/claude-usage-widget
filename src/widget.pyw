@@ -180,7 +180,7 @@ BAR_DEFAULT_FILL = {'session': BAR_FILL_SESSION,
 BAR_PRESETS = [BAR_FILL_SESSION, BAR_FILL_WEEKLY, BAR_FILL_HIGH, BAR_FILL_PURPLE]
 
 # ─── App ────────────────────────────────────────────
-APP_VERSION = '2.9.0'
+APP_VERSION = '2.9.1-test1'
 
 # ─── Auto-update ────────────────────────────────────
 UPDATE_REPO = 'niccolo-sabato/claude-usage-widget'
@@ -2097,11 +2097,6 @@ def render_markdown_into(text_widget, markdown_str, *, base_font, fg, header_fg)
 
 
 _PILL_IMAGE_CACHE = {}
-
-
-def _hex_to_rgb(color):
-    h = color.lstrip('#')
-    return tuple(int(h[i:i+2], 16) for i in (0, 2, 4))
 
 
 def _lerp_hex(c1, c2, frac):
@@ -8271,7 +8266,10 @@ class Widget:
 
             try:
                 dlg.after(0, apply)
-            except tk.TclError:
+            except (tk.TclError, RuntimeError):
+                # TclError if the window has gone, RuntimeError if the whole
+                # interpreter has: this runs on a worker thread, and both mean
+                # there is no longer anywhere to deliver the answer.
                 pass
 
         threading.Thread(target=probe_cc, daemon=True).start()
