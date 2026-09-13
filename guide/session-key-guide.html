@@ -78,7 +78,7 @@
     transition: border-color 0.2s;
   }
   .method:hover { border-color: #555; }
-  .method.recommended { border-color: var(--green); }
+  .method.recommended { border-color: rgba(218, 119, 86, 0.55); }
   .method-header {
     padding: 14px 18px;
     cursor: pointer;
@@ -99,7 +99,7 @@
     font-size: 16px;
     flex-shrink: 0;
   }
-  .method-icon.chrome { background: #2a3a2a; color: var(--green); }
+  .method-icon.chrome { background: #33241e; color: #E8956F; }
   .method-icon.settings { background: #2a2a3a; color: var(--blue); }
   .method-icon.devtools { background: #3a2a2a; color: var(--accent); }
   .method-info { flex: 1; }
@@ -112,7 +112,7 @@
     border-radius: 10px;
     flex-shrink: 0;
   }
-  .tag-easy { background: #1a2e1a; color: var(--green); }
+  .tag-easy { background: #33241e; color: #E8956F; }
   .tag-medium { background: #2e2a1a; color: #E8A838; }
   .tag-advanced { background: #2e1a1a; color: var(--accent); }
   .chevron {
@@ -161,11 +161,11 @@
 
   .btn {
     display: inline-block;
-    padding: 8px 18px;
+    padding: 10px 24px;
     border: none;
-    border-radius: 8px;
+    border-radius: 999px;
     font-family: 'Segoe UI', sans-serif;
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 600;
     cursor: pointer;
     transition: background 0.15s, transform 0.1s;
@@ -174,8 +174,9 @@
   }
   .btn:active { transform: scale(0.97); }
   a.btn, .btn { text-decoration: none; }
-  .btn-green, a.btn-green { background: var(--green); color: #0d1f0d !important; }
-  .btn-green:hover { background: #7ED48A; }
+  /* Dark text on the accent: white on #DA7756 measures 3.1:1, dark 5.4:1. */
+  .btn-accent, a.btn-accent { background: #DA7756; color: #1e1e1c !important; }
+  .btn-accent:hover { background: #E48A69; }
 
   .note {
     font-size: 12px;
@@ -193,7 +194,7 @@
     color: var(--dim);
     margin-bottom: 20px;
   }
-  .browser-detected span { color: var(--green); font-weight: 600; }
+  .browser-detected span { color: #E8956F; font-weight: 600; }
 
   .alt-note {
     margin: 10px auto 0;
@@ -260,7 +261,7 @@
           <span data-i18n="m1_s1">Install the <strong>Claude Session Key</strong> extension:</span><br>
           <a id="extensionLink"
              href="https://chromewebstore.google.com/detail/claude-session-key/ppofmhjkjfinjpidlidepeonimpjmadj"
-             class="btn btn-green" data-i18n="m1_btn" target="_blank" rel="noopener">Install Extension</a>
+             class="btn btn-accent" data-i18n="m1_btn" target="_blank" rel="noopener">Install Extension</a>
         </div>
       </div>
       <div class="step">

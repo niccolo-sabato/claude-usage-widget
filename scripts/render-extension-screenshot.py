@@ -25,8 +25,10 @@ EDGE_CANDIDATES = [
 
 # Final canvas (Chrome Web Store accepts 1280x800 or 640x400).
 W, H = 1280, 800
-# Popup native width is 320 px. Zoom 2.5 = 800 px wide, ~85% of frame.
-ZOOM = 2.5
+# Popup native width is 340 px. It grew taller in 1.2.0 (larger text, the
+# expiry line and the widget link), and at 2.5 it touched the frame's top
+# and bottom edges; 2.1 leaves a margin all round.
+ZOOM = 2.1
 
 
 def find_edge():
@@ -50,19 +52,22 @@ def main():
     icon_url = file_url(os.path.join(EXT_DIR, 'icon48.png'))
 
     # Mockup popup HTML with the success state visible. Mirrors what
-    # popup.js writes when chrome.cookies.get returns the key.
+    # popup.js writes when chrome.cookies.get returns the key, strings taken
+    # from _locales/en, so the store shows the popup as it really opens.
     popup_inner = f'''
     <h1>
       <img src="{icon_url}" alt="">
       <span>Claude Session Key</span>
     </h1>
     <div class="status success" role="status" aria-live="polite">
-      <span class="status-icon">✓</span>
-      <span>Session key found!</span>
+      <span class="status-icon">✔</span>
+      <span>Session key found</span>
     </div>
     <div class="key-box" aria-label="Session key">sk-ant-sid02-Z6vO...rUY2HgAA</div>
+    <div class="expiry-note">Session expires in 27 days</div>
     <button type="button" class="btn btn-copy">Copy to clipboard</button>
     <div class="hint">Paste this key in the Claude Usage widget setup</div>
+    <div class="hint">Don't have the widget yet? <a href="#">Get it here</a></div>
     '''
 
     page = f'''<!DOCTYPE html>
@@ -90,10 +95,10 @@ html, body {{
 
 .popup {{
   /* Reset the popup's natural body padding/width via a wrapper. */
-  width: 320px;
+  width: 340px;
   background: var(--bg);
   color: var(--fg);
-  padding: 16px;
+  padding: 18px;
   border-radius: 14px;
   box-shadow:
     0 30px 60px rgba(0, 0, 0, 0.6),
@@ -102,7 +107,6 @@ html, body {{
   transform-origin: center;
 }}
 
-.popup h1 {{ margin-bottom: 12px; }}
 </style></head>
 <body><div class="popup">{popup_inner}</div></body></html>
 '''
