@@ -239,7 +239,7 @@ BAR_DEFAULT_FILL = {'session': BAR_FILL_SESSION,
 BAR_PRESETS = [BAR_FILL_SESSION, BAR_FILL_WEEKLY, BAR_FILL_HIGH, BAR_FILL_PURPLE]
 
 # ─── App ────────────────────────────────────────────
-APP_VERSION = '2.10.0-test1'
+APP_VERSION = '2.10.0-test2'
 
 # ─── Auto-update ────────────────────────────────────
 UPDATE_REPO = 'niccolo-sabato/claude-usage-widget'
@@ -761,6 +761,7 @@ LANG = {
         'dlg_no_accounts': 'No accounts yet.',
         'dlg_active': 'Active',
         'dlg_save': 'Save',
+        'dlg_save_identity': 'Save name and appearance',
         'menu_open_repo': 'Open GitHub repo',
         'menu_notifications_on': 'Notifications: ON',
         'menu_notifications_off': 'Notifications: OFF',
@@ -858,7 +859,6 @@ LANG = {
         'dlg_interval_title': 'Refresh interval',
         'dlg_interval_label': 'Interval in seconds (minimum 10):',
         'dlg_interval_invalid': 'Enter a number between 10 and 3600',
-        'dlg_save': 'Save',
         'menu_quit': 'Quit',
         'menu_language': 'Language',
         'menu_check_updates': 'Check for updates\u2026',
@@ -991,6 +991,7 @@ LANG = {
         'dlg_no_accounts': 'Nessun account.',
         'dlg_active': 'Attivo',
         'dlg_save': 'Salva',
+        'dlg_save_identity': 'Salva nome e aspetto',
         'menu_open_repo': 'Apri repo GitHub',
         'menu_notifications_on': 'Notifiche: attive',
         'menu_notifications_off': 'Notifiche: disattive',
@@ -1093,7 +1094,6 @@ LANG = {
         'dlg_interval_title': 'Intervallo aggiornamento',
         'dlg_interval_label': 'Intervallo in secondi (minimo 10):',
         'dlg_interval_invalid': 'Inserisci un numero tra 10 e 3600',
-        'dlg_save': 'Salva',
         'menu_quit': 'Chiudi',
         'menu_language': 'Lingua',
         'menu_check_updates': 'Controlla aggiornamenti\u2026',
@@ -1225,6 +1225,7 @@ LANG = {
         'dlg_no_accounts': '\u30a2\u30ab\u30a6\u30f3\u30c8\u304c\u3042\u308a\u307e\u305b\u3093\u3002',
         'dlg_active': '\u4f7f\u7528\u4e2d',
         'dlg_save': '\u4fdd\u5b58',
+        'dlg_save_identity': '\u540d\u524d\u3068\u5916\u89b3\u3092\u4fdd\u5b58',
         'menu_open_repo': 'GitHub\u30ea\u30dd\u30b8\u30c8\u30ea\u3092\u958b\u304f',
         'menu_notifications_on': '\u901a\u77e5: \u30aa\u30f3',
         'menu_notifications_off': '\u901a\u77e5: \u30aa\u30d5',
@@ -1331,7 +1332,6 @@ LANG = {
         'dlg_interval_title': '\u66f4\u65b0\u9593\u9694',
         'dlg_interval_label': '\u79d2\u5358\u4f4d\u306e\u9593\u9694 (\u6700\u4f4e10):',
         'dlg_interval_invalid': '10\u304b\u30893600\u306e\u6570\u5024\u3092\u5165\u529b',
-        'dlg_save': '\u4fdd\u5b58',
         'menu_quit': '\u7d42\u4e86',
         'menu_language': '\u8a00\u8a9e',
         'menu_check_updates': '\u66f4\u65b0\u3092\u78ba\u8a8d\u2026',
@@ -1518,6 +1518,7 @@ CC_LANG = {
         'cc_ui_section': 'Claude Code accounts',
         'cc_ui_switch': 'Switch',
         'cc_ui_close': 'Close',
+        'cc_ui_snapshot_saved': 'Snapshot saved at {when}. It is now in step with the credentials in use.',
         'cc_ui_switch_to': 'Switch to {name}',
         'cc_ui_signed_in_here': 'signed in here',
         'cc_ui_no_profile': 'No saved profile for this account, so there is nothing to switch to.',
@@ -1620,6 +1621,7 @@ CC_LANG = {
         'cc_ui_section': 'Account di Claude Code',
         'cc_ui_switch': 'Passa',
         'cc_ui_close': 'Chiudi',
+        'cc_ui_snapshot_saved': 'Istantanea salvata alle {when}. Adesso e in pari con le credenziali in uso.',
         'cc_ui_switch_to': 'Passa a {name}',
         'cc_ui_signed_in_here': 'autenticato qui',
         'cc_ui_no_profile': 'Nessun profilo salvato per questo conto: non c’e niente a cui passare.',
@@ -1722,6 +1724,7 @@ CC_LANG = {
         'cc_ui_section': 'Claude Code のアカウント',
         'cc_ui_switch': '切り替え',
         'cc_ui_close': '閉じる',
+        'cc_ui_snapshot_saved': '{when} にスナップショットを保存しました。現在の認証情報と一致しています。',
         'cc_ui_switch_to': '{name} に切り替え',
         'cc_ui_signed_in_here': 'このPCでサインイン中',
         'cc_ui_no_profile': 'このアカウントの保存済みプロファイルがないため、切り替え先がありません。',
@@ -8452,7 +8455,12 @@ class Widget:
             save_cfg(self.cfg)
             close_and()
 
-        self._primary_pill(row_btn, t('dlg_save'), save_and_close).pack(side='right')
+        # Named for what it saves. This page now carries several gestures that
+        # each write something different - a snapshot of the credentials, a
+        # key, a linked login - and a button that just said "Save" beside them
+        # read as the one that saved whatever you had just done.
+        self._primary_pill(row_btn, t('dlg_save_identity'),
+                           save_and_close).pack(side='right')
         self._outline_pill(row_btn, t('dlg_remove_account'),
                            lambda: close_and(
                                lambda: self._remove_account(acc, rebuild))).pack(side='left')
@@ -8566,6 +8574,13 @@ class Widget:
                 status_lbl.pack(fill='x', pady=(4, 0))
 
         status_lbl.config = status_config
+
+        # A message left behind by a gesture that had to reopen this window to
+        # show its result. Shown once, then forgotten.
+        flash = getattr(self, '_cc_flash', None)
+        if flash:
+            self._cc_flash = None
+            status_lbl.config(text=flash[0], fg=flash[1])
 
         def card(title, state_text, actions, on, tip=None):
             """One credential: what it is, how it stands, what can be done."""
@@ -8906,23 +8921,36 @@ class Widget:
         return acc
 
     def _cc_save_snapshot(self, name, on_done=None, status=None):
-        """Re-photograph the account signed in now, under `name`."""
+        """Re-photograph the account signed in now, under `name`.
+
+        It has to SAY it worked. The first version reopened the page and left
+        it at that: the snapshot really was taken, the file on disk really did
+        change, and the user reported that nothing was being saved, because
+        the only visible difference was a date and sixteen hex digits nobody
+        compares. A gesture with no answer reads as a gesture that failed.
+        """
         def work():
             try:
-                cc_accounts.save_profile(name)
-                err = None
+                prof = cc_accounts.save_profile(name)
+                err, when = None, prof.get('savedAt')
             except Exception as e:
-                err = _redact(str(e))
+                err, when = _redact(str(e)), None
 
             def apply():
-                if status is not None and status.winfo_exists():
-                    status.config(text=err or '', fg=RED)
-                if not err and on_done:
+                if err:
+                    if status is not None and status.winfo_exists():
+                        status.config(text=err, fg=RED)
+                    return
+                # Carried across the reopen: the label showing it is about to
+                # be destroyed with the window it lives in.
+                self._cc_flash = (t('cc_ui_snapshot_saved').format(
+                    when=pretty_date(when, True) or ''), DOT_GREEN)
+                if on_done:
                     on_done()
             try:
                 self.root.after(0, apply)
-            except (tk.TclError, RuntimeError):
-                pass
+            except (tk.TclError, RuntimeError) as e:
+                wlog(f'CC     could not report the snapshot: {_redact(str(e))}')
 
         if status is not None:
             status.config(text=t('dlg_verifying'), fg=BLUE)
@@ -8952,10 +8980,14 @@ class Widget:
 
         # One clear control instead of three small icons: everything about the
         # account lives on its own page now.
+        # Controls carry their own command; cells carry the row's. Keeping the
+        # two lists apart is what stops a button from being quietly rebound to
+        # something else.
+        controls = []
         btn = self._secondary_pill(row, t('dlg_account_manage'),
                                    lambda: self._account_details_dialog(acc, rebuild))
         btn.pack(side='right', padx=(6, 8))
-        cells.append(btn)
+        controls.append(btn)
 
         # Beside it, the one gesture worth reaching without opening the page:
         # move Claude Code onto this account. It appears only when there is
@@ -8967,7 +8999,12 @@ class Widget:
                 row, t('cc_ui_switch'),
                 lambda n=profile['name']: self._cc_switch_dialog(n, rebuild))
             switch_btn.pack(side='right', padx=(0, 0))
-            cells.append(switch_btn)
+            # 🔴 NOT added to `cells`. Every cell gets the row's own click
+            # binding below, and binding <Button-1> on a pill REPLACES the
+            # handler the pill was built with: the button then silently did
+            # the row's job instead of its own, which from outside looks like
+            # a button that does nothing at all.
+            controls.append(switch_btn)
             word, colour, judgement = self._cc_verdict_text(profile)
             self._tooltip(switch_btn, '\n'.join(
                 x for x in (t('cc_ui_switch_to').format(name=profile['name']),
@@ -9011,7 +9048,7 @@ class Widget:
             self._switch_account(acc.get('id'), rebuild)
 
         for c in cells:
-            if c is not btn:
+            if c not in controls:
                 c.bind('<Button-1>', switch)
 
 
