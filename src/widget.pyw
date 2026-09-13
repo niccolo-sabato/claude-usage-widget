@@ -180,7 +180,7 @@ BAR_DEFAULT_FILL = {'session': BAR_FILL_SESSION,
 BAR_PRESETS = [BAR_FILL_SESSION, BAR_FILL_WEEKLY, BAR_FILL_HIGH, BAR_FILL_PURPLE]
 
 # ─── App ────────────────────────────────────────────
-APP_VERSION = '2.9.1-test1'
+APP_VERSION = '2.9.1-test2'
 
 # ─── Auto-update ────────────────────────────────────
 UPDATE_REPO = 'niccolo-sabato/claude-usage-widget'
@@ -3695,6 +3695,7 @@ class Widget:
         self._menu_click_job = None   # outside-click watcher while a menu is open
         self._menu_btn_down = False
         self._flyout_win = None       # category side-flyout Toplevel
+        self._dialogs = {}            # key -> the live dialog of that kind
         self._flyout_cat = None
         self._flyout_anchor = None
 
@@ -5725,8 +5726,14 @@ class Widget:
             padx=self.dp(PILL_PAD_SECONDARY_X),
             pady=self.dp(PILL_PAD_SECONDARY_Y))
 
-    def _build_dialog_frame(self, title, dw, dh):
+    def _build_dialog_frame(self, title, dw, dh, key=None):
         """Create a Toplevel with the standard chrome. Returns (dlg, body).
+
+        `key` names the kind of window. Opening one while another of the same
+        kind is still up closes the old one first: the same menu entry clicked
+        twice used to stack two Accounts windows, and nothing is gained by
+        having two of anything here. The new one is built from scratch rather
+        than the old one raised, so it shows the current state.
 
         Same title bar, padding, rounded corners and screen-clamped placement
         for every dialog. `dh` is a minimum: once the caller has populated
@@ -5742,7 +5749,17 @@ class Widget:
         dialog is shorter than its content, the widgets packed last are the
         ones squeezed out.
         """
+        if key is not None:
+            old = self._dialogs.get(key)
+            if old is not None:
+                try:
+                    if old.winfo_exists():
+                        old.destroy()
+                except tk.TclError:
+                    pass
         dlg = tk.Toplevel(self.root)
+        if key is not None:
+            self._dialogs[key] = dlg
         dlg.title(title)
         dlg.configure(bg=BG)
         dlg.overrideredirect(True)
@@ -6382,7 +6399,7 @@ class Widget:
         is saved, so leaving here with Cancel has to change nothing.
         """
         dw, dh = self._dlg_size(330, 300)
-        dlg, body = self._build_dialog_frame(t('dlg_avatar_title'), dw, dh)
+        dlg, body = self._build_dialog_frame(t('dlg_avatar_title'), dw, dh, key='avatar')
         draft = {'color': state['color'],
                  'avatar': dict(state.get('avatar') or {})}
         draft['avatar'].setdefault('kind', 'initials')
@@ -6548,7 +6565,7 @@ class Widget:
         """In-tool HSV colour picker: preset swatches + a saturation/value
         square, a hue strip and a hex field, all kept in sync."""
         dw, dh = self._dlg_size(300, 320)
-        dlg, body = self._build_dialog_frame(title, dw, dh)
+        dlg, body = self._build_dialog_frame(title, dw, dh, key='color_picker')
         SVW, SVH, HUEH = dw - 40, self.dp(140), self.dp(14)
         st = {'h': 0.0, 's': 1.0, 'v': 1.0, 'sv': None, 'hue': None}
         r, g, b = [c / 255 for c in _hex_to_rgb(initial)]
@@ -6772,7 +6789,7 @@ class Widget:
 
     def _show_interval_dialog_now(self):
         dw, dh = self._dlg_size(460, 260)
-        dlg, body = self._build_dialog_frame(t('dlg_interval_title'), dw, dh)
+        dlg, body = self._build_dialog_frame(t('dlg_interval_title'), dw, dh, key='interval')
 
         # Bottom controls first (see the layout contract in _build_dialog_frame).
         btn_frame = tk.Frame(body, bg=BG)
@@ -7014,7 +7031,18 @@ class Widget:
         # Scale + clamp to the monitor: at a fixed 520x440 the content outgrew
         # the box on scaled displays and the bottom row could not fit.
         dw, dh = self._dlg_size(520, 440)
-        dlg, body = self._build_dialog_frame(t('update_dlg_title'), dw, dh)
+        # Raised, not rebuilt: this window may be downloading the installer
+        # on a worker thread that reports back to it, and closing it then
+        # would leave the installer downloaded and never started.
+        live = self._dialogs.get('update')
+        try:
+            if live is not None and live.winfo_exists():
+                live.lift()
+                live.focus_force()
+                return
+        except tk.TclError:
+            pass
+        dlg, body = self._build_dialog_frame(t('update_dlg_title'), dw, dh, key='update')
 
         subtitle = t('update_dlg_subtitle').format(
             version=info['version'], current=APP_VERSION)
@@ -7212,7 +7240,7 @@ class Widget:
         would otherwise freeze the widget for several seconds.
         """
         dw, dh = self._dlg_size(520, 460)
-        dlg, body = self._build_dialog_frame(t('selftest_title'), dw, dh)
+        dlg, body = self._build_dialog_frame(t('selftest_title'), dw, dh, key='selftest')
         state = {'steps': [], 'running': False}
         actions = {'copy': None, 'rerun': None}
 
@@ -7421,7 +7449,7 @@ class Widget:
         if show_cc:
             dh += 56  # one more pill row above the key entry
         dw, dh = self._dlg_size(460, dh)
-        dlg, body = self._build_dialog_frame(title, dw, dh)
+        dlg, body = self._build_dialog_frame(title, dw, dh, key='session_key')
 
         # Bottom controls first (see the layout contract in _build_dialog_frame).
         btn_frame = tk.Frame(body, bg=BG)
@@ -7684,7 +7712,7 @@ class Widget:
         browser's last-active org is unknown and none wins the ranking.
         """
         dw, dh = self._dlg_size(420, 200)
-        dlg, body = self._build_dialog_frame(t('dlg_pick_org_title'), dw, dh)
+        dlg, body = self._build_dialog_frame(t('dlg_pick_org_title'), dw, dh, key='org_picker')
 
         choice = tk.StringVar(value=choices[0]['id'])
         cancelled = {'v': True}
@@ -7899,7 +7927,7 @@ class Widget:
         says, how the widget reads it, and what can be changed."""
         st = {'color': account_color(acc), 'avatar': dict(acc.get('avatar') or {})}
         dw, dh = self._dlg_size(470, 260)
-        dlg, body = self._build_dialog_frame(t('dlg_account_details'), dw, dh)
+        dlg, body = self._build_dialog_frame(t('dlg_account_details'), dw, dh, key='account_details')
 
         def close_and(fn=None):
             try:
@@ -8202,7 +8230,7 @@ class Widget:
         # dh is just a floor; the dialog is resized to fit the list on every
         # rebuild (fit) so the height grows with the account count and the Add
         # button below the list stays visible without a cap or scrolling.
-        dlg, body = self._build_dialog_frame(t('dlg_accounts_title'), dw, dh)
+        dlg, body = self._build_dialog_frame(t('dlg_accounts_title'), dw, dh, key='accounts')
 
         # Bottom controls first (see the layout contract in _build_dialog_frame):
         # a long account list must eat into the list, never into these.
@@ -8239,6 +8267,11 @@ class Widget:
         list_frame.pack(fill='x')
 
         def rebuild():
+            # An account page outlives the list it was opened from when the
+            # list is opened again from the menu, and calls back into it on
+            # save: by then this list is gone.
+            if not list_frame.winfo_exists():
+                return
             for w in list_frame.winfo_children():
                 w.destroy()
             accounts = self.cfg.get('accounts', [])
@@ -8385,7 +8418,7 @@ class Widget:
                 pass
 
         dw, dh = self._dlg_size(460, 250)
-        dlg, body = self._build_dialog_frame(t('dlg_add_account'), dw, dh)
+        dlg, body = self._build_dialog_frame(t('dlg_add_account'), dw, dh, key='add_account')
         tk.Label(body, text=t('dlg_add_how'), font=FT_DLG_H, fg=FG, bg=BG,
                  anchor='w').pack(fill='x', pady=(0, 12))
 
@@ -8481,7 +8514,7 @@ class Widget:
     def _name_prompt(self, title, initial, on_ok):
         """Small single-field text prompt (account rename)."""
         dw, dh = self._dlg_size(380, 170)
-        dlg, body = self._build_dialog_frame(title, dw, dh)
+        dlg, body = self._build_dialog_frame(title, dw, dh, key='name_prompt')
         tk.Label(body, text=t('dlg_account_name'), font=FT_DLG_H, fg=FG,
                  bg=BG, anchor='w').pack(fill='x')
         wrap = tk.Frame(body, bg=BAR_BG, padx=1, pady=1)
@@ -8510,7 +8543,7 @@ class Widget:
     def _confirm_dialog(self, title, msg, on_yes):
         """Small yes/no confirmation (account removal)."""
         dw, dh = self._dlg_size(380, 180)
-        dlg, body = self._build_dialog_frame(title, dw, dh)
+        dlg, body = self._build_dialog_frame(title, dw, dh, key='confirm')
         tk.Label(body, text=msg, font=FT_DLG_BODY, fg=FG, bg=BG, anchor='w',
                  justify='left', wraplength=dw - 40).pack(fill='x')
         btns = tk.Frame(body, bg=BG)
