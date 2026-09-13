@@ -33,12 +33,12 @@
     font-family: 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, sans-serif;
     background: var(--bg);
     color: var(--text);
-    font-size: 15px;
-    line-height: 1.6;
+    font-size: 14px;
+    line-height: 1.5;
     min-height: 100vh;
     display: flex;
     justify-content: center;
-    padding: 40px 20px 48px;
+    padding: 22px 20px 22px;
     -webkit-font-smoothing: antialiased;
   }
   .container { max-width: 600px; width: 100%; }
@@ -47,8 +47,8 @@
   .lang-bar {
     display: flex;
     width: fit-content;
-    margin: 0 auto 36px;
-    padding: 4px;
+    margin: 0 auto 18px;
+    padding: 3px;
     gap: 2px;
     background: var(--surface);
     border: 1px solid var(--border);
@@ -58,9 +58,9 @@
     background: transparent;
     color: var(--text-2);
     border: none;
-    padding: 7px 18px;
+    padding: 4px 14px;
     border-radius: 999px;
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 600;
     cursor: pointer;
     font-family: inherit;
@@ -70,55 +70,55 @@
   .lang-btn.active { background: var(--accent-fill); color: #ffffff; }
   .lang-btn:focus-visible { outline: 2px solid var(--accent-text); outline-offset: 2px; }
 
-  .header { text-align: center; margin-bottom: 28px; }
+  .header { text-align: center; margin-bottom: 14px; }
   .header h1 {
-    font-size: 30px;
+    font-size: 23px;
     font-weight: 650;
     letter-spacing: -0.01em;
     line-height: 1.25;
-    margin-bottom: 10px;
+    margin-bottom: 2px;
   }
-  .header .subtitle { font-size: 16px; color: var(--text-2); }
+  .header .subtitle { font-size: 14px; color: var(--text-2); }
   .badge {
     display: inline-block;
     background: var(--accent-tint);
     color: var(--accent-text);
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 600;
-    padding: 4px 12px;
+    padding: 1px 10px;
     border-radius: 999px;
-    margin-top: 14px;
+    margin-top: 8px;
   }
 
   /* The other way in, said before any of the steps. */
   .alt-note {
     display: flex;
-    gap: 12px;
+    gap: 10px;
     align-items: flex-start;
     text-align: left;
-    margin: 20px auto 0;
-    padding: 14px 16px;
+    margin: 10px auto 0;
+    padding: 8px 14px;
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 14px;
-    font-size: 14.5px;
+    font-size: 13.5px;
     color: var(--text-2);
   }
-  .alt-note svg { flex-shrink: 0; width: 20px; height: 20px; margin-top: 1px;
+  .alt-note svg { flex-shrink: 0; width: 17px; height: 17px; margin-top: 1px;
                   color: var(--accent-text); }
 
   .browser-detected {
     text-align: center;
-    font-size: 14px;
+    font-size: 13px;
     color: var(--text-2);
-    margin-bottom: 18px;
+    margin-bottom: 10px;
   }
   .browser-detected span { color: var(--accent-text); font-weight: 600; }
 
   .method {
     background: var(--surface);
     border-radius: var(--radius);
-    margin-bottom: 14px;
+    margin-bottom: 9px;
     overflow: hidden;
     border: 1px solid var(--border);
     transition: border-color 0.2s;
@@ -126,35 +126,35 @@
   .method:hover { border-color: var(--border-strong); }
   .method.recommended { border-color: rgba(218, 119, 86, 0.6); }
   .method-header {
-    padding: 18px 20px;
+    padding: 10px 16px;
     cursor: pointer;
     display: flex;
     align-items: center;
-    gap: 14px;
+    gap: 12px;
     -webkit-user-select: none;
     user-select: none;
   }
   .method-header:hover { background: var(--surface-2); }
   .method-icon {
-    width: 40px;
-    height: 40px;
-    border-radius: 11px;
+    width: 32px;
+    height: 32px;
+    border-radius: 9px;
     display: flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
   }
-  .method-icon svg { width: 21px; height: 21px; }
+  .method-icon svg { width: 17px; height: 17px; }
   .method-icon.chrome   { background: var(--accent-tint); color: var(--accent-text); }
   .method-icon.settings { background: var(--surface-2); color: var(--text); }
   .method-icon.devtools { background: var(--surface-2); color: var(--text); }
   .method-info { flex: 1; min-width: 0; }
-  .method-title { font-size: 16.5px; font-weight: 600; line-height: 1.35; }
-  .method-desc { font-size: 14px; color: var(--text-2); margin-top: 2px; }
+  .method-title { font-size: 14.5px; font-weight: 600; line-height: 1.35; }
+  .method-desc { font-size: 13px; color: var(--text-2); margin-top: 0; }
   .method-tag {
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 600;
-    padding: 3px 11px;
+    padding: 1px 9px;
     border-radius: 999px;
     flex-shrink: 0;
   }
@@ -167,31 +167,31 @@
     transition: transform 0.2s;
     flex-shrink: 0;
   }
-  .chevron svg { width: 18px; height: 18px; }
+  .chevron svg { width: 16px; height: 16px; }
   .method.open .chevron { transform: rotate(90deg); }
-  .method-body { display: none; padding: 2px 20px 20px; }
+  .method-body { display: none; padding: 0 16px 12px; }
   .method.open .method-body { display: block; }
 
   .step {
     display: flex;
-    gap: 14px;
-    padding: 13px 0;
+    gap: 12px;
+    padding: 7px 0;
     border-top: 1px solid var(--border);
   }
   .step-num {
-    width: 28px;
-    height: 28px;
+    width: 22px;
+    height: 22px;
     border-radius: 50%;
     background: var(--accent-tint);
     color: var(--accent-text);
-    font-size: 13.5px;
+    font-size: 12px;
     font-weight: 700;
     display: flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
   }
-  .step-text { font-size: 15px; line-height: 1.6; color: var(--text); padding-top: 2px; }
+  .step-text { font-size: 14px; line-height: 1.5; color: var(--text); padding-top: 1px; }
   .step-text strong { font-weight: 600; color: #ffffff; }
   .step-text code {
     background: var(--bg);
@@ -200,7 +200,7 @@
     padding: 1px 7px;
     border-radius: 6px;
     font-family: 'Cascadia Code', 'Consolas', monospace;
-    font-size: 13.5px;
+    font-size: 12.5px;
   }
   /* Names of things on screen: a quiet chip rather than a colour of their own. */
   .step-text .path {
@@ -219,16 +219,16 @@
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    padding: 11px 26px;
+    padding: 6px 20px;
     border: none;
     border-radius: 999px;
     font-family: inherit;
-    font-size: 15px;
+    font-size: 14px;
     font-weight: 600;
     cursor: pointer;
     transition: background 0.15s, transform 0.1s;
     text-decoration: none;
-    margin-top: 12px;
+    margin-top: 6px;
   }
   .btn:active { transform: scale(0.97); }
   a.btn, .btn { text-decoration: none; }
@@ -236,39 +236,39 @@
   .btn-accent:hover { background: var(--accent-fill-hv); text-decoration: none !important; }
 
   .note {
-    font-size: 14px;
+    font-size: 13px;
     color: var(--text-2);
     background: var(--bg);
     border: 1px solid var(--border);
-    padding: 12px 16px;
+    padding: 7px 14px;
     border-radius: 12px;
-    margin-top: 10px;
+    margin-top: 6px;
     line-height: 1.55;
   }
 
   .footer {
     text-align: center;
-    margin-top: 32px;
-    font-size: 13px;
+    margin-top: 14px;
+    font-size: 12.5px;
     color: var(--text-3);
   }
   .footer .repo-btn {
     display: inline-flex;
     align-items: center;
     gap: 9px;
-    margin-bottom: 12px;
-    padding: 9px 20px;
+    margin-bottom: 6px;
+    padding: 5px 16px;
     background: var(--surface);
     color: var(--text);
     text-decoration: none;
     border-radius: 999px;
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 600;
     border: 1px solid var(--border);
     transition: background 120ms ease, border-color 120ms ease;
   }
   .footer .repo-btn:hover { background: var(--surface-2); border-color: var(--border-strong); }
-  .footer .repo-btn svg { width: 17px; height: 17px; display: block; }
+  .footer .repo-btn svg { width: 15px; height: 15px; display: block; }
 </style>
 </head>
 <body>
