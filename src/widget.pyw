@@ -239,7 +239,7 @@ BAR_DEFAULT_FILL = {'session': BAR_FILL_SESSION,
 BAR_PRESETS = [BAR_FILL_SESSION, BAR_FILL_WEEKLY, BAR_FILL_HIGH, BAR_FILL_PURPLE]
 
 # ─── App ────────────────────────────────────────────
-APP_VERSION = '2.10.0-test2'
+APP_VERSION = '2.10.0-test3'
 
 # ─── Auto-update ────────────────────────────────────
 UPDATE_REPO = 'niccolo-sabato/claude-usage-widget'
@@ -1514,6 +1514,8 @@ CC_LANG = {
         # refusals
         'cc_e_bad_name': 'Letters, digits, space, dot, hyphen and underscore, up to 41 characters.',
         'cc_e_no_live_token': 'The live credentials carry no access token.',
+        'cc_e_save_other_account': 'Not saved: the account signed in now is not the one this profile belongs to, and saving would overwrite it with another account.',
+        'cc_e_save_unproven': 'Not saved: I could not confirm which account is signed in now, and a wrong guess would overwrite this profile with another account.',
         # the window
         'cc_ui_section': 'Claude Code accounts',
         'cc_ui_switch': 'Switch',
@@ -1618,6 +1620,8 @@ CC_LANG = {
         'cc_try_live_unreadable': 'le credenziali vive, che non si leggono',
         'cc_e_bad_name': 'Lettere, numeri, spazio, punto, trattino e trattino basso, fino a 41 caratteri.',
         'cc_e_no_live_token': 'Le credenziali vive non hanno un token di accesso.',
+        'cc_e_save_other_account': 'Non salvato: il conto autenticato adesso non e quello a cui appartiene questo profilo, e salvare lo sovrascriverebbe con un altro conto.',
+        'cc_e_save_unproven': 'Non salvato: non ho potuto confermare quale conto e autenticato adesso, e sbagliando sovrascriverei questo profilo con un altro conto.',
         'cc_ui_section': 'Account di Claude Code',
         'cc_ui_switch': 'Passa',
         'cc_ui_close': 'Chiudi',
@@ -1721,6 +1725,8 @@ CC_LANG = {
         'cc_try_live_unreadable': '現在の認証情報 (読み取れませんでした)',
         'cc_e_bad_name': '英数字、スペース、ピリオド、ハイフン、アンダースコアで 41 文字までです。',
         'cc_e_no_live_token': '現在の認証情報にアクセストークンがありません。',
+        'cc_e_save_other_account': '保存していません。今サインインしているアカウントはこのプロファイルのアカウントではなく、保存すると別のアカウントで上書きしてしまいます。',
+        'cc_e_save_unproven': '保存していません。今どのアカウントでサインインしているか確認できず、誤るとこのプロファイルを別のアカウントで上書きしてしまいます。',
         'cc_ui_section': 'Claude Code のアカウント',
         'cc_ui_switch': '切り替え',
         'cc_ui_close': '閉じる',
@@ -8655,7 +8661,13 @@ class Widget:
             line.pack(fill='x')
             tk.Label(line, text=t('cc_ui_section'), font=FT_DLG_BTN_B, fg=FG,
                      bg=BAR_BG, anchor='w').pack(side='left')
-            mark = word if not profile.get('active') else \
+            # Signed in HERE only when it is proved. A "likely" match comes
+            # from the identity cache, which lags behind a switch: on its word
+            # this page once called Work the account in use while Personal
+            # was, offered to snapshot it, and wrote Personal over Work.
+            live_here = bool(profile.get('active')
+                             and profile.get('certainty') == 'certain')
+            mark = word if not live_here else \
                 f"{word} · {t('cc_ui_signed_in_here')}"
             tk.Label(line, text=mark, font=FT_DLG_HINT, fg=colour, bg=BAR_BG,
                      anchor='e').pack(side='right')
@@ -8693,7 +8705,7 @@ class Widget:
 
             gestures = tk.Frame(inner, bg=BAR_BG)
             gestures.pack(fill='x', pady=(10, 0))
-            if not profile.get('active'):
+            if not live_here:
                 self._small_pill(
                     gestures, t('cc_ui_switch'),
                     lambda n=profile['name']: close_and(
@@ -8931,10 +8943,14 @@ class Widget:
         """
         def work():
             try:
-                prof = cc_accounts.save_profile(name)
+                prof = cc_accounts.save_profile(name, call=cc_http)
                 err, when = None, prof.get('savedAt')
             except Exception as e:
-                err, when = _redact(str(e)), None
+                why = str(e)
+                # The module refuses with a message key; anything else is an
+                # error from the system, shown as it is with no secret in it.
+                err = t(why) if why.startswith('cc_') else _redact(why)
+                when = None
 
             def apply():
                 if err:
@@ -8994,7 +9010,11 @@ class Widget:
         # something to move onto, and not on the account already signed in,
         # where it would do nothing.
         profile = self._cc_profile_for(acc, getattr(self, '_cc_saved', None))
-        if profile and not profile.get('active'):
+        # The same rule as the account page: a profile counts as the one in use
+        # only when that is proved, never on the identity cache's word alone.
+        proven_live = bool(profile and profile.get('active')
+                           and profile.get('certainty') == 'certain')
+        if profile and not proven_live:
             switch_btn = self._secondary_pill(
                 row, t('cc_ui_switch'),
                 lambda n=profile['name']: self._cc_switch_dialog(n, rebuild))

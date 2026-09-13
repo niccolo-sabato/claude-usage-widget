@@ -644,13 +644,41 @@ def valid_name(name):
     return clean
 
 
-def save_profile(name, live_data=None):
+def ask_server_org(access_token, call):
+    """The organization an access token really belongs to, from the server.
+
+    A read: the profile endpoint answers with the account and does not rotate
+    anything. It is the one source that cannot be behind, which is why a write
+    that needs the organization asks it before trusting anything cached.
+    """
+    if not access_token or call is None:
+        return None
+    code, body = call(PROFILE_URL, (f'Authorization: Bearer {access_token}',
+                                    'anthropic-beta: oauth-2025-04-20'))
+    if judge_response(code, body)['kind'] != GOOD:
+        return None
+    try:
+        return (json.loads(body).get('organization') or {}).get('uuid') or None
+    except ValueError:
+        return None
+
+
+def save_profile(name, live_data=None, call=None):
     """Snapshot the live credentials under `name`, repairing what a login left out.
 
     `live_data` lets a caller hand over the credentials IT has already read, so
     that the name and the content describe the same instant. A switch works out
     which profile the outgoing account belongs to from its own read; re-reading
     here would mean the name came from one read and the content from another.
+
+    🔴 It REFUSES to write one account's credentials over another account's
+    profile. On 2026-09-13 it did exactly that: after a switch to Personal, the
+    identity cache still named Work, the widget took Work for the account in
+    use and offered to save it, and this function wrote Personal's tokens into
+    the Work profile under Work's name and Work's email. The organization is
+    the identity, so it is compared before anything is written, and it is taken
+    from the live file, from a proof, or from the server - never from the cache
+    alone when there is an existing profile it could overwrite.
     """
     name = valid_name(name)
     data = live_data
@@ -663,14 +691,11 @@ def save_profile(name, live_data=None):
         raise ValueError('cc_e_no_live_token')
 
     org = data.get('organizationUuid')
-    org_note = None
+    org_note = 'live' if org else None
     if not org:
         # A login rewrites the live file WITHOUT the organization. Prefer a
-        # PROOF over the cache: a saved profile carrying the same refresh token
-        # IS this account, so its organization is certain. The cache can
-        # describe a different account for minutes after a login, and stamping
-        # a foreign organization onto a token is the failure this module exists
-        # to prevent.
+        # PROOF: a saved profile carrying the same refresh token IS this
+        # account, so its organization is certain.
         mine = fingerprint(oauth.get('refreshToken'))
         for other in profile_names():
             p, bad = read_profile(other)
@@ -680,23 +705,39 @@ def save_profile(name, live_data=None):
                     (p.get('claudeAiOauth') or {}).get('refreshToken')) == mine:
                 org, org_note = p['organizationUuid'], 'proof'
                 break
-        if not org:
-            org = from_cache('organizationUuid', '[0-9a-fA-F-]{36}')
-            org_note = 'cache' if org else None
-        if org:
-            # Repair the live file too. An incoherent live file is the state
-            # that freezes every chat, so fixing only the snapshot would fix
-            # the wrong half.
-            backup_live('credentials-orgrecovery')
-            data['organizationUuid'] = org
-            write_json_atomic(cred_file(), data)
+    if not org:
+        # Then the server, which cannot be behind.
+        org = ask_server_org(oauth.get('accessToken'), call)
+        org_note = 'server' if org else None
+    if not org:
+        # The cache last, and only for what it cannot damage: see below.
+        org = from_cache('organizationUuid', '[0-9a-fA-F-]{36}')
+        org_note = 'cache' if org else None
 
-    # The email is a label from a cache that lags. When a profile of the same
-    # name already describes the same organization, its recorded email wins.
-    email = from_cache('emailAddress')
     previous, _ = read_profile(name)
-    if (previous and previous.get('email') and org
-            and previous.get('organizationUuid') == org):
+    previous_org = (previous or {}).get('organizationUuid')
+    if previous_org and org and previous_org != org:
+        raise ValueError('cc_e_save_other_account')
+    if previous_org and org_note in ('cache', None):
+        # The cache lags behind a sign-in and behind a switch. On its word
+        # alone "the same account with a renewed token" and "another account"
+        # look identical, and guessing wrong overwrites a working profile.
+        raise ValueError('cc_e_save_unproven')
+
+    if org and org_note in ('proof', 'server') and not data.get('organizationUuid'):
+        # Repair the live file too, but only with an organization that was
+        # proved. An incoherent live file is what freezes every chat; a live
+        # file stamped with ANOTHER account's organization is worse.
+        backup_live('credentials-orgrecovery')
+        data['organizationUuid'] = org
+        write_json_atomic(cred_file(), data)
+
+    # The email is a label from a cache that lags. When the existing profile
+    # already describes the same organization, its recorded email wins; with
+    # an organization taken from the live file, the cache's email is only used
+    # for a profile that is new.
+    email = from_cache('emailAddress')
+    if previous and previous.get('email') and previous_org == org:
         email = previous['email']
 
     prof = {
@@ -806,7 +847,7 @@ def switch(name, *, knowingly=False, check=None):
         if saved_out is None:
             saved_out = '_auto-' + time.strftime('%Y%m%d-%H%M%S')
         try:
-            save_profile(saved_out, current)
+            save_profile(saved_out, current, call=check)
         except (ValueError, OSError) as e:
             return {'done': False, 'asks': False,
                     'judgement': verdict(BAD, 'cc_j_outgoing_not_saved',
