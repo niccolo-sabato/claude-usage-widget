@@ -118,7 +118,7 @@ Switch back to essential mode the same way. Whichever mode you choose is remembe
 
 1. **Install** `ClaudeUsage-Setup.exe` and launch the widget.
 2. **Install the [Claude Session Key](https://chromewebstore.google.com/detail/claude-session-key/ppofmhjkjfinjpidlidepeonimpjmadj) extension** (Chrome / Edge / Brave / any Chromium browser).
-3. Open Claude.ai, click the extension icon, click **Copy to Clipboard**.
+3. Open Claude.ai and click the extension icon, then **Copy to Clipboard**. On Chrome it opens in the side panel, so it stays put while you paste.
 4. Paste the key into the widget's setup dialog. Done.
 
 The widget connects to Claude.ai using the same browser session you are already logged into. No API key, no password, no OAuth.
@@ -172,7 +172,7 @@ The account page, behind **Manage**, and the avatar picker behind the circle:
 - Tokens last hours, not weeks. When one expires and there is no key to fall back on, the widget says to run `claude` once
 
 ### Authentication and setup
-- Companion **[Claude Session Key](https://chromewebstore.google.com/detail/claude-session-key/ppofmhjkjfinjpidlidepeonimpjmadj) extension** copies your session key with one click; works on Chrome, Edge, Brave and any Chromium browser
+- Companion **[Claude Session Key](https://chromewebstore.google.com/detail/claude-session-key/ppofmhjkjfinjpidlidepeonimpjmadj) extension** copies your session key with one click; it opens in **Chrome's side panel**, and as a popup on Brave and on any browser without one
 - Built-in setup guide with manual fallback (browser settings or DevTools) if you would rather not install the extension
 - **Multiple accounts**: save more than one Claude login and switch between them in a click; each keeps its own credentials, name, email and plan
 - **Two ways in**: a session key from the browser, or the Claude Code login already on the machine. Adding an account starts by choosing between them
