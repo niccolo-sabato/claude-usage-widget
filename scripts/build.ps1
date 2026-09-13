@@ -41,6 +41,11 @@ $PyiArgs = @(
     # its native libs cuts ~10 MB off the installer.
     '--exclude-module', 'numpy',
     '--exclude-module', 'numpy.libs',
+    # PyInstaller's own red traceback window is replaced by the handler the
+    # widget installs before its first risky import (see _early_excepthook):
+    # the traceback still reaches crash.log, and what the user sees is a
+    # sentence instead of a stack trace. Nothing is hidden by this flag alone.
+    '--disable-windowed-traceback',
     '--distpath',   $Dist,
     '--workpath',   $Work,
     '--specpath',   $Build,

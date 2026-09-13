@@ -23,6 +23,57 @@ To start at Windows login:
 
 import sys
 import os
+import ctypes
+
+
+def _early_excepthook(exc_type, exc_value, exc_tb):
+    """Report a failure that happens before the widget exists.
+
+    Everything below this point can fail at import time, and the one that
+    really does is `ssl`: right after an update the antivirus is still holding
+    `_ssl.pyd`, the load fails, and the frozen build answers with PyInstaller's
+    own red "Unhandled exception in script" window, which shows a traceback and
+    says nothing about what to do. Suppressing that window with
+    --disable-windowed-traceback on its own would trade an ugly message for no
+    message at all, so the handler goes in FIRST, before the imports it has to
+    survive: the traceback still reaches crash.log and the user gets a sentence
+    they can act on. The full handler replaces this one once the module is up.
+
+    Deliberately built out of sys, os and ctypes alone, which are already
+    imported: a crash reporter that needs the thing that just failed reports
+    nothing.
+    """
+    import traceback
+    text = ''.join(traceback.format_exception(exc_type, exc_value, exc_tb))
+    path = ''
+    try:
+        folder = os.path.join(os.environ.get('LOCALAPPDATA', os.path.expanduser('~')),
+                              'Claude Usage')
+        os.makedirs(folder, exist_ok=True)
+        path = os.path.join(folder, 'crash.log')
+        with open(path, 'a', encoding='utf-8') as f:
+            f.write('\n=== startup failure ===\n' + text)
+    except OSError:
+        pass
+    if os.environ.get('CLAUDE_USAGE_DEV') == '1':
+        # A modal box waits for a click, and a test bench has nobody to give
+        # it one: this handler hung a test run until the window was closed by
+        # hand. The log above is written either way.
+        return
+    try:
+        ctypes.windll.user32.MessageBoxW(
+            None,
+            'Claude Usage could not start.\n\n'
+            'This usually clears by itself: another program was still holding '
+            'one of its files. It will try again in a few seconds.\n\n'
+            + (f'Details: {path}' if path else text[-400:]),
+            'Claude Usage', 0x30)  # MB_ICONWARNING
+    except Exception:
+        pass
+
+
+sys.excepthook = _early_excepthook
+
 import re
 import json
 import uuid
@@ -30,7 +81,6 @@ import colorsys
 import math
 import ssl
 import time
-import ctypes
 import signal
 import atexit
 import tempfile
@@ -180,7 +230,7 @@ BAR_DEFAULT_FILL = {'session': BAR_FILL_SESSION,
 BAR_PRESETS = [BAR_FILL_SESSION, BAR_FILL_WEEKLY, BAR_FILL_HIGH, BAR_FILL_PURPLE]
 
 # ─── App ────────────────────────────────────────────
-APP_VERSION = '2.9.1-test5'
+APP_VERSION = '2.9.1'
 
 # ─── Auto-update ────────────────────────────────────
 UPDATE_REPO = 'niccolo-sabato/claude-usage-widget'
@@ -672,6 +722,7 @@ LANG = {
         'cc_use_login': 'Use Claude Code login',
         'cc_no_creds': 'Claude Code login not found. Run `claude` once and sign in.',
         'cc_token_expired': 'Claude Code login expired. Run `claude` once to refresh it.',
+        'cc_rate_limited': 'Claude asked to slow down. The login is fine; the widget will use it again shortly.',
         'cc_account_name': 'Claude Code',
         # Toast notifications
         'toast_title': 'Claude Usage',
@@ -987,6 +1038,7 @@ LANG = {
         'cc_account_name': 'Claude Code',
         'cc_token_expired': 'Login di Claude Code scaduto. Esegui `claude` una volta per rinnovarlo.',
         'cc_no_creds': 'Login di Claude Code non trovato. Esegui `claude` una volta e accedi.',
+        'cc_rate_limited': 'Claude ha chiesto di rallentare. Il login è a posto: il widget lo riuserà fra poco.',
         'cc_use_login': 'Usa il login di Claude Code',
         'auth_claude_code': 'Login di Claude Code',
         'auth_key': 'Chiave di sessione',
@@ -1224,6 +1276,7 @@ LANG = {
         'cc_account_name': 'Claude Code',
         'cc_token_expired': 'Claude Code \u306e\u30ed\u30b0\u30a4\u30f3\u306e\u6709\u52b9\u671f\u9650\u304c\u5207\u308c\u307e\u3057\u305f\u3002`claude` \u3092\u4e00\u5ea6\u5b9f\u884c\u3057\u3066\u66f4\u65b0\u3057\u3066\u304f\u3060\u3055\u3044\u3002',
         'cc_no_creds': 'Claude Code \u306e\u30ed\u30b0\u30a4\u30f3\u304c\u898b\u3064\u304b\u308a\u307e\u305b\u3093\u3002`claude` \u3092\u4e00\u5ea6\u5b9f\u884c\u3057\u3066\u30b5\u30a4\u30f3\u30a4\u30f3\u3057\u3066\u304f\u3060\u3055\u3044\u3002',
+        'cc_rate_limited': 'Claude \u304b\u3089\u901f\u5ea6\u3092\u843d\u3068\u3059\u3088\u3046\u6c42\u3081\u3089\u308c\u307e\u3057\u305f\u3002\u30ed\u30b0\u30a4\u30f3\u306f\u6709\u52b9\u3067\u3001\u307e\u3082\u306a\u304f\u518d\u3073\u4f7f\u7528\u3057\u307e\u3059\u3002',
         'cc_use_login': 'Claude Code \u306e\u30ed\u30b0\u30a4\u30f3\u3092\u4f7f\u3046',
         'auth_claude_code': 'Claude Code \u30ed\u30b0\u30a4\u30f3',
         'auth_key': '\u30bb\u30c3\u30b7\u30e7\u30f3\u30ad\u30fc',
@@ -1871,6 +1924,8 @@ RESET_COMPACT = 2     # 11:00 (2d 5h)
 
 
 INK_LIGHT, INK_DARK = '#ffffff', '#20201e'
+# Fills that keep white ink whatever the measurement says: see ink_on.
+INK_KEEP_WHITE = (BAR_FILL_SESSION.lower(),)
 _INK_CACHE = {}
 
 
@@ -1893,11 +1948,19 @@ def ink_on(color):
     """The text colour to use on `color`: white unless white would not read.
 
     Bar colours are chosen by the user, so neither ink is right everywhere:
-    white measures 1.8:1 on the default amber fill and 1.2:1 on a pale track,
-    while dark ink disappears on the deep tracks of the dark theme. White is
-    kept wherever it clears 3:1, which is where the eye still reads it, and
-    dark ink takes over only where it does not.
+    white measures 1.2:1 on the pale tracks of the light theme, where it truly
+    disappears, while dark ink disappears on the deep tracks of the dark theme.
+    White is kept wherever it clears 3:1 and dark ink takes over below that.
+
+    The amber session fill is the one deliberate exception. It measures 1.8:1
+    against white, so the rule would turn the percentage dark on it; the
+    widget's owner looked at both and kept white, because at this size the
+    number still reads and a single dark figure among white ones breaks a look
+    the widget has had from the start. Recorded here rather than by loosening
+    the threshold, which would have taken pale custom fills with it.
     """
+    if color.lower() in INK_KEEP_WHITE:
+        return INK_LIGHT
     hit = _INK_CACHE.get(color)
     if hit is None:
         hit = INK_LIGHT if contrast_ratio(color, INK_LIGHT) >= 3.0 else INK_DARK
@@ -2872,6 +2935,20 @@ def claude_code_status():
         return None
 
 
+class RateLimited(RuntimeError):
+    """The endpoint asked us to slow down. It says nothing about the
+    credential, so it must never be reported as an expired login."""
+
+
+# How long the Claude Code reading is left alone after a 429. Measured on
+# 2026-09-13: the OAuth usage endpoint answered 429 to every refresh for a
+# whole session while the profile endpoint answered 200 for the same token, so
+# the credential was fine and only the polling was too eager. Asking again a
+# minute later keeps the limit tripped and the reading never comes back.
+CC_RATE_LIMIT_PAUSE_S = 15 * 60
+_cc_paused_until = 0.0
+
+
 def fetch_usage_claude_code(retry_transient=True, expect_org=None):
     """Usage via the OAuth endpoint Claude Code itself uses. Same five_hour /
     seven_day shape as the claude.ai endpoint, so _on_data needs no change.
@@ -2891,6 +2968,8 @@ def fetch_usage_claude_code(retry_transient=True, expect_org=None):
     code = _http_status(headers)
     if code in (401, 403):
         raise PermissionError(t('cc_token_expired'))
+    if code == 429:
+        raise RateLimited(t('cc_rate_limited'))
     if code and code >= 400:
         raise RuntimeError(f'HTTP {code}')
     if not body:
@@ -2952,16 +3031,35 @@ def fetch_usage(cfg):
             return _fetch_usage_key(cfg)
         wlog('FETCH  no usable credential stored, asking for one')
         raise PermissionError(t('session_expired_short'))
+    global _cc_paused_until
     first_error = None
     for method in methods:
+        # A reading that was rate limited is left alone for a while, but only
+        # while there is another way in: pausing the last one would leave the
+        # widget with nothing to show and no reason given.
+        if (method == AUTH_CC and len(methods) > 1
+                and time.time() < _cc_paused_until):
+            continue
         try:
             if method == AUTH_CC:
                 return fetch_usage_claude_code(expect_org=acc.get('org_id')), None
             return _fetch_usage_key(acc)
-        except Exception as e:
-            if len(methods) > 1:
-                wlog(f'FETCH  {method} did not answer, trying the other way')
+        except RateLimited as e:
+            _cc_paused_until = time.time() + CC_RATE_LIMIT_PAUSE_S
+            wlog(f'FETCH  {method} is rate limited, leaving it alone for '
+                 f'{CC_RATE_LIMIT_PAUSE_S // 60} minutes')
             first_error = first_error if first_error is not None else e
+        except Exception as e:
+            # The reason is logged, not just the fact: a reading that quietly
+            # falls back every minute looks like a working widget, and without
+            # the reason nobody can tell a rate limit from an expired token.
+            if len(methods) > 1:
+                wlog(f'FETCH  {method} did not answer ({_redact(str(e))}), '
+                     f'trying the other way')
+            first_error = first_error if first_error is not None else e
+    if first_error is None:
+        # Every method was skipped, which can only be the paused one.
+        raise RateLimited(t('cc_rate_limited'))
     raise first_error
 
 
