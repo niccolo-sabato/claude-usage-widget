@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="sidepanel.css">
+</head>
+<body data-surface="panel">
+  <header class="panel-header">
+    <img src="icon48.png" alt="">
+    <span data-i18n="extName">Claude Session Key</span>
+  </header>
+
+  <section class="card">
+    <div id="status" class="status loading" role="status" aria-live="polite">
+      <span class="spinner" aria-hidden="true"></span>
+      <span id="statusText" data-i18n="ui_searching">Searching for session key</span>
+    </div>
+
+    <div id="keyBox" class="key-box" hidden aria-label="Session key" tabindex="0"></div>
+
+    <div id="expiryNote" class="expiry-note" hidden></div>
+
+    <button type="button" id="btnFetch" class="btn btn-primary" hidden data-i18n="ui_retry">Retry</button>
+    <button type="button" id="btnCopy" class="btn btn-copy" hidden data-i18n="ui_copy">Copy to clipboard</button>
+  </section>
+
+  <section class="card card-quiet">
+    <p class="hint" data-i18n="ui_paste_hint">Paste this key in the Claude Usage widget setup</p>
+    <p class="hint">
+      <span data-i18n="ui_getWidgetPrompt">Don't have the widget yet?</span>
+      <a href="https://github.com/niccolo-sabato/claude-usage-widget" target="_blank" rel="noopener" data-i18n="ui_getWidgetLink">Get it here</a>
+    </p>
+  </section>
+
+  <script type="module" src="popup.js"></script>
+</body>
+</html>

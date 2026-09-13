@@ -175,12 +175,30 @@ function flashCopied() {
   }, COPIED_FEEDBACK_MS);
 }
 
+/**
+ * Close whatever this page is shown in, once the key is on the clipboard.
+ *
+ * The same script runs in the popup and in the side panel. A side panel is not
+ * a window, so window.close() does nothing there; Chrome 141 added
+ * sidePanel.close, and before that the panel simply stays open.
+ */
+async function closeSurface() {
+  if (document.body.dataset.surface !== 'panel') {
+    window.close();
+    return;
+  }
+  try {
+    const win = await chrome.windows.getCurrent();
+    await chrome.sidePanel?.close?.({ windowId: win.id });
+  } catch { /* older Chrome: the panel stays open */ }
+}
+
 async function handleCopy() {
   if (!sessionKey) return;
   const ok = await copyToClipboard(sessionKey);
   if (ok) {
     flashCopied();
-    setTimeout(() => window.close(), AUTO_CLOSE_AFTER_COPY_MS);
+    setTimeout(closeSurface, AUTO_CLOSE_AFTER_COPY_MS);
   } else {
     setStatus('error', t('ui_copyFailed'));
   }

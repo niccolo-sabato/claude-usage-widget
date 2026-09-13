@@ -1,0 +1,161 @@
+/* Claude Session Key - Side panel styles
+ *
+ * Chrome draws the panel's frame, its header and its rounded corners in the
+ * browser's own theme colour; this page is what sits inside. It follows the
+ * browser's light or dark scheme, and every text colour below is measured
+ * against the surface it sits on (at least 5:1, white on the filled pill 4.5:1).
+ */
+
+:root {
+  color-scheme: light dark;
+
+  --page:        #f4f3f1;
+  --card:        #ffffff;
+  --surface:     #f2f1ee;
+  --border:      #e4e2de;
+  --fg:          #1f1e1c;
+  --soft:        #57554f;
+  --accent-tx:   #A8482A;
+  --accent-fill: #BC5A37;
+  --accent-fill-hv: #A94F30;
+  --error-bg:    #fbeceb;
+  --error-fg:    #B23A3A;
+  --warn-bg:     #fbf2e2;
+  --warn-fg:     #8a5a0c;
+  --shadow:      0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --page:        #1e1e1c;
+    --card:        #262624;
+    --surface:     #2e2e2c;
+    --border:      #363634;
+    --fg:          #e8e7e4;
+    --soft:        #c4c2be;
+    --accent-tx:   #E8956F;
+    --error-bg:    #2e1c1c;
+    --error-fg:    #F07A7A;
+    --warn-bg:     #2e2a1c;
+    --warn-fg:     #E8A838;
+    --shadow:      none;
+  }
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-size: 13px;
+  line-height: 1.45;
+  background: var(--page);
+  color: var(--fg);
+  padding: 14px 14px 20px;
+  min-height: 100vh;
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 15px;
+  font-weight: 600;
+  padding: 2px 4px 12px;
+}
+.panel-header img { width: 20px; height: 20px; display: block; }
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 14px;
+  box-shadow: var(--shadow);
+}
+.card + .card { margin-top: 10px; }
+.card-quiet { padding: 12px 14px; }
+
+.status {
+  font-size: 13px;
+  font-weight: 500;
+  padding: 7px 14px;
+  border-radius: 999px;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  background: var(--surface);
+}
+.status.loading { color: var(--soft); }
+.status.success { color: var(--fg); }
+.status.success .status-icon { color: var(--accent-tx); }
+.status.error   { background: var(--error-bg); color: var(--error-fg); }
+.status.warning { background: var(--warn-bg); color: var(--warn-fg); }
+
+.spinner {
+  width: 13px; height: 13px;
+  border: 2px solid var(--border);
+  border-top-color: var(--soft);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.status-icon { font-size: 13px; line-height: 1; flex-shrink: 0; }
+
+.key-box {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-family: 'Cascadia Code', 'Consolas', 'Courier New', monospace;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--accent-tx);
+  word-break: break-all;
+  max-height: 96px;
+  overflow-y: auto;
+  margin-bottom: 8px;
+  user-select: all;
+  -webkit-user-select: all;
+}
+
+.expiry-note {
+  font-size: 12.5px;
+  color: var(--soft);
+  margin-bottom: 12px;
+}
+.expiry-note.warning { color: var(--warn-fg); }
+.expiry-note.error   { color: var(--error-fg); }
+
+.btn {
+  display: block;
+  width: 100%;
+  height: 36px;
+  padding: 0 16px;
+  border: none;
+  border-radius: 999px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, transform 0.08s;
+}
+.btn:active { transform: scale(0.985); }
+.btn:focus-visible { outline: 2px solid var(--accent-tx); outline-offset: 2px; }
+.btn-primary,
+.btn-copy { background: var(--accent-fill); color: #ffffff; }
+.btn-primary:hover,
+.btn-copy:hover { background: var(--accent-fill-hv); }
+.btn-copy.copied { background: var(--surface); color: var(--accent-tx); }
+
+.hint { font-size: 12.5px; color: var(--soft); }
+.hint + .hint { margin-top: 4px; }
+.hint a { color: var(--accent-tx); text-decoration: none; font-weight: 600; white-space: nowrap; }
+.hint a:hover { text-decoration: underline; }
+
+[hidden] { display: none !important; }
+
+.fade-enter { animation: fadeIn 0.2s ease-out; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }

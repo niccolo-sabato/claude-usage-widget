@@ -8,20 +8,27 @@
   "author": "Niccolo Sabato",
   "homepage_url": "https://github.com/niccolo-sabato/claude-usage-widget",
   "minimum_chrome_version": "116",
-  "permissions": ["cookies"],
-  "host_permissions": ["*://*.claude.ai/*"],
+  "permissions": [
+    "cookies",
+    "sidePanel"
+  ],
+  "host_permissions": [
+    "*://*.claude.ai/*"
+  ],
   "background": {
     "service_worker": "background.js",
     "type": "module"
   },
   "action": {
-    "default_popup": "popup.html",
     "default_title": "__MSG_actionTitle__",
     "default_icon": {
       "16": "icon16.png",
       "48": "icon48.png",
       "128": "icon128.png"
     }
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
   },
   "icons": {
     "16": "icon16.png",
