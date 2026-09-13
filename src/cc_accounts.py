@@ -443,6 +443,44 @@ def profiles(live=None):
     return out
 
 
+def unrecognised(live, saved):
+    """Why no saved profile was recognised as the live account.
+
+    "Not catalogued" tells the user nothing and cannot be acted on. What can be
+    acted on is the list of things that were tried and what each was missing,
+    so the answer names them.
+    """
+    tried = []
+    if not live.get('read'):
+        tried.append('cc_try_live_unreadable')
+    else:
+        tried.append('cc_try_refresh_print' if live.get('refresh_print')
+                     else 'cc_try_no_refresh_print')
+        tried.append('cc_try_org_live' if live.get('org') else 'cc_try_no_org_live')
+        tried.append('cc_try_org_cache' if live.get('org_cache')
+                     else 'cc_try_no_org_cache')
+    return verdict(UNKNOWN, 'cc_j_unrecognised',
+                   {'tried': tried, 'profiles': [p['name'] for p in saved]},
+                   'cc_r_save_current')
+
+
+def state():
+    """Everything the interface needs, from one read of the disk.
+
+    One read, so that what is drawn cannot mix two different instants: the
+    name of the active account coming from one read and its health from
+    another is how a profile ends up described as somebody else.
+    """
+    live = active()
+    saved = profiles(live)
+    active_name = next((p['name'] for p in saved if p['active']), None)
+    out = {'live': live, 'profiles': saved, 'active_name': active_name,
+           'read_at': time.time(), 'store': store(), 'cred': cred_file()}
+    if live.get('read') and active_name is None:
+        out['unrecognised'] = unrecognised(live, saved)
+    return out
+
+
 def find_profile_for_org(org, saved=None):
     """The saved profile of an organization, if there is one."""
     if not org:
@@ -710,11 +748,21 @@ def switch(name, *, knowingly=False, check=None):
                                      'cc_r_pick_existing')}
 
     live = active()
-    if live.get('read') and live.get('refresh_print') and live['refresh_print'] == \
-            fingerprint((target.get('claudeAiOauth') or {}).get('refreshToken')):
+    target_print = fingerprint((target.get('claudeAiOauth') or {}).get('refreshToken'))
+    # Already on this account? The fingerprint proves it, but so does the
+    # organization, and only the second still holds once the live token has
+    # rotated. Deciding on the fingerprint alone would let a switch onto a
+    # stale snapshot of the CURRENT account write an old token over the live
+    # one: the account would be logged out by an action that claimed to change
+    # nothing. When the snapshot is behind, the answer says so and offers the
+    # gesture that fixes it rather than a bare "nothing to do".
+    same_token = bool(live.get('refresh_print')) and live['refresh_print'] == target_print
+    same_org = bool(live.get('org')) and target.get('organizationUuid') == live['org']
+    if live.get('read') and (same_token or same_org):
         return {'done': False, 'asks': False,
-                'judgement': verdict(UNKNOWN, 'cc_j_already_active', {'name': name},
-                                     'cc_r_nothing_to_do')}
+                'judgement': verdict(
+                    UNKNOWN, 'cc_j_already_active', {'name': name, 'behind': not same_token},
+                    'cc_r_nothing_to_do' if same_token else 'cc_r_save_now')}
 
     judgements = health(target)
     bad = [j for j in judgements if j['kind'] == BAD]
