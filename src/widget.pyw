@@ -98,6 +98,15 @@ import tkinter.font as tkfont
 from datetime import datetime, timedelta, timezone
 from PIL import Image, ImageDraw, ImageTk
 
+# The Claude Code profiles live in their own module: it draws nothing and
+# imports no tkinter, which is what lets the bench exercise it against fake
+# credentials in a temporary directory. Running from source, its folder is not
+# necessarily on the path; frozen, PyInstaller has already bundled it.
+_SRC_DIR = os.path.dirname(os.path.abspath(__file__))
+if _SRC_DIR not in sys.path:
+    sys.path.insert(0, _SRC_DIR)
+import cc_accounts  # noqa: E402
+
 # ─── DPI awareness ──────────────────────────────────
 try:
     ctypes.windll.shcore.SetProcessDpiAwareness(2)
@@ -230,7 +239,7 @@ BAR_DEFAULT_FILL = {'session': BAR_FILL_SESSION,
 BAR_PRESETS = [BAR_FILL_SESSION, BAR_FILL_WEEKLY, BAR_FILL_HIGH, BAR_FILL_PURPLE]
 
 # ─── App ────────────────────────────────────────────
-APP_VERSION = '2.9.1'
+APP_VERSION = '2.10.0-test1'
 
 # ─── Auto-update ────────────────────────────────────
 UPDATE_REPO = 'niccolo-sabato/claude-usage-widget'
@@ -1406,6 +1415,338 @@ LANG = {
     },
 }
 
+# ═══════════════════════════════════════════════════════
+# Claude Code accounts: what the judgements say out loud
+# ═══════════════════════════════════════════════════════
+#
+# cc_accounts.py produces KEYS and the values that fill them, never prose: it
+# knows nothing about languages, and a module that answered in Italian would
+# have made two of the three impossible. The sentences live here, in their own
+# table so that they can be checked against the keys the module actually emits
+# (tests/test_cc_i18n.py does exactly that, in all three languages).
+#
+# A judgement is a statement about what is; a remedy is the thing to do about
+# it. Every judgement that is not "good" carries one, because telling somebody
+# they have a problem without telling them what to do about it is the surest
+# way of having them do nothing.
+CC_LANG = {
+    'en': {
+        # what is
+        'cc_j_already_active': 'Claude Code is already signed in as {name}.',
+        'cc_j_answered': 'Claude answered.',
+        'cc_j_200_not_data': 'Claude answered, but with a page instead of data.',
+        'cc_j_403_page': 'Claude answered 403 with a page rather than data: that is the filter in front of the site, and it says nothing about these credentials.',
+        'cc_j_refused_401': 'Claude refused these credentials (401).',
+        'cc_j_refused_403': 'Claude refused these credentials (403, from the API itself).',
+        'cc_j_archive_failed': 'Could not archive it: {why}',
+        'cc_j_archived': '{name} is archived.',
+        'cc_j_bad_name': '"{name}" is not a name a folder can take.',
+        'cc_j_cannot_check_access_expired': 'I cannot check this one: its access token expired on {when}, and checking any other way would use up the renewal.',
+        'cc_j_checked_alive': 'Checked: the credentials work, and they are {email}.',
+        'cc_j_file_corrupt': 'This file is not valid JSON: {path}',
+        'cc_j_file_missing': 'This file is not there: {path}',
+        'cc_j_file_unreadable': 'I cannot read {path}: {why}',
+        'cc_j_live_no_email': 'The email is not in the identity cache yet.',
+        'cc_j_live_no_org': 'The live credentials carry no organization, which is the normal state right after a sign-in.',
+        'cc_j_live_no_token': 'The live credentials carry no access token.',
+        'cc_j_live_ok': 'The live credentials are readable and complete.',
+        'cc_j_name_taken': 'A profile called "{name}" already exists.',
+        'cc_j_no_access': 'No access token.',
+        'cc_j_no_answer': 'No answer from Claude.',
+        'cc_j_no_block': 'This profile holds no credentials.',
+        'cc_j_no_org': 'No organization: this profile is in the older format.',
+        'cc_j_no_refresh': 'No refresh token, so it cannot renew itself.',
+        'cc_j_no_refresh_expiry_access_alive': 'The renewal date is not recorded, but the access token is good until {when}.',
+        'cc_j_no_refresh_expiry_access_dead': 'The renewal date is not recorded and the access token expired on {when}. The refresh token is there and may still work.',
+        'cc_j_no_such_profile': 'There is no profile called "{name}". Saved: {known}.',
+        'cc_j_other_account': 'Those credentials work, but they belong to {email}.',
+        'cc_j_outgoing_not_saved': 'I could not save the account you are leaving: {why}',
+        'cc_j_profile_outdated': 'This snapshot is behind: on {when} the account already carried a different refresh token.',
+        'cc_j_rate_limited': 'Claude asked to slow down.',
+        'cc_j_refresh_expired': 'The renewal expired on {when}.',
+        'cc_j_refresh_soon': 'The renewal expires on {when}, in less than three days.',
+        'cc_j_rename_failed': 'I could not rename it: {why}',
+        'cc_j_renamed': '"{old}" is now called "{new}".',
+        'cc_j_renamed_not_inside': 'The folder was renamed, but the name inside the file is still the old one.',
+        'cc_j_server_error': 'Claude has a problem of its own (HTTP {code}).',
+        'cc_j_snapshot_behind': 'This is the account in use and it works. Its snapshot, saved {saved}, is behind.',
+        'cc_j_switched': 'Claude Code is now signed in as {name}.',
+        'cc_j_unexpected_code': 'Unexpected answer from Claude (HTTP {code}).',
+        'cc_j_unrecognised': 'No saved profile matches the login on this computer. I tried: {tried}.',
+        'cc_j_usable': 'Usable.',
+        'cc_j_write_unverified': 'I could not verify what was written. The previous file is in {backups}.',
+        # what to do about it
+        'cc_r_applies_at_once': 'This takes effect at once and in every chat already open. Nothing to close or reopen.',
+        'cc_r_archive_is_reversible': 'Nothing was destroyed: it is in {where}, and moving the folder back puts it in the list again.',
+        'cc_r_check_connection': 'Check the connection.',
+        'cc_r_check_permissions': 'Check who is allowed to read that file.',
+        'cc_r_close_what_uses_it': 'Close whatever is using that folder.',
+        'cc_r_email_is_a_label': 'The email is only a label: an account is recognised by its organization.',
+        'cc_r_from_backup': 'Recover it from the backups folder.',
+        'cc_r_nothing_to_do': 'Nothing to do.',
+        'cc_r_pick_another_name': 'Pick another name.',
+        'cc_r_pick_existing': 'Pick one of the saved profiles.',
+        'cc_r_proceed_or_refresh': 'You can switch anyway, or sign in with that account first and save it again.',
+        'cc_r_resave_while_active': 'Save this profile again while that account is the one signed in.',
+        'cc_r_restore_from_backup': 'Put the previous file back from the backups folder.',
+        'cc_r_save_current': 'Save the account signed in now, so that it has a profile of its own.',
+        'cc_r_save_now': 'Save it now: that brings the snapshot back in step.',
+        'cc_r_save_repairs_org': 'Saving the profile puts the organization back where it belongs.',
+        'cc_r_sign_in': 'Run `claude` once and sign in.',
+        'cc_r_sign_in_then_save': 'Sign in with that account, then save the profile again.',
+        'cc_r_switch_and_save': 'Switch to that account and save it again.',
+        'cc_r_try_again': 'Try again.',
+        'cc_r_try_again_soon': 'Try again in a moment.',
+        'cc_r_try_later': 'Try again later: this one is not about your credentials.',
+        'cc_r_wait_a_few_minutes': 'Wait a few minutes before asking again.',
+        # how sure we are that this profile is the live account
+        'cc_why_same_refresh': 'same refresh token as the live credentials',
+        'cc_why_same_org_live': 'same organization as the live credentials',
+        'cc_why_same_org_cache': 'same organization as the identity cache',
+        # what was tried, when none of them worked
+        'cc_try_refresh_print': 'the refresh token fingerprint',
+        'cc_try_no_refresh_print': 'the refresh token fingerprint, which is missing',
+        'cc_try_org_live': 'the organization in the live credentials',
+        'cc_try_no_org_live': 'the organization in the live credentials, which is missing',
+        'cc_try_org_cache': 'the organization in the identity cache',
+        'cc_try_no_org_cache': 'the organization in the identity cache, which is missing',
+        'cc_try_live_unreadable': 'the live credentials, which could not be read',
+        # refusals
+        'cc_e_bad_name': 'Letters, digits, space, dot, hyphen and underscore, up to 41 characters.',
+        'cc_e_no_live_token': 'The live credentials carry no access token.',
+        # the window
+        'cc_ui_section': 'Claude Code accounts',
+        'cc_ui_switch': 'Switch',
+        'cc_ui_close': 'Close',
+        'cc_ui_switch_to': 'Switch to {name}',
+        'cc_ui_signed_in_here': 'signed in here',
+        'cc_ui_no_profile': 'No saved profile for this account, so there is nothing to switch to.',
+        'cc_ui_no_profiles': 'No saved Claude Code profiles on this computer.',
+        'cc_ui_checking': 'Checking the credentials…',
+        'cc_ui_saving_out': 'Saving the account you are leaving…',
+        'cc_ui_switching': 'Switching…',
+        'cc_ui_proceed': 'Switch anyway',
+        'cc_ui_now_cc': 'Claude Code: {name}',
+        'cc_ui_now_widget': 'Widget now showing: {name}',
+        'cc_ui_save_snapshot': 'Save snapshot',
+        'cc_ui_verify': 'Check now',
+        'cc_ui_renewal': 'Renewal',
+        'cc_ui_fingerprint': 'Fingerprint',
+        'cc_ui_saved_at': 'Snapshot saved',
+        'cc_ui_verdict_good': 'Usable',
+        'cc_ui_verdict_bad': 'Not usable',
+        'cc_ui_verdict_unknown': 'Cannot tell',
+        'cc_ui_open_store': 'Open the folder',
+    },
+    'it': {
+        'cc_j_already_active': 'Claude Code e gia autenticato come {name}.',
+        'cc_j_answered': 'Claude ha risposto.',
+        'cc_j_200_not_data': 'Claude ha risposto, ma con una pagina invece che con i dati.',
+        'cc_j_403_page': 'Claude ha risposto 403 con una pagina invece che con i dati: e il filtro davanti al sito, e di queste credenziali non dice niente.',
+        'cc_j_refused_401': 'Claude ha rifiutato queste credenziali (401).',
+        'cc_j_refused_403': 'Claude ha rifiutato queste credenziali (403, risposta dell’API).',
+        'cc_j_archive_failed': 'Non sono riuscito ad archiviarlo: {why}',
+        'cc_j_archived': '{name} e archiviato.',
+        'cc_j_bad_name': '"{name}" non e un nome che una cartella possa avere.',
+        'cc_j_cannot_check_access_expired': 'Questo non posso verificarlo: il suo token di accesso e scaduto il {when}, e controllarlo in altro modo consumerebbe il rinnovo.',
+        'cc_j_checked_alive': 'Verificato: le credenziali funzionano, e sono di {email}.',
+        'cc_j_file_corrupt': 'Questo file non e un JSON valido: {path}',
+        'cc_j_file_missing': 'Questo file non c’e: {path}',
+        'cc_j_file_unreadable': 'Non riesco a leggere {path}: {why}',
+        'cc_j_live_no_email': 'L’email non e ancora nella cache di identita.',
+        'cc_j_live_no_org': 'Le credenziali vive non portano l’organizzazione: e lo stato normale subito dopo un accesso.',
+        'cc_j_live_no_token': 'Le credenziali vive non hanno un token di accesso.',
+        'cc_j_live_ok': 'Le credenziali vive sono leggibili e complete.',
+        'cc_j_name_taken': 'Esiste gia un profilo che si chiama "{name}".',
+        'cc_j_no_access': 'Nessun token di accesso.',
+        'cc_j_no_answer': 'Nessuna risposta da Claude.',
+        'cc_j_no_block': 'Questo profilo non contiene credenziali.',
+        'cc_j_no_org': 'Nessuna organizzazione: il profilo e nel formato vecchio.',
+        'cc_j_no_refresh': 'Nessun token di rinnovo: non potra rinnovarsi da solo.',
+        'cc_j_no_refresh_expiry_access_alive': 'La data di rinnovo non e registrata, ma il token di accesso vale fino al {when}.',
+        'cc_j_no_refresh_expiry_access_dead': 'La data di rinnovo non e registrata e il token di accesso e scaduto il {when}. Il token di rinnovo c’e e potrebbe funzionare ancora.',
+        'cc_j_no_such_profile': 'Non esiste un profilo che si chiama "{name}". Salvati: {known}.',
+        'cc_j_other_account': 'Quelle credenziali funzionano, ma sono di {email}.',
+        'cc_j_outgoing_not_saved': 'Non sono riuscito a salvare il conto che stai lasciando: {why}',
+        'cc_j_profile_outdated': 'Questa fotografia e indietro: il {when} il conto portava gia un altro token di rinnovo.',
+        'cc_j_rate_limited': 'Claude ha chiesto di rallentare.',
+        'cc_j_refresh_expired': 'Il rinnovo e scaduto il {when}.',
+        'cc_j_refresh_soon': 'Il rinnovo scade il {when}, fra meno di tre giorni.',
+        'cc_j_rename_failed': 'Non sono riuscito a rinominarlo: {why}',
+        'cc_j_renamed': '"{old}" adesso si chiama "{new}".',
+        'cc_j_renamed_not_inside': 'La cartella e stata rinominata, ma il nome dentro il file e rimasto quello vecchio.',
+        'cc_j_server_error': 'Claude ha un problema suo (HTTP {code}).',
+        'cc_j_snapshot_behind': 'E il conto che stai usando, e funziona. La sua fotografia, salvata il {saved}, e indietro.',
+        'cc_j_switched': 'Claude Code adesso e autenticato come {name}.',
+        'cc_j_unexpected_code': 'Risposta inattesa da Claude (HTTP {code}).',
+        'cc_j_unrecognised': 'Nessun profilo salvato corrisponde al login su questo computer. Ho provato: {tried}.',
+        'cc_j_usable': 'Utilizzabile.',
+        'cc_j_write_unverified': 'Non ho potuto verificare cio che e stato scritto. Il file precedente e in {backups}.',
+        'cc_r_applies_at_once': 'Vale subito e per tutte le chat gia aperte. Non serve chiudere ne riaprire niente.',
+        'cc_r_archive_is_reversible': 'Non e stato distrutto niente: sta in {where}, e rispostando la cartella torna nell’elenco.',
+        'cc_r_check_connection': 'Controlla la connessione.',
+        'cc_r_check_permissions': 'Controlla chi puo leggere quel file.',
+        'cc_r_close_what_uses_it': 'Chiudi cio che sta usando quella cartella.',
+        'cc_r_email_is_a_label': 'L’email e solo un’etichetta: un conto si riconosce dalla sua organizzazione.',
+        'cc_r_from_backup': 'Recuperalo dalla cartella delle copie.',
+        'cc_r_nothing_to_do': 'Non c’e niente da fare.',
+        'cc_r_pick_another_name': 'Scegli un altro nome.',
+        'cc_r_pick_existing': 'Scegli uno dei profili salvati.',
+        'cc_r_proceed_or_refresh': 'Puoi passare lo stesso, oppure accedere prima con quel conto e risalvarlo.',
+        'cc_r_resave_while_active': 'Risalva questo profilo mentre quel conto e quello autenticato.',
+        'cc_r_restore_from_backup': 'Rimetti il file precedente dalla cartella delle copie.',
+        'cc_r_save_current': 'Salva il conto autenticato adesso, cosi avra un profilo suo.',
+        'cc_r_save_now': 'Salvalo adesso: rimette in pari la fotografia.',
+        'cc_r_save_repairs_org': 'Salvare il profilo rimette a posto l’organizzazione.',
+        'cc_r_sign_in': 'Esegui `claude` una volta e accedi.',
+        'cc_r_sign_in_then_save': 'Accedi con quel conto, poi risalva il profilo.',
+        'cc_r_switch_and_save': 'Passa a quel conto e risalvalo.',
+        'cc_r_try_again': 'Riprova.',
+        'cc_r_try_again_soon': 'Riprova fra poco.',
+        'cc_r_try_later': 'Riprova piu tardi: questo non dipende dalle tue credenziali.',
+        'cc_r_wait_a_few_minutes': 'Aspetta qualche minuto prima di richiedere.',
+        'cc_why_same_refresh': 'stesso token di rinnovo delle credenziali vive',
+        'cc_why_same_org_live': 'stessa organizzazione delle credenziali vive',
+        'cc_why_same_org_cache': 'stessa organizzazione della cache di identita',
+        'cc_try_refresh_print': 'l’impronta del token di rinnovo',
+        'cc_try_no_refresh_print': 'l’impronta del token di rinnovo, che manca',
+        'cc_try_org_live': 'l’organizzazione nelle credenziali vive',
+        'cc_try_no_org_live': 'l’organizzazione nelle credenziali vive, che manca',
+        'cc_try_org_cache': 'l’organizzazione nella cache di identita',
+        'cc_try_no_org_cache': 'l’organizzazione nella cache di identita, che manca',
+        'cc_try_live_unreadable': 'le credenziali vive, che non si leggono',
+        'cc_e_bad_name': 'Lettere, numeri, spazio, punto, trattino e trattino basso, fino a 41 caratteri.',
+        'cc_e_no_live_token': 'Le credenziali vive non hanno un token di accesso.',
+        'cc_ui_section': 'Account di Claude Code',
+        'cc_ui_switch': 'Passa',
+        'cc_ui_close': 'Chiudi',
+        'cc_ui_switch_to': 'Passa a {name}',
+        'cc_ui_signed_in_here': 'autenticato qui',
+        'cc_ui_no_profile': 'Nessun profilo salvato per questo conto: non c’e niente a cui passare.',
+        'cc_ui_no_profiles': 'Nessun profilo di Claude Code salvato su questo computer.',
+        'cc_ui_checking': 'Verifico le credenziali…',
+        'cc_ui_saving_out': 'Salvo il conto che stai lasciando…',
+        'cc_ui_switching': 'Passo…',
+        'cc_ui_proceed': 'Passa lo stesso',
+        'cc_ui_now_cc': 'Claude Code: {name}',
+        'cc_ui_now_widget': 'Il widget ora mostra: {name}',
+        'cc_ui_save_snapshot': 'Salva istantanea',
+        'cc_ui_verify': 'Verifica adesso',
+        'cc_ui_renewal': 'Rinnovo',
+        'cc_ui_fingerprint': 'Impronta',
+        'cc_ui_saved_at': 'Fotografia del',
+        'cc_ui_verdict_good': 'Utilizzabile',
+        'cc_ui_verdict_bad': 'Non utilizzabile',
+        'cc_ui_verdict_unknown': 'Non saprei',
+        'cc_ui_open_store': 'Apri la cartella',
+    },
+    'ja': {
+        'cc_j_already_active': 'Claude Code はすでに {name} としてサインインしています。',
+        'cc_j_answered': 'Claude が応答しました。',
+        'cc_j_200_not_data': 'Claude は応答しましたが、データではなくページを返しました。',
+        'cc_j_403_page': 'Claude は 403 をデータではなくページで返しました。サイトの手前のフィルターによるもので、この認証情報については何も示していません。',
+        'cc_j_refused_401': 'Claude がこの認証情報を拒否しました (401)。',
+        'cc_j_refused_403': 'Claude がこの認証情報を拒否しました (403、API 自身からの応答)。',
+        'cc_j_archive_failed': 'アーカイブできませんでした: {why}',
+        'cc_j_archived': '{name} をアーカイブしました。',
+        'cc_j_bad_name': '「{name}」はフォルダー名として使えません。',
+        'cc_j_cannot_check_access_expired': 'これは確認できません。アクセストークンが {when} に期限切れで、別の方法で確認すると更新トークンを消費してしまいます。',
+        'cc_j_checked_alive': '確認しました。認証情報は有効で、{email} のものです。',
+        'cc_j_file_corrupt': 'このファイルは正しい JSON ではありません: {path}',
+        'cc_j_file_missing': 'このファイルがありません: {path}',
+        'cc_j_file_unreadable': '{path} を読み取れません: {why}',
+        'cc_j_live_no_email': 'メールアドレスはまだ識別キャッシュにありません。',
+        'cc_j_live_no_org': '現在の認証情報に組織がありません。サインイン直後の通常の状態です。',
+        'cc_j_live_no_token': '現在の認証情報にアクセストークンがありません。',
+        'cc_j_live_ok': '現在の認証情報は読み取れて、内容もそろっています。',
+        'cc_j_name_taken': '「{name}」という名前のプロファイルはすでにあります。',
+        'cc_j_no_access': 'アクセストークンがありません。',
+        'cc_j_no_answer': 'Claude から応答がありません。',
+        'cc_j_no_block': 'このプロファイルに認証情報が入っていません。',
+        'cc_j_no_org': '組織がありません。古い形式のプロファイルです。',
+        'cc_j_no_refresh': '更新トークンがないため、自動で更新できません。',
+        'cc_j_no_refresh_expiry_access_alive': '更新期限は記録されていませんが、アクセストークンは {when} まで有効です。',
+        'cc_j_no_refresh_expiry_access_dead': '更新期限が記録されておらず、アクセストークンも {when} に期限切れです。更新トークンは残っており、まだ使える可能性があります。',
+        'cc_j_no_such_profile': '「{name}」というプロファイルはありません。保存済み: {known}。',
+        'cc_j_other_account': 'その認証情報は有効ですが、{email} のものです。',
+        'cc_j_outgoing_not_saved': '切り替え元のアカウントを保存できませんでした: {why}',
+        'cc_j_profile_outdated': 'このスナップショットは古くなっています。{when} の時点でアカウントはすでに別の更新トークンを持っていました。',
+        'cc_j_rate_limited': 'Claude から速度を落とすよう求められました。',
+        'cc_j_refresh_expired': '更新期限が {when} に切れました。',
+        'cc_j_refresh_soon': '更新期限は {when}、3 日を切っています。',
+        'cc_j_rename_failed': '名前を変更できませんでした: {why}',
+        'cc_j_renamed': '「{old}」は「{new}」になりました。',
+        'cc_j_renamed_not_inside': 'フォルダー名は変わりましたが、ファイルの中の名前は古いままです。',
+        'cc_j_server_error': 'Claude 側の問題です (HTTP {code})。',
+        'cc_j_snapshot_behind': '今使っているアカウントで、動作しています。{saved} に保存されたスナップショットが古いだけです。',
+        'cc_j_switched': 'Claude Code は {name} としてサインインしました。',
+        'cc_j_unexpected_code': 'Claude から予期しない応答です (HTTP {code})。',
+        'cc_j_unrecognised': 'このコンピューターのログインに一致する保存済みプロファイルがありません。試したもの: {tried}。',
+        'cc_j_usable': '使用できます。',
+        'cc_j_write_unverified': '書き込み結果を確認できませんでした。直前のファイルは {backups} にあります。',
+        'cc_r_applies_at_once': 'すぐに、開いているすべてのチャットに適用されます。閉じたり開き直したりする必要はありません。',
+        'cc_r_archive_is_reversible': '何も削除していません。{where} にあり、フォルダーを戻せば一覧に戻ります。',
+        'cc_r_check_connection': '接続を確認してください。',
+        'cc_r_check_permissions': 'そのファイルの読み取り権限を確認してください。',
+        'cc_r_close_what_uses_it': 'そのフォルダーを使っているものを閉じてください。',
+        'cc_r_email_is_a_label': 'メールアドレスはラベルにすぎません。アカウントは組織で識別されます。',
+        'cc_r_from_backup': 'バックアップのフォルダーから復元してください。',
+        'cc_r_nothing_to_do': '何もする必要はありません。',
+        'cc_r_pick_another_name': '別の名前にしてください。',
+        'cc_r_pick_existing': '保存済みのプロファイルから選んでください。',
+        'cc_r_proceed_or_refresh': 'そのまま切り替えることもできますし、先にそのアカウントでサインインして保存し直すこともできます。',
+        'cc_r_resave_while_active': 'そのアカウントでサインインしている間に、このプロファイルを保存し直してください。',
+        'cc_r_restore_from_backup': 'バックアップのフォルダーから直前のファイルを戻してください。',
+        'cc_r_save_current': '今サインインしているアカウントを保存して、専用のプロファイルを作ってください。',
+        'cc_r_save_now': '今すぐ保存してください。スナップショットが最新になります。',
+        'cc_r_save_repairs_org': 'プロファイルを保存すると組織が元に戻ります。',
+        'cc_r_sign_in': '`claude` を一度実行してサインインしてください。',
+        'cc_r_sign_in_then_save': 'そのアカウントでサインインしてから、プロファイルを保存し直してください。',
+        'cc_r_switch_and_save': 'そのアカウントに切り替えて、保存し直してください。',
+        'cc_r_try_again': 'もう一度試してください。',
+        'cc_r_try_again_soon': '少し待ってから試してください。',
+        'cc_r_try_later': '後で試してください。認証情報の問題ではありません。',
+        'cc_r_wait_a_few_minutes': '数分待ってから試してください。',
+        'cc_why_same_refresh': '現在の認証情報と同じ更新トークン',
+        'cc_why_same_org_live': '現在の認証情報と同じ組織',
+        'cc_why_same_org_cache': '識別キャッシュと同じ組織',
+        'cc_try_refresh_print': '更新トークンの指紋',
+        'cc_try_no_refresh_print': '更新トークンの指紋 (ありません)',
+        'cc_try_org_live': '現在の認証情報の組織',
+        'cc_try_no_org_live': '現在の認証情報の組織 (ありません)',
+        'cc_try_org_cache': '識別キャッシュの組織',
+        'cc_try_no_org_cache': '識別キャッシュの組織 (ありません)',
+        'cc_try_live_unreadable': '現在の認証情報 (読み取れませんでした)',
+        'cc_e_bad_name': '英数字、スペース、ピリオド、ハイフン、アンダースコアで 41 文字までです。',
+        'cc_e_no_live_token': '現在の認証情報にアクセストークンがありません。',
+        'cc_ui_section': 'Claude Code のアカウント',
+        'cc_ui_switch': '切り替え',
+        'cc_ui_close': '閉じる',
+        'cc_ui_switch_to': '{name} に切り替え',
+        'cc_ui_signed_in_here': 'このPCでサインイン中',
+        'cc_ui_no_profile': 'このアカウントの保存済みプロファイルがないため、切り替え先がありません。',
+        'cc_ui_no_profiles': 'このコンピューターに保存された Claude Code のプロファイルはありません。',
+        'cc_ui_checking': '認証情報を確認しています…',
+        'cc_ui_saving_out': '切り替え元のアカウントを保存しています…',
+        'cc_ui_switching': '切り替えています…',
+        'cc_ui_proceed': 'このまま切り替える',
+        'cc_ui_now_cc': 'Claude Code: {name}',
+        'cc_ui_now_widget': 'ウィジェットの表示: {name}',
+        'cc_ui_save_snapshot': 'スナップショットを保存',
+        'cc_ui_verify': '今すぐ確認',
+        'cc_ui_renewal': '更新期限',
+        'cc_ui_fingerprint': '指紋',
+        'cc_ui_saved_at': 'スナップショット',
+        'cc_ui_verdict_good': '使用できます',
+        'cc_ui_verdict_bad': '使用できません',
+        'cc_ui_verdict_unknown': '判断できません',
+        'cc_ui_open_store': 'フォルダーを開く',
+    },
+}
+
+for _code, _msgs in CC_LANG.items():
+    LANG[_code].update(_msgs)
+
 _current_lang = 'en'
 
 def t(key):
@@ -1416,6 +1757,42 @@ def set_lang(code):
     global _current_lang
     if code in LANG:
         _current_lang = code
+
+
+def cc_fill(data):
+    """The values of a judgement, ready to drop into a sentence.
+
+    Dates arrive as datetimes and lists of message keys arrive as keys: both
+    have to become text in the reader's language before the sentence is built,
+    and neither can be done inside cc_accounts, which has no language.
+    """
+    out = {}
+    for key, value in (data or {}).items():
+        if isinstance(value, datetime):
+            out[key] = f'{value:%d/%m/%Y %H:%M}'
+        elif isinstance(value, (list, tuple)):
+            # A list of message keys (what was tried) or of plain names.
+            out[key] = ', '.join(t(str(v)) if str(v).startswith('cc_') else str(v)
+                                 for v in value)
+        else:
+            out[key] = value
+    return out
+
+
+def cc_say(judgement, part='key'):
+    """One judgement as a sentence. `part` is 'key' or 'remedy'.
+
+    A missing value must never lose the sentence: a half-filled message still
+    tells the user more than a bare identifier does.
+    """
+    name = (judgement or {}).get(part)
+    if not name:
+        return ''
+    text = t(name)
+    try:
+        return text.format(**cc_fill(judgement.get('data')))
+    except (KeyError, IndexError, ValueError):
+        return text
 
 
 # What the sub-label under each bar carries: the clock the window resets at,
@@ -2920,6 +3297,24 @@ def fetch_claude_code_profile(force=False):
     _CC_PROFILE_CACHE.clear()
     _CC_PROFILE_CACHE[tail] = prof
     return prof
+
+
+def cc_http(url, headers):
+    """The transport cc_accounts checks a profile with.
+
+    Handed in rather than built there, so that module needs no network of its
+    own and a bench can answer whatever it wants to try. It is the same curl
+    path everything else uses: schannel, so Cloudflare sees a browser's TLS
+    fingerprint, with the same redaction of anything curl prints.
+    """
+    try:
+        headers_out, body = _curl_call(url, None, timeout=15,
+                                       retry_transient=False,
+                                       headers=tuple(headers))
+    except Exception as e:
+        wlog(f'CC     check could not be made: {_redact(str(e))}')
+        return None, ''
+    return _http_status(headers_out), body
 
 
 def claude_code_status():
@@ -8225,6 +8620,78 @@ class Widget:
         card(t('auth_claude_code'), state, actions, linked,
              tip=t('tip_cc_expires') if linked else None)
 
+        # ── the saved OAuth profile of this account, if it has one ──
+        #
+        # A different thing from the card above. That one says whether the
+        # widget READS this account through the login on this machine; this one
+        # is about the snapshot of that login kept on disk, which is what a
+        # switch moves onto. They are often in different states: an account can
+        # be read through a login that belongs to somebody else, and it can
+        # have a snapshot while not being the one signed in.
+        saved_state = self._cc_state()
+        profile = self._cc_profile_for(acc, saved_state)
+        if profile:
+            word, colour, judgement = self._cc_verdict_text(profile)
+            box = tk.Frame(body, bg=BAR_BG)
+            box.pack(fill='x', pady=(0, 8))
+            inner = tk.Frame(box, bg=BAR_BG)
+            inner.pack(fill='x', padx=12, pady=10)
+            line = tk.Frame(inner, bg=BAR_BG)
+            line.pack(fill='x')
+            tk.Label(line, text=t('cc_ui_section'), font=FT_DLG_BTN_B, fg=FG,
+                     bg=BAR_BG, anchor='w').pack(side='left')
+            mark = word if not profile.get('active') else \
+                f"{word} · {t('cc_ui_signed_in_here')}"
+            tk.Label(line, text=mark, font=FT_DLG_HINT, fg=colour, bg=BAR_BG,
+                     anchor='e').pack(side='right')
+
+            said = cc_say(judgement) if judgement else ''
+            if said:
+                tk.Label(inner, text=said, font=FT_DLG_HINT, fg=DIM, bg=BAR_BG,
+                         anchor='w', justify='left',
+                         wraplength=dw - self.dp(72)).pack(fill='x', pady=(6, 0))
+            fix = cc_say(judgement, 'remedy') if judgement else ''
+            if fix and judgement['kind'] != cc_accounts.GOOD:
+                tk.Label(inner, text=fix, font=FT_DLG_HINT, fg=CLAUDE_TEXT,
+                         bg=BAR_BG, anchor='w', justify='left',
+                         wraplength=dw - self.dp(72)).pack(fill='x', pady=(4, 0))
+
+            facts = tk.Frame(inner, bg=BAR_BG)
+            facts.pack(fill='x', pady=(8, 0))
+            for label, value in (
+                    (t('cc_ui_renewal'),
+                     pretty_date(profile['refresh_expires'].isoformat(), True)
+                     if profile.get('refresh_expires') else ''),
+                    (t('cc_ui_saved_at'),
+                     f"{datetime.fromtimestamp(profile['saved_at']):%d/%m/%Y %H:%M}"
+                     if profile.get('saved_at') else ''),
+                    # The fingerprint, never the token: enough to tell two
+                    # snapshots apart, useless to anyone who reads it.
+                    (t('cc_ui_fingerprint'), profile.get('refresh_print', ''))):
+                if value:
+                    r = tk.Frame(facts, bg=BAR_BG)
+                    r.pack(fill='x', pady=1)
+                    tk.Label(r, text=label, font=FT_DLG_HINT, fg=DIM, bg=BAR_BG,
+                             anchor='w', width=18).pack(side='left')
+                    tk.Label(r, text=value, font=FT_DLG_HINT, fg=FG, bg=BAR_BG,
+                             anchor='w').pack(side='left')
+
+            gestures = tk.Frame(inner, bg=BAR_BG)
+            gestures.pack(fill='x', pady=(10, 0))
+            if not profile.get('active'):
+                self._small_pill(
+                    gestures, t('cc_ui_switch'),
+                    lambda n=profile['name']: close_and(
+                        lambda: self._cc_switch_dialog(n, rebuild))
+                ).pack(side='left', padx=(0, 6))
+            else:
+                # The account in use: what it can want is a snapshot that is
+                # in step, which is the remedy to the one warning it can carry.
+                self._small_pill(
+                    gestures, t('cc_ui_save_snapshot'),
+                    lambda n=profile['name']: self._cc_save_snapshot(
+                        n, reopen, status_lbl)).pack(side='left', padx=(0, 6))
+
         def drop_key():
             if not acc.get('cc_linked'):
                 self._confirm_dialog(t('dlg_last_credential_title'),
@@ -8251,6 +8718,215 @@ class Widget:
 
         self._place_dialog(dlg, dw, dh_floor=dh)
 
+
+    # ── Claude Code accounts: the saved OAuth profiles ─────────────────────
+    def _cc_state(self):
+        """The saved profiles and the live login, from one read of the disk.
+
+        Never raises: a store that is not there, or a file somebody has been
+        editing, is one of the answers this window has to be able to show.
+        """
+        try:
+            return cc_accounts.state()
+        except Exception as e:
+            wlog(f'CC     could not read the profiles: {_redact(str(e))}')
+            return None
+
+    def _cc_profile_for(self, acc, st=None):
+        """The saved profile of a widget account, matched by ORGANIZATION.
+
+        Not by name: names are chosen by hand on two sides that do not know
+        about each other, and a map of names ages on its own.
+        """
+        if st is None:
+            st = self._cc_state()
+        if not st or not acc.get('org_id'):
+            return None
+        return cc_accounts.find_profile_for_org(acc['org_id'], st['profiles'])
+
+    def _cc_verdict_text(self, profile):
+        """The one-word verdict, and the sentence under it."""
+        words = {cc_accounts.GOOD: t('cc_ui_verdict_good'),
+                 cc_accounts.BAD: t('cc_ui_verdict_bad'),
+                 cc_accounts.UNKNOWN: t('cc_ui_verdict_unknown')}
+        colours = {cc_accounts.GOOD: DOT_GREEN, cc_accounts.BAD: RED,
+                   cc_accounts.UNKNOWN: ORANGE}
+        worst = profile.get('verdict', cc_accounts.UNKNOWN)
+        # The judgement worth reading is the one that decided the verdict; a
+        # warning beside a good verdict still deserves its line.
+        speak = [j for j in profile.get('judgements', [])
+                 if j['kind'] == worst] or profile.get('judgements', [])
+        return words.get(worst, ''), colours.get(worst, DIM), speak[0] if speak else None
+
+    def _cc_switch_dialog(self, name, rebuild=None):
+        """Move Claude Code onto a saved profile, saying what is happening.
+
+        The order is the one the whole design turns on: check first, refuse a
+        profile that cannot work BEFORE anything is written, ask about one that
+        cannot be checked instead of refusing it, and only then swap. The
+        button goes quiet while it works, because a window that sits still for
+        four seconds reads as "nothing happened".
+        """
+        dw, dh = self._dlg_size(470, 250)
+        dlg, body = self._build_dialog_frame(
+            t('cc_ui_switch_to').format(name=name), dw, dh, key='cc_switch')
+        st = {'busy': False, 'knowingly': False, 'done': False}
+
+        bottom = tk.Frame(body, bg=BG)
+        bottom.pack(fill='x', side='bottom')
+        tk.Frame(bottom, bg=BAR_BG, height=1).pack(fill='x', pady=(14, 12))
+        buttons = tk.Frame(bottom, bg=BG)
+        buttons.pack(fill='x')
+
+        head = tk.Label(body, text=t('cc_ui_checking'), font=FT_DLG_BTN_B,
+                        fg=FG, bg=BG, anchor='w', justify='left',
+                        wraplength=dw - self.dp(48))
+        head.pack(fill='x')
+        detail = tk.Label(body, text='', font=FT_DLG_HINT, fg=DIM, bg=BG,
+                          anchor='w', justify='left',
+                          wraplength=dw - self.dp(48))
+        detail.pack(fill='x', pady=(8, 0))
+        extra = tk.Label(body, text='', font=FT_DLG_HINT, fg=DIM, bg=BG,
+                         anchor='w', justify='left',
+                         wraplength=dw - self.dp(48))
+
+        def show(title, title_fg, note='', more=''):
+            if not dlg.winfo_exists():
+                return
+            head.config(text=title, fg=title_fg)
+            detail.config(text=note)
+            if more:
+                extra.config(text=more)
+                extra.pack(fill='x', pady=(10, 0))
+            else:
+                extra.pack_forget()
+            self._place_dialog(dlg, dw, dh_floor=dh)
+
+        def close():
+            try:
+                dlg.destroy()
+            except tk.TclError:
+                pass
+            if rebuild:
+                rebuild()
+
+        def render_buttons(primary_label=None, primary_cmd=None, closing=False):
+            for w in buttons.winfo_children():
+                w.destroy()
+            self._secondary_pill(
+                buttons, t('cc_ui_close') if closing else t('dlg_cancel'),
+                close).pack(side='left')
+            if primary_label:
+                self._primary_pill(buttons, primary_label, primary_cmd,
+                                   enabled=not st['busy']).pack(side='right')
+
+        def work():
+            try:
+                result = cc_accounts.switch(name, knowingly=st['knowingly'],
+                                            check=cc_http)
+            except Exception as e:
+                wlog(f'CC     switch raised: {_redact(str(e))}')
+                result = {'done': False, 'asks': False,
+                          'judgement': cc_accounts.verdict(
+                              cc_accounts.BAD, 'cc_j_file_unreadable',
+                              {'path': cc_accounts.cred_file(), 'why': str(e)},
+                              'cc_r_try_again')}
+            try:
+                self.root.after(0, lambda: finish(result))
+            except (tk.TclError, RuntimeError) as e:
+                # The window or the interpreter has gone while we were away.
+                # Logged rather than passed over in silence: a hop back to the
+                # interface that is dropped leaves a dialog frozen on
+                # "checking", and without this line there is nothing to find.
+                wlog(f'CC     could not report back: {_redact(str(e))}')
+
+        def finish(result):
+            st['busy'] = False
+            if not dlg.winfo_exists():
+                return
+            judgement = result.get('judgement') or {}
+            note = cc_say(judgement)
+            remedy = cc_say(judgement, 'remedy')
+
+            if result.get('done'):
+                st['done'] = True
+                moved = self._cc_adopt_display(name)
+                # Two different things are true, and they are said apart: who
+                # Claude Code authenticates as, and what the widget is showing.
+                lines = [t('cc_ui_now_cc').format(name=name)]
+                if moved:
+                    lines.append(t('cc_ui_now_widget').format(
+                        name=moved.get('name') or name))
+                show(note or t('cc_j_switched').format(name=name), DOT_GREEN,
+                     '\n'.join(lines), t('cc_r_applies_at_once'))
+                render_buttons(closing=True)
+                return
+
+            if result.get('asks'):
+                # Not refused: it could not be checked, which is a different
+                # thing, and the user is the one who decides.
+                show(note, ORANGE, remedy)
+
+                def proceed():
+                    st['knowingly'] = True
+                    start()
+
+                render_buttons(t('cc_ui_proceed'), proceed)
+                return
+
+            show(note, RED, remedy)
+            render_buttons(closing=True)
+
+        def start():
+            st['busy'] = True
+            show(t('cc_ui_checking'), FG,
+                 t('cc_ui_saving_out') + ' ' + t('cc_ui_switching'))
+            render_buttons()
+            threading.Thread(target=work, daemon=True).start()
+
+        start()
+        self._place_dialog(dlg, dw, dh_floor=dh)
+
+    def _cc_adopt_display(self, profile_name):
+        """Show the account that has just become the signed-in one.
+
+        Whoever changes the account in Claude Code almost always wants to watch
+        that account's usage next. It is done openly and named in the panel,
+        because the silent version of this is exactly the confusion issue #11
+        was filed about.
+        """
+        try:
+            data, failure = cc_accounts.read_profile(profile_name)
+            org = None if failure else data.get('organizationUuid')
+        except Exception:
+            org = None
+        acc = find_account_by_org(self.cfg, org) if org else None
+        if acc and acc.get('id') != self.cfg.get('active_account'):
+            self._switch_account(acc.get('id'))
+        return acc
+
+    def _cc_save_snapshot(self, name, on_done=None, status=None):
+        """Re-photograph the account signed in now, under `name`."""
+        def work():
+            try:
+                cc_accounts.save_profile(name)
+                err = None
+            except Exception as e:
+                err = _redact(str(e))
+
+            def apply():
+                if status is not None and status.winfo_exists():
+                    status.config(text=err or '', fg=RED)
+                if not err and on_done:
+                    on_done()
+            try:
+                self.root.after(0, apply)
+            except (tk.TclError, RuntimeError):
+                pass
+
+        if status is not None:
+            status.config(text=t('dlg_verifying'), fg=BLUE)
+        threading.Thread(target=work, daemon=True).start()
 
     def _account_row(self, parent, acc, rebuild, cc_org=None):
         """One account in the list.
@@ -8280,6 +8956,22 @@ class Widget:
                                    lambda: self._account_details_dialog(acc, rebuild))
         btn.pack(side='right', padx=(6, 8))
         cells.append(btn)
+
+        # Beside it, the one gesture worth reaching without opening the page:
+        # move Claude Code onto this account. It appears only when there is
+        # something to move onto, and not on the account already signed in,
+        # where it would do nothing.
+        profile = self._cc_profile_for(acc, getattr(self, '_cc_saved', None))
+        if profile and not profile.get('active'):
+            switch_btn = self._secondary_pill(
+                row, t('cc_ui_switch'),
+                lambda n=profile['name']: self._cc_switch_dialog(n, rebuild))
+            switch_btn.pack(side='right', padx=(0, 0))
+            cells.append(switch_btn)
+            word, colour, judgement = self._cc_verdict_text(profile)
+            self._tooltip(switch_btn, '\n'.join(
+                x for x in (t('cc_ui_switch_to').format(name=profile['name']),
+                            cc_say(judgement) if judgement else '') if x))
 
         txt = tk.Frame(row, bg=base)
         txt.pack(side='left', fill='x', expand=True)
@@ -8324,7 +9016,9 @@ class Widget:
 
 
     def _accounts_dialog(self):
-        dw, dh = self._dlg_size(480, 150)
+        # Wider than it was: each row now carries a second control, and in
+        # Italian and Japanese the two labels together need the room.
+        dw, dh = self._dlg_size(540, 150)
         # dh is just a floor; the dialog is resized to fit the list on every
         # rebuild (fit) so the height grows with the account count and the Add
         # button below the list stays visible without a cap or scrolling.
@@ -8370,6 +9064,9 @@ class Widget:
             # save: by then this list is gone.
             if not list_frame.winfo_exists():
                 return
+            # One read of the profiles for the whole list, not one per row: two
+            # rows built from two reads could describe two different instants.
+            self._cc_saved = self._cc_state()
             for w in list_frame.winfo_children():
                 w.destroy()
             accounts = self.cfg.get('accounts', [])
