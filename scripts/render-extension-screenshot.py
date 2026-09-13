@@ -25,7 +25,7 @@ EDGE_CANDIDATES = [
 
 # Final canvas (Chrome Web Store accepts 1280x800 or 640x400).
 W, H = 1280, 800
-# Popup native width is 340 px. It grew taller in 1.2.0 (larger text, the
+# Popup native width is 440 px. It grew taller in 1.2.0 (larger text, the
 # expiry line and the widget link), and at 2.5 it touched the frame's top
 # and bottom edges; 2.1 leaves a margin all round.
 ZOOM = 2.1
@@ -95,7 +95,7 @@ html, body {{
 
 .popup {{
   /* Reset the popup's natural body padding/width via a wrapper. */
-  width: 340px;
+  width: 440px;
   background: var(--bg);
   color: var(--fg);
   padding: 18px;

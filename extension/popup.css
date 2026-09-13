@@ -13,8 +13,11 @@
   /* The brand accent, and a lighter step of it for text on the dark ground
      (the base accent measures 5.4:1 there, the lighter one 7.1:1). */
   --accent:    #DA7756;
-  --accent-hv: #E48A69;
   --accent-tx: #E8956F;
+  /* Filled pills carry white text, and white on #DA7756 measures only 3.1:1:
+     the fill is a step deeper so the label clears 4.5:1. */
+  --accent-fill:    #BC5A37;
+  --accent-fill-hv: #A94F30;
   --red:       #E85858;
   --orange:    #E8A838;
   --radius-lg: 12px;
@@ -25,8 +28,11 @@
 
 html { color-scheme: dark; }
 
+/* Wide enough for every hint to sit on one line in every language. The
+   longest, the Italian paste hint, measures 381px at 13px; with the padding
+   that is 417px, and 440 leaves room for how Chrome actually renders it. */
 body {
-  width: 340px;
+  width: 440px;
   font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
   background: var(--bg);
   color: var(--fg);
@@ -48,7 +54,9 @@ h1 img { width: 22px; height: 22px; display: block; }
   font-size: 14px;
   font-weight: 500;
   padding: 11px 14px;
-  border-radius: var(--radius-lg);
+  /* A pill on one line (half of its 44px height); a longer message that
+     wraps keeps soft corners instead of turning into a capsule. */
+  border-radius: 22px;
   margin-bottom: 12px;
   display: flex;
   align-items: center;
@@ -124,11 +132,10 @@ h1 img { width: 22px; height: 22px; display: block; }
 .btn:focus-visible { outline: none;
                      box-shadow: 0 0 0 3px rgba(232, 149, 111, 0.35); }
 
-/* Dark text on the accent: white on #DA7756 measures 3.1:1, dark 5.4:1. */
 .btn-primary,
-.btn-copy { background: var(--accent); color: var(--bg); }
+.btn-copy { background: var(--accent-fill); color: #ffffff; }
 .btn-primary:hover,
-.btn-copy:hover { background: var(--accent-hv); }
+.btn-copy:hover { background: var(--accent-fill-hv); }
 .btn-copy.copied { background: var(--bg3); color: var(--accent-tx);
                    box-shadow: inset 0 0 0 1px var(--bar); }
 .btn-copy.copied:focus-visible { box-shadow: inset 0 0 0 1px var(--bar),
