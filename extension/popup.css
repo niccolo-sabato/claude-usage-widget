@@ -2,78 +2,68 @@
 
 :root {
   --bg:        #1e1e1c;
-  --bg2:       #262624;
-  --bg3:       #2c2c2a;
-  --bar:       #3a3a38;
-  --fg:        #e4e4e4;
-  /* Secondary text. Near white rather than grey: at the popup's small sizes
-     the old #7a7a78 measured 3.9:1 against the background, below what small
-     text needs to be read comfortably. This is 11:1. */
-  --soft:      #d4d2ce;
-  /* The brand accent, and a lighter step of it for text on the dark ground
-     (the base accent measures 5.4:1 there, the lighter one 7.1:1). */
-  --accent:    #DA7756;
-  --accent-tx: #E8956F;
-  /* Filled pills carry white text, and white on #DA7756 measures only 3.1:1:
-     the fill is a step deeper so the label clears 4.5:1. */
+  --surface:   #262624;
+  --surface-2: #2e2e2c;
+  --border:    #363634;
+  --fg:        #e8e7e4;
+  /* Secondary text: clearly below the primary, still easy to read. The
+     original #7a7a78 measured 3.9:1 against the background; this is 9:1. */
+  --soft:      #c4c2be;
+  /* The accent as text on the dark ground (7.1:1), and the deeper step used
+     for filled pills, where white needs 4.5:1 and #DA7756 gives only 3.1. */
+  --accent-tx:      #E8956F;
   --accent-fill:    #BC5A37;
   --accent-fill-hv: #A94F30;
-  --red:       #E85858;
+  --red:       #F07A7A;
   --orange:    #E8A838;
-  --radius-lg: 12px;
-  --radius-md: 10px;
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
 html { color-scheme: dark; }
 
-/* Wide enough for every hint to sit on one line in every language. The
-   longest, the Italian paste hint, measures 381px at 13px; with the padding
-   that is 417px, and 440 leaves room for how Chrome actually renders it. */
+/* Wide enough for every line to stay on one line in every language; the
+   longest, the Italian paste hint, is measured in the harness at this size. */
 body {
-  width: 440px;
+  width: 392px;
   font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-size: 13px;
   background: var(--bg);
   color: var(--fg);
-  padding: 18px;
-  line-height: 1.45;
+  padding: 14px 16px 16px;
+  line-height: 1.4;
 }
 
 h1 {
-  font-size: 16px;
-  font-weight: 600;
-  margin-bottom: 14px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-h1 img { width: 22px; height: 22px; display: block; }
-
-.status {
   font-size: 14px;
-  font-weight: 500;
-  padding: 11px 14px;
-  /* A pill on one line (half of its 44px height); a longer message that
-     wraps keeps soft corners instead of turning into a capsule. */
-  border-radius: 22px;
+  font-weight: 600;
   margin-bottom: 12px;
   display: flex;
   align-items: center;
-  gap: 10px;
-  min-height: 44px;
+  gap: 8px;
 }
-.status.loading  { background: var(--bg3); color: var(--soft); }
-/* Found: a quiet surface with the accent on the mark, not a green block. */
-.status.success  { background: var(--bg2); color: var(--fg);
-                   box-shadow: inset 0 0 0 1px var(--bar); }
+h1 img { width: 18px; height: 18px; display: block; }
+
+.status {
+  font-size: 13px;
+  font-weight: 500;
+  padding: 7px 14px;
+  border-radius: 999px;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+}
+.status.loading  { background: var(--surface); color: var(--soft); }
+.status.success  { background: var(--surface); color: var(--fg); }
 .status.success .status-icon { color: var(--accent-tx); }
-.status.error    { background: #2e1a1a; color: #F07A7A; }
-.status.warning  { background: #2e2a1a; color: var(--orange); }
+.status.error    { background: #2e1c1c; color: var(--red); }
+.status.warning  { background: #2e2a1c; color: var(--orange); }
 
 .spinner {
-  width: 15px; height: 15px;
-  border: 2px solid var(--bar);
+  width: 13px; height: 13px;
+  border: 2px solid var(--border);
   border-top-color: var(--soft);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
@@ -82,79 +72,75 @@ h1 img { width: 22px; height: 22px; display: block; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 .status-icon {
-  font-size: 15px;
+  font-size: 13px;
   line-height: 1;
   flex-shrink: 0;
 }
 
 .key-box {
-  background: var(--bg2);
-  border: 1px solid var(--bar);
-  border-radius: var(--radius-md);
-  padding: 9px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 7px 12px;
   font-family: 'Cascadia Code', 'Consolas', 'Courier New', monospace;
-  font-size: 12px;
+  font-size: 11.5px;
+  line-height: 1.45;
   color: var(--accent-tx);
   word-break: break-all;
-  max-height: 64px;
+  max-height: 58px;
   overflow-y: auto;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
   user-select: all;
   -webkit-user-select: all;
 }
 
 .expiry-note {
-  font-size: 13px;
+  font-size: 12.5px;
   color: var(--soft);
-  margin-bottom: 14px;
+  margin-bottom: 12px;
   text-align: center;
 }
 .expiry-note.warning { color: var(--orange); }
-.expiry-note.error   { color: #F07A7A; }
+.expiry-note.error   { color: var(--red); }
 
-/* Pills, the same shape as the widget's own buttons. */
+/* Pills, the same shape as the widget's own buttons, at the height of a
+   standard compact control. */
 .btn {
   display: block;
   width: 100%;
-  padding: 11px 16px;
+  height: 36px;
+  padding: 0 16px;
   border: none;
   border-radius: 999px;
   font-family: inherit;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
   cursor: pointer;
   transition: background 0.15s, color 0.15s, transform 0.08s;
 }
-.btn:active { transform: scale(0.98); }
-/* The popup focuses the copy button as it opens, so the focus mark is on
-   screen from the first frame: a soft halo reads as part of the pill, where
-   an offset outline drew a second ring around it. */
-.btn:focus-visible { outline: none;
-                     box-shadow: 0 0 0 3px rgba(232, 149, 111, 0.35); }
+.btn:active { transform: scale(0.985); }
+.btn:focus-visible { outline: 2px solid var(--accent-tx); outline-offset: 2px; }
 
 .btn-primary,
 .btn-copy { background: var(--accent-fill); color: #ffffff; }
 .btn-primary:hover,
 .btn-copy:hover { background: var(--accent-fill-hv); }
-.btn-copy.copied { background: var(--bg3); color: var(--accent-tx);
-                   box-shadow: inset 0 0 0 1px var(--bar); }
-.btn-copy.copied:focus-visible { box-shadow: inset 0 0 0 1px var(--bar),
-                                 0 0 0 3px rgba(232, 149, 111, 0.35); }
+.btn-copy.copied { background: var(--surface-2); color: var(--accent-tx); }
 
 .hint {
-  font-size: 13px;
+  font-size: 12px;
   color: var(--soft);
-  margin-top: 12px;
+  margin-top: 10px;
   text-align: center;
 }
-.hint + .hint { margin-top: 6px; }
+.hint + .hint { margin-top: 3px; }
 .hint a { color: var(--accent-tx); text-decoration: none; font-weight: 600;
-          white-space: nowrap; }  /* in Japanese it broke mid-word */
+          white-space: nowrap; }
 .hint a:hover { text-decoration: underline; }
 
 kbd {
-  background: var(--bg2);
-  border: 1px solid var(--bar);
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-bottom-width: 2px;
   border-radius: 4px;
   padding: 1px 5px;

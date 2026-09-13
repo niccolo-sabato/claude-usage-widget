@@ -141,7 +141,8 @@ async function loadKey() {
   show(EL.keyBox);
   renderExpiry(result.expirationDate);
   show(EL.btnCopy);
-  EL.btnCopy.focus({ preventScroll: true });
+  // No programmatic focus: it drew the focus ring round the button the moment
+  // the popup opened. Enter still copies, from the document-level handler.
 }
 
 /* ─── Clipboard ───────────────────────────────────── */
