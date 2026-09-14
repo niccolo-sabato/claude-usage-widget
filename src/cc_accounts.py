@@ -32,12 +32,20 @@ Each of these came from a failure with a date, and the tests in
     works, by the very act of using it. What can be out of date is its
     snapshot, and that is a warning with a remedy, not a broken account.
 
-4.  The refresh token ROTATES on every renewal, which happens by itself every
-    few hours of work. So "testing" a profile by refreshing it does not verify
-    it, it replaces it, leaving the saved profile holding a token the server
-    has already retired. Verification here therefore uses the profile's own
-    ACCESS token against a read-only endpoint, and when that token has expired
-    the honest answer is UNKNOWN.
+4.  Two tokens, and only one of them decides anything. The RENEWAL lasts weeks
+    and is what a switch actually uses; the short one lasts about eight hours
+    and is renewed only for the account Claude Code is signed in as, so in
+    every other saved profile it is expired almost all the time. A profile is
+    therefore judged on its renewal date. The short token is used, when it
+    happens to still be good, for a free read-only confirmation against the
+    server - and when it is not, nothing is asked: a check that could not be
+    made says nothing about the credential, and turning it into a question put
+    one in front of the user on every switch, about a token they have never
+    heard of and could do nothing about.
+
+    Refreshing to test is not an option: the renewal ROTATES when used, so the
+    test would replace the very thing it was testing and leave the saved
+    profile holding a token the server has already retired.
 
 5.  The identity is the organization. Not the email, which lives in a display
     cache that lags behind a login, and not the profile name, which changes.
@@ -547,9 +555,24 @@ def check_alive(name, call):
                 'org': None, 'email': None}
     at, at_expired, _ = when(oauth.get('expiresAt'))
     if at_expired:
-        return {'judgement': verdict(UNKNOWN, 'cc_j_cannot_check_access_expired',
-                                     {'when': at}, 'cc_r_proceed_or_refresh'),
-                'org': None, 'email': None}
+        # 🔴 The NORMAL state of any snapshot more than a few hours old, and
+        # not a problem. The short token in a saved profile is frozen at the
+        # moment it was taken: only the account Claude Code is signed in as
+        # gets its one renewed, so every other profile's expires within about
+        # eight hours and stays expired. Measured on 2026-09-14: one profile
+        # stale by 24 minutes, the other still good for 5.7 hours, both with
+        # renewals valid for nearly a month.
+        #
+        # So this is a check that could not be MADE, not a doubt about the
+        # credential: what a switch actually uses is the renewal, and that is
+        # judged from its own expiry date. Reported as skipped, and callers
+        # must not turn it into a question - asking the user something they
+        # have no way of answering, about a token they have never heard of,
+        # every single time, is worse than not asking at all.
+        rt, _, _ = when(oauth.get('refreshTokenExpiresAt'))
+        return {'judgement': verdict(UNKNOWN, 'cc_j_not_checked_stale',
+                                     {'when': at, 'renewal': rt}),
+                'skipped': True, 'org': None, 'email': None}
 
     code, body = call(PROFILE_URL, (f'Authorization: Bearer {token}',
                                     'anthropic-beta: oauth-2025-04-20'))
@@ -810,15 +833,18 @@ def switch(name, *, knowingly=False, check=None):
     if bad:
         return {'done': False, 'asks': False, 'judgement': bad[0]}
 
-    # The live check, when the caller gave us a way to make it.
+    # The live check, when the caller gave us a way to make it. It can only
+    # ever say NO: a credential the server refuses stops the switch, and
+    # anything else - a check that could not be made, a network that is not
+    # there, a rate limit - is not a reason to interrupt. The switch does not
+    # need the network; the renewal in the profile is what it uses, and that
+    # has already been judged above from its own expiry date.
     checked = None
     if check is not None:
         checked = check_alive(name, check)
         if checked['judgement']['kind'] == BAD:
             return {'done': False, 'asks': False, 'judgement': checked['judgement'],
                     'checked': checked}
-        if checked['judgement']['kind'] == UNKNOWN:
-            judgements = judgements + [checked['judgement']]
 
     unsure = [j for j in judgements if j['kind'] == UNKNOWN]
     if unsure and not knowingly:
@@ -845,7 +871,10 @@ def switch(name, *, knowingly=False, check=None):
                 saved_out = other
                 break
         if saved_out is None:
-            saved_out = '_auto-' + time.strftime('%Y%m%d-%H%M%S')
+            # Not '_auto-': valid_name refuses a leading underscore, so
+            # the parking name our own rule rejects made every switch
+            # from an account with no saved profile fail at the last step.
+            saved_out = 'auto-' + time.strftime('%Y%m%d-%H%M%S')
         try:
             save_profile(saved_out, current, call=check)
         except (ValueError, OSError) as e:

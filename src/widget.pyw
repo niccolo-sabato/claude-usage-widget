@@ -239,7 +239,7 @@ BAR_DEFAULT_FILL = {'session': BAR_FILL_SESSION,
 BAR_PRESETS = [BAR_FILL_SESSION, BAR_FILL_WEEKLY, BAR_FILL_HIGH, BAR_FILL_PURPLE]
 
 # ─── App ────────────────────────────────────────────
-APP_VERSION = '2.10.0-test3'
+APP_VERSION = '2.10.0-test4'
 
 # ─── Auto-update ────────────────────────────────────
 UPDATE_REPO = 'niccolo-sabato/claude-usage-widget'
@@ -1441,7 +1441,7 @@ CC_LANG = {
         'cc_j_archive_failed': 'Could not archive it: {why}',
         'cc_j_archived': '{name} is archived.',
         'cc_j_bad_name': '"{name}" is not a name a folder can take.',
-        'cc_j_cannot_check_access_expired': 'I cannot check this one: its access token expired on {when}, and checking any other way would use up the renewal.',
+        'cc_j_not_checked_stale': 'Not checked against Claude just now, which is normal for an account you are not signed in as. What the switch uses is this profile’s renewal, valid until {renewal}.',
         'cc_j_checked_alive': 'Checked: the credentials work, and they are {email}.',
         'cc_j_file_corrupt': 'This file is not valid JSON: {path}',
         'cc_j_file_missing': 'This file is not there: {path}',
@@ -1486,7 +1486,6 @@ CC_LANG = {
         'cc_r_nothing_to_do': 'Nothing to do.',
         'cc_r_pick_another_name': 'Pick another name.',
         'cc_r_pick_existing': 'Pick one of the saved profiles.',
-        'cc_r_proceed_or_refresh': 'You can switch anyway, or sign in with that account first and save it again.',
         'cc_r_resave_while_active': 'Save this profile again while that account is the one signed in.',
         'cc_r_restore_from_backup': 'Put the previous file back from the backups folder.',
         'cc_r_save_current': 'Save the account signed in now, so that it has a profile of its own.',
@@ -1551,7 +1550,7 @@ CC_LANG = {
         'cc_j_archive_failed': 'Non sono riuscito ad archiviarlo: {why}',
         'cc_j_archived': '{name} e archiviato.',
         'cc_j_bad_name': '"{name}" non e un nome che una cartella possa avere.',
-        'cc_j_cannot_check_access_expired': 'Questo non posso verificarlo: il suo token di accesso e scaduto il {when}, e controllarlo in altro modo consumerebbe il rinnovo.',
+        'cc_j_not_checked_stale': 'Non verificato su Claude adesso, ed e normale per un conto con cui non sei autenticato. Quello che il passaggio usa e il rinnovo di questo profilo, valido fino al {renewal}.',
         'cc_j_checked_alive': 'Verificato: le credenziali funzionano, e sono di {email}.',
         'cc_j_file_corrupt': 'Questo file non e un JSON valido: {path}',
         'cc_j_file_missing': 'Questo file non c’e: {path}',
@@ -1595,7 +1594,6 @@ CC_LANG = {
         'cc_r_nothing_to_do': 'Non c’e niente da fare.',
         'cc_r_pick_another_name': 'Scegli un altro nome.',
         'cc_r_pick_existing': 'Scegli uno dei profili salvati.',
-        'cc_r_proceed_or_refresh': 'Puoi passare lo stesso, oppure accedere prima con quel conto e risalvarlo.',
         'cc_r_resave_while_active': 'Risalva questo profilo mentre quel conto e quello autenticato.',
         'cc_r_restore_from_backup': 'Rimetti il file precedente dalla cartella delle copie.',
         'cc_r_save_current': 'Salva il conto autenticato adesso, cosi avra un profilo suo.',
@@ -1656,7 +1654,7 @@ CC_LANG = {
         'cc_j_archive_failed': 'アーカイブできませんでした: {why}',
         'cc_j_archived': '{name} をアーカイブしました。',
         'cc_j_bad_name': '「{name}」はフォルダー名として使えません。',
-        'cc_j_cannot_check_access_expired': 'これは確認できません。アクセストークンが {when} に期限切れで、別の方法で確認すると更新トークンを消費してしまいます。',
+        'cc_j_not_checked_stale': '今は Claude に確認していません。サインインしていないアカウントでは普通のことです。切り替えに使うのはこのプロファイルの更新有効期限で、{renewal} まで有効です。',
         'cc_j_checked_alive': '確認しました。認証情報は有効で、{email} のものです。',
         'cc_j_file_corrupt': 'このファイルは正しい JSON ではありません: {path}',
         'cc_j_file_missing': 'このファイルがありません: {path}',
@@ -1700,7 +1698,6 @@ CC_LANG = {
         'cc_r_nothing_to_do': '何もする必要はありません。',
         'cc_r_pick_another_name': '別の名前にしてください。',
         'cc_r_pick_existing': '保存済みのプロファイルから選んでください。',
-        'cc_r_proceed_or_refresh': 'そのまま切り替えることもできますし、先にそのアカウントでサインインして保存し直すこともできます。',
         'cc_r_resave_while_active': 'そのアカウントでサインインしている間に、このプロファイルを保存し直してください。',
         'cc_r_restore_from_backup': 'バックアップのフォルダーから直前のファイルを戻してください。',
         'cc_r_save_current': '今サインインしているアカウントを保存して、専用のプロファイルを作ってください。',
@@ -8884,6 +8881,12 @@ class Widget:
                 if moved:
                     lines.append(t('cc_ui_now_widget').format(
                         name=moved.get('name') or name))
+                # Say it only when it is true. The check is made when the
+                # profile still carries a short token that has not expired,
+                # which is a matter of the clock, not of the account.
+                verified = (result.get('checked') or {}).get('judgement') or {}
+                if verified.get('kind') == cc_accounts.GOOD:
+                    lines.append(cc_say(verified))
                 show(note or t('cc_j_switched').format(name=name), DOT_GREEN,
                      '\n'.join(lines), t('cc_r_applies_at_once'))
                 render_buttons(closing=True)
@@ -8906,8 +8909,10 @@ class Widget:
 
         def start():
             st['busy'] = True
-            show(t('cc_ui_checking'), FG,
-                 t('cc_ui_saving_out') + ' ' + t('cc_ui_switching'))
+            # Not "checking": the check only happens when the profile's short
+            # token is still good, and promising it every time would be a
+            # sentence that is usually false.
+            show(t('cc_ui_switching'), FG, t('cc_ui_saving_out'))
             render_buttons()
             threading.Thread(target=work, daemon=True).start()
 
@@ -9107,7 +9112,7 @@ class Widget:
         # Which account Claude Code is signed in as on this machine. It is a
         # fact about the computer, not about the widget, so it sits above the
         # list rather than on any single row.
-        st = {'cc_org': None}
+        st = {'probed_org': None}
         cc_lbl = tk.Label(body, text=t('cc_here_checking'), font=FT_DLG_HINT,
                           fg=DIM, bg=BG, anchor='w')
         cc_lbl.pack(fill='x', pady=(0, 10))
@@ -9124,6 +9129,12 @@ class Widget:
             # One read of the profiles for the whole list, not one per row: two
             # rows built from two reads could describe two different instants.
             self._cc_saved = self._cc_state()
+            # The badge saying which account Claude Code is signed in as comes
+            # from the SAME read that decides whether the row offers a switch.
+            # It used to come from a network probe made once when the window
+            # opened, so after a switch the button moved and the badge stayed
+            # where it was until the window was closed and opened again.
+            live_org = ((self._cc_saved or {}).get('live') or {}).get('org')
             for w in list_frame.winfo_children():
                 w.destroy()
             accounts = self.cfg.get('accounts', [])
@@ -9131,9 +9142,13 @@ class Widget:
                 tk.Label(list_frame, text=t('dlg_no_accounts'), font=FT_DLG_BODY,
                          fg=DIM, bg=BG, anchor='w').pack(fill='x', padx=8, pady=10)
             for acc in accounts:
-                self._account_row(list_frame, acc, rebuild, st['cc_org'])
+                self._account_row(list_frame, acc, rebuild, live_org)
             self._place_dialog(dlg, dw)
-        rebuild()
+            # The line above the list carries the email, which only the server
+            # can give: ask again whenever the account underneath has changed.
+            if live_org and live_org != st['probed_org']:
+                st['probed_org'] = live_org
+                threading.Thread(target=probe_cc, daemon=True).start()
 
         def probe_cc():
             prof = claude_code_status()
@@ -9141,13 +9156,8 @@ class Widget:
             def apply():
                 if not cc_lbl.winfo_exists():
                     return
-                if prof:
-                    st['cc_org'] = prof.get('org_id')
-                    cc_lbl.config(text=t('cc_here').format(
-                        email=prof.get('email') or '?'))
-                else:
-                    cc_lbl.config(text=t('cc_here_none'))
-                rebuild()
+                cc_lbl.config(text=t('cc_here').format(email=prof['email'] or '?')
+                              if prof and prof.get('email') else t('cc_here_none'))
 
             try:
                 dlg.after(0, apply)
@@ -9157,7 +9167,7 @@ class Widget:
                 # there is no longer anywhere to deliver the answer.
                 pass
 
-        threading.Thread(target=probe_cc, daemon=True).start()
+        rebuild()
 
     def _backfill_identity(self):
         """One-time identity fill for the active account. A config migrated
