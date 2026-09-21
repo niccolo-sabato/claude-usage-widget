@@ -377,28 +377,38 @@ def profiles(live=None):
 
     Recognition runs from the strongest proof down, and says which one it used:
       certain   the live refresh token has the same fingerprint as the profile
-      certain   the organization in the live file is the profile's
+      certain   the organization known for the live file is the profile's
       likely    the organization in the identity cache is the profile's
+
+    🔴 Exactly ONE profile comes back active. Each profile used to answer
+    for itself, so two could both say yes: the account in use, recognised by
+    its token, and an older parked snapshot of the same organization. The
+    caller then took the first one in alphabetical order, which is how the
+    badge for "Claude Code is signed in here" landed on a profile that was not
+    the one in use. The claims are ranked, the strongest wins, and a tie goes
+    to the newest snapshot.
     """
     live = active() if live is None else live
     shots = backups()
-    out = []
+
+    seen = []
     for name in profile_names():
         data, failure = read_profile(name)
         if failure:
-            out.append({'name': name, 'readable': False, 'judgements': [failure],
-                        'verdict': failure['kind'], 'active': False})
+            seen.append({'name': name, 'readable': False, 'failure': failure})
             continue
 
         org = data.get('organizationUuid')
         print_ = fingerprint((data.get('claudeAiOauth') or {}).get('refreshToken'))
-        is_active, why_active, certainty, in_step = False, '', None, False
+        # (rank, why, certainty, in step with the live token)
         if print_ and live.get('refresh_print') and print_ == live['refresh_print']:
-            is_active, why_active, certainty, in_step = True, 'cc_why_same_refresh', 'certain', True
+            claim = (3, 'cc_why_same_refresh', 'certain', True)
         elif org and live.get('org') and org == live['org']:
-            is_active, why_active, certainty = True, 'cc_why_same_org_live', 'certain'
+            claim = (2, 'cc_why_same_org_live', 'certain', False)
         elif org and live.get('org_cache') and org == live['org_cache']:
-            is_active, why_active, certainty = True, 'cc_why_same_org_cache', 'likely'
+            claim = (1, 'cc_why_same_org_cache', 'likely', False)
+        else:
+            claim = None
 
         saved_at = instant(data.get('savedAt'))
         if saved_at is None:
@@ -406,6 +416,36 @@ def profiles(live=None):
                 saved_at = os.path.getmtime(profile_path(name))
             except OSError:
                 saved_at = None
+        seen.append({'name': name, 'readable': True, 'data': data, 'org': org,
+                     'print': print_, 'claim': claim, 'saved_at': saved_at})
+
+    winner = None
+    for s_ in seen:
+        if not s_.get('claim'):
+            continue
+        if winner is None:
+            winner = s_
+            continue
+        rank, best = s_['claim'][0], winner['claim'][0]
+        if rank > best or (rank == best
+                           and (s_['saved_at'] or 0) > (winner['saved_at'] or 0)):
+            winner = s_
+
+    out = []
+    for s_ in seen:
+        if not s_['readable']:
+            failure = s_['failure']
+            out.append({'name': s_['name'], 'readable': False,
+                        'judgements': [failure], 'verdict': failure['kind'],
+                        'active': False})
+            continue
+
+        data, org, print_ = s_['data'], s_['org'], s_['print']
+        saved_at, name = s_['saved_at'], s_['name']
+        is_active = s_ is winner
+        why_active = s_['claim'][1] if is_active else ''
+        certainty = s_['claim'][2] if is_active else None
+        in_step = bool(is_active and s_['claim'][3])
 
         if is_active:
             # The account in use works: that is what using it proves. What can
@@ -472,14 +512,45 @@ def unrecognised(live, saved):
                    'cc_r_save_current')
 
 
-def state():
+def live_identity(live, call=None):
+    """Fill in whose login the live file holds, asking the server if it must.
+
+    🔴 Signing in rewrites the live credentials WITHOUT
+    `organizationUuid`, and for the hours that follow nothing on this machine
+    knows whose login it is: no badge, a switch offered onto the account
+    already in use, and a fresh login that cannot be matched to its own
+    profile. The identity cache is not the answer - it still names the
+    account of before. The server is, and asking it is one read that rotates
+    nothing and spends nothing.
+
+    Returns the same live dict, with `org` and `org_source` filled in when the
+    server answered. Never raises: no transport, no network, no answer, all
+    leave the dict as it was.
+    """
+    if not live.get('read') or live.get('org') or call is None:
+        return live
+    data, failure = read_json(cred_file())
+    if failure:
+        return live
+    token = (data.get('claudeAiOauth') or {}).get('accessToken')
+    org = ask_server_org(token, call) if token else None
+    if org:
+        live['org'], live['org_source'] = org, 'server'
+    return live
+
+
+def state(call=None):
     """Everything the interface needs, from one read of the disk.
 
     One read, so that what is drawn cannot mix two different instants: the
     name of the active account coming from one read and its health from
     another is how a profile ends up described as somebody else.
+
+    `call` is optional and buys one thing: the identity of a login the live
+    file does not name (see `live_identity`). Disk-only is the default so the
+    first paint never waits on a network.
     """
-    live = active()
+    live = live_identity(active(), call)
     saved = profiles(live)
     active_name = next((p['name'] for p in saved if p['active']), None)
     out = {'live': live, 'profiles': saved, 'active_name': active_name,
@@ -779,11 +850,69 @@ def save_profile(name, live_data=None, call=None):
     return prof
 
 
-def switch(name, *, knowingly=False, check=None):
+def sync_live_into_profile(live=None, call=None):
+    """Bring the profile of the account Claude Code signed in as up to date.
+
+    🔴 Signing in again mints a NEW renewal token in the live file while
+    the profile saved for that same account still holds the old one. Until the
+    two are back in step the account is unrecognisable: no badge, "switch"
+    offered on every row, and a switch onto that profile writes the OLD token
+    over the fresh login - which signs the user out of the account they had
+    just signed into, and is exactly what happened on 2026-09-21. The remedy
+    used to be a button the user had to know about and press after every
+    login. It happens by itself now.
+
+    Writes only when the identity is PROVED: the organization comes from the
+    live file or from the server, never from the identity cache, which lags
+    behind precisely the event this reacts to.
+
+    Returns None when there was nothing to do, else
+    {'updated': name, 'org': ..., 'was': old fingerprint}.
+    """
+    live = live_identity(active() if live is None else live, call)
+    if not live.get('read') or not live.get('refresh_print'):
+        return None
+    org = live.get('org')
+    if not org:
+        return None
+
+    saved = profiles(live)
+    target = find_profile_for_org(org, saved)
+    if target is None or not target.get('readable', True):
+        return None
+    if target.get('refresh_print') == live['refresh_print']:
+        return None                      # already in step, nothing to write
+
+    # Never trade a newer snapshot for an older one. The live file is what
+    # Claude Code is using now, so normally it is the newer of the two, but a
+    # restored backup or a clock that moved would make this the wrong way
+    # round, and a profile is not improved by going backwards.
+    live_rt, _, _ = when(live.get('refresh_expires'))
+    if live_rt and target.get('refresh_expires') and live_rt < target['refresh_expires']:
+        return None
+
+    data, failure = read_json(cred_file())
+    if failure:
+        return None
+    try:
+        save_profile(target['name'], data, call=call)
+    except (ValueError, OSError):
+        # A refusal here is save_profile protecting another account's profile.
+        # It is not this function's business to argue with it.
+        return None
+    return {'updated': target['name'], 'org': org,
+            'was': target.get('refresh_print')}
+
+
+def switch(name, *, knowingly=False, check=None, plan_check=None):
     """Make `name` the account Claude Code authenticates with.
 
     The order matters and every step of it was paid for:
 
+    0. find out whose login is live, asking the server when the file does not
+       say, because right after a sign-in it does not: without this the switch
+       cannot tell "the account you are already on" from "another account",
+       and writes an old token over a fresh login;
     1. refuse a profile that cannot work, BEFORE touching anything;
     2. an UNKNOWN profile is not refused, it is offered: the caller asks the
        user and comes back with knowingly=True;
@@ -811,7 +940,7 @@ def switch(name, *, knowingly=False, check=None):
                                      {'name': name, 'known': profile_names()},
                                      'cc_r_pick_existing')}
 
-    live = active()
+    live = live_identity(active(), check)
     target_print = fingerprint((target.get('claudeAiOauth') or {}).get('refreshToken'))
     # Already on this account? The fingerprint proves it, but so does the
     # organization, and only the second still holds once the live token has
@@ -832,6 +961,21 @@ def switch(name, *, knowingly=False, check=None):
     bad = [j for j in judgements if j['kind'] == BAD]
     if bad:
         return {'done': False, 'asks': False, 'judgement': bad[0]}
+
+    # A profile whose subscription has lapsed still carries dates in the
+    # future: nothing on this disk says it is dead. The server refuses to
+    # renew it, and Claude Code answers the user's next command with "OAuth
+    # session expired and could not be refreshed" - after the widget had said
+    # everything was fine. When the caller can look the subscription up (the
+    # widget holds a claude.ai key for these accounts), a lapsed one stops the
+    # switch here, where it can still be explained and undone. Only a clear NO
+    # stops it: None means the question could not be asked, and that is not an
+    # answer to act on.
+    if plan_check is not None and plan_check(target.get('organizationUuid')) is False:
+        return {'done': False, 'asks': False,
+                'judgement': verdict(BAD, 'cc_j_no_subscription',
+                                     {'name': name, 'email': target.get('email')},
+                                     'cc_r_renew_or_pick_other')}
 
     # The live check, when the caller gave us a way to make it. It can only
     # ever say NO: a credential the server refuses stops the switch, and
@@ -858,7 +1002,10 @@ def switch(name, *, knowingly=False, check=None):
             return {'done': False, 'asks': False, 'judgement': failure}
 
         saved_out = None
-        out_org = current.get('organizationUuid')
+        # The live file has no organization for hours after a sign-in; the
+        # one resolved above is the same account's, so the outgoing snapshot
+        # lands in its own profile instead of piling up 'auto-' copies.
+        out_org = current.get('organizationUuid') or live.get('org')
         mine = fingerprint((current.get('claudeAiOauth') or {}).get('refreshToken'))
         for other in profile_names():
             p, bad_read = read_profile(other)
