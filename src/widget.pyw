@@ -239,7 +239,7 @@ BAR_DEFAULT_FILL = {'session': BAR_FILL_SESSION,
 BAR_PRESETS = [BAR_FILL_SESSION, BAR_FILL_WEEKLY, BAR_FILL_HIGH, BAR_FILL_PURPLE]
 
 # ─── App ────────────────────────────────────────────
-APP_VERSION = '2.10.0-test4'
+APP_VERSION = '2.10.0-test5'
 
 # ─── Auto-update ────────────────────────────────────
 UPDATE_REPO = 'niccolo-sabato/claude-usage-widget'
@@ -724,6 +724,7 @@ LANG = {
         'session_expired': 'Session expired. Renew your session key to keep tracking usage.',
         'error': 'error',
         'empty_response': 'Empty response',
+        'plan_inactive': 'This account has no active subscription, so Claude reports no limits for it.',
         'no_org': 'No organization found',
         'session_expired_short': 'Session expired',
         'action_setup_now': 'Configure now',
@@ -853,6 +854,10 @@ LANG = {
         'dlg_account_exists_title': 'Account already added',
         'dlg_account_exists': 'This is the same account as "{name}". Update it instead of adding a second one?',
         'tip_colors': 'Fixed: each bar keeps its own colour. By usage: every bar is coloured by its consumption (blue, amber, red).',
+        'menu_pace': 'Weekly pace',
+        'pace_off': 'Off',
+        'pace_days': '{n} days',
+        'tip_pace': 'Divides the weekly bar into that many parts and marks where the usage should be by now. Choose the days you actually work: five, if you stop at the weekend.',
         'tip_notifications': 'Windows notification when session usage crosses a threshold.',
         'tip_taskbar': 'Show a taskbar button with a usage progress overlay.',
         'menu_refresh_interval': 'Refresh interval\u2026',
@@ -961,6 +966,7 @@ LANG = {
         'session_expired': 'Sessione scaduta. Rinnova la session key per continuare.',
         'error': 'errore',
         'empty_response': 'Risposta vuota',
+        'plan_inactive': 'Questo conto non ha un abbonamento attivo, quindi Claude non riporta limiti.',
         'no_org': 'Nessuna organizzazione trovata',
         'session_expired_short': 'Sessione scaduta',
         'action_setup_now': 'Configura ora',
@@ -1088,6 +1094,10 @@ LANG = {
         'dlg_account_exists_title': 'Account gi\u00e0 presente',
         'dlg_account_exists': '\u00c8 lo stesso account di "{name}". Vuoi aggiornarlo invece di aggiungerne un altro?',
         'tip_colors': 'Fissi: ogni barra tiene il suo colore. Per consumo: ogni barra \u00e8 colorata in base al consumo (blu, giallo, rosso).',
+        'menu_pace': 'Ritmo settimanale',
+        'pace_off': 'Spento',
+        'pace_days': '{n} giorni',
+        'tip_pace': 'Divide la barra settimanale in altrettante parti e segna dove dovrebbe essere il consumo adesso. Scegli i giorni in cui lavori davvero: cinque, se nel fine settimana ti fermi.',
         'tip_notifications': 'Notifica di Windows quando il consumo della sessione supera una soglia.',
         'tip_taskbar': 'Mostra un pulsante nella taskbar con la barra di avanzamento del consumo.',
         'menu_refresh_interval': 'Intervallo aggiornamento\u2026',
@@ -1195,6 +1205,7 @@ LANG = {
         'session_expired': '\u30bb\u30c3\u30b7\u30e7\u30f3\u6709\u52b9\u671f\u5207\u308c\u3002\u30bb\u30c3\u30b7\u30e7\u30f3\u30ad\u30fc\u3092\u66f4\u65b0\u3057\u3066\u304f\u3060\u3055\u3044\u3002',
         'error': '\u30a8\u30e9\u30fc',
         'empty_response': '\u5fdc\u7b54\u304c\u7a7a\u3067\u3059',
+        'plan_inactive': '\u3053\u306e\u30a2\u30ab\u30a6\u30f3\u30c8\u306b\u306f\u6709\u52b9\u306a\u30b5\u30d6\u30b9\u30af\u30ea\u30d7\u30b7\u30e7\u30f3\u304c\u306a\u3044\u305f\u3081\u3001\u4e0a\u9650\u306f\u8868\u793a\u3055\u308c\u307e\u305b\u3093\u3002',
         'no_org': '\u7d44\u7e54\u304c\u898b\u3064\u304b\u308a\u307e\u305b\u3093',
         'session_expired_short': '\u30bb\u30c3\u30b7\u30e7\u30f3\u6709\u52b9\u671f\u5207\u308c',
         'action_setup_now': '\u4eca\u3059\u3050\u8a2d\u5b9a',
@@ -1326,6 +1337,10 @@ LANG = {
         'dlg_account_exists_title': '\u65e2\u306b\u8ffd\u52a0\u6e08\u307f',
         'dlg_account_exists': '\u300c{name}\u300d\u3068\u540c\u3058\u30a2\u30ab\u30a6\u30f3\u30c8\u3067\u3059\u3002\u65b0\u3057\u304f\u8ffd\u52a0\u305b\u305a\u306b\u66f4\u65b0\u3057\u307e\u3059\u304b\uff1f',
         'tip_colors': '\u56fa\u5b9a: \u5404\u30d0\u30fc\u304c\u72ec\u81ea\u306e\u8272\u3092\u4fdd\u3061\u307e\u3059\u3002\u6d88\u8cbb\u91cf: \u3059\u3079\u3066\u306e\u30d0\u30fc\u304c\u6d88\u8cbb\u91cf\u306b\u5fdc\u3058\u3066\u8272\u5206\u3051\u3055\u308c\u307e\u3059 (\u9752\u3001\u9ec4\u3001\u8d64)\u3002',
+        'menu_pace': '\u9031\u9593\u30da\u30fc\u30b9',
+        'pace_off': '\u30aa\u30d5',
+        'pace_days': '{n} \u65e5',
+        'tip_pace': '\u9031\u9593\u30d0\u30fc\u3092\u6307\u5b9a\u3057\u305f\u6570\u306b\u5206\u3051\u3001\u4eca\u3042\u308b\u3079\u304d\u6d88\u8cbb\u91cf\u3092\u793a\u3057\u307e\u3059\u3002\u5b9f\u969b\u306b\u50cd\u304f\u65e5\u6570\u3092\u9078\u3093\u3067\u304f\u3060\u3055\u3044\uff08\u9031\u672b\u306b\u4f11\u3080\u306a\u3089 5 \u65e5\uff09\u3002',
         'tip_notifications': '\u30bb\u30c3\u30b7\u30e7\u30f3\u4f7f\u7528\u91cf\u304c\u3057\u304d\u3044\u5024\u3092\u8d85\u3048\u308b\u3068Windows\u901a\u77e5\u3092\u8868\u793a\u3057\u307e\u3059\u3002',
         'tip_taskbar': '\u30bf\u30b9\u30af\u30d0\u30fc\u306b\u4f7f\u7528\u72b6\u6cc1\u3092\u91cd\u306d\u305f\u30dc\u30bf\u30f3\u3092\u8868\u793a\u3057\u307e\u3059\u3002',
         'menu_refresh_interval': '\u66f4\u65b0\u9593\u9694\u2026',
@@ -1521,6 +1536,10 @@ CC_LANG = {
         'cc_ui_close': 'Close',
         'cc_ui_snapshot_saved': 'Snapshot saved at {when}. It is now in step with the credentials in use.',
         'cc_ui_switch_to': 'Switch to {name}',
+        'cc_j_no_subscription': 'The subscription on {email} is not active any more, so Claude will not renew this login. Switching to it would leave Claude Code asking you to sign in at your next command.',
+        'cc_r_renew_or_pick_other': 'Renew the subscription, or switch to another account.',
+        'cc_ui_synced': 'Snapshot of {name} brought up to date on its own: you signed in again with this account.',
+        'cc_ui_not_verified': 'Not verifiable right now. If this login has expired, Claude Code will ask you to sign in again.',
         'cc_ui_signed_in_here': 'signed in here',
         'cc_ui_no_profile': 'No saved profile for this account, so there is nothing to switch to.',
         'cc_ui_no_profiles': 'No saved Claude Code profiles on this computer.',
@@ -1541,62 +1560,62 @@ CC_LANG = {
         'cc_ui_open_store': 'Open the folder',
     },
     'it': {
-        'cc_j_already_active': 'Claude Code e gia autenticato come {name}.',
+        'cc_j_already_active': 'Claude Code è già autenticato come {name}.',
         'cc_j_answered': 'Claude ha risposto.',
         'cc_j_200_not_data': 'Claude ha risposto, ma con una pagina invece che con i dati.',
-        'cc_j_403_page': 'Claude ha risposto 403 con una pagina invece che con i dati: e il filtro davanti al sito, e di queste credenziali non dice niente.',
+        'cc_j_403_page': 'Claude ha risposto 403 con una pagina invece che con i dati: è il filtro davanti al sito, e di queste credenziali non dice niente.',
         'cc_j_refused_401': 'Claude ha rifiutato queste credenziali (401).',
         'cc_j_refused_403': 'Claude ha rifiutato queste credenziali (403, risposta dell’API).',
         'cc_j_archive_failed': 'Non sono riuscito ad archiviarlo: {why}',
-        'cc_j_archived': '{name} e archiviato.',
-        'cc_j_bad_name': '"{name}" non e un nome che una cartella possa avere.',
-        'cc_j_not_checked_stale': 'Non verificato su Claude adesso, ed e normale per un conto con cui non sei autenticato. Quello che il passaggio usa e il rinnovo di questo profilo, valido fino al {renewal}.',
+        'cc_j_archived': '{name} è archiviato.',
+        'cc_j_bad_name': '"{name}" non è un nome che una cartella possa avere.',
+        'cc_j_not_checked_stale': 'Non verificato su Claude adesso, ed è normale per un conto con cui non sei autenticato. Quello che il passaggio usa è il rinnovo di questo profilo, valido fino al {renewal}.',
         'cc_j_checked_alive': 'Verificato: le credenziali funzionano, e sono di {email}.',
-        'cc_j_file_corrupt': 'Questo file non e un JSON valido: {path}',
-        'cc_j_file_missing': 'Questo file non c’e: {path}',
+        'cc_j_file_corrupt': 'Questo file non è un JSON valido: {path}',
+        'cc_j_file_missing': 'Questo file non c’è: {path}',
         'cc_j_file_unreadable': 'Non riesco a leggere {path}: {why}',
-        'cc_j_live_no_email': 'L’email non e ancora nella cache di identita.',
-        'cc_j_live_no_org': 'Le credenziali vive non portano l’organizzazione: e lo stato normale subito dopo un accesso.',
+        'cc_j_live_no_email': 'L’email non è ancora nella cache di identità.',
+        'cc_j_live_no_org': 'Le credenziali vive non portano l’organizzazione: è lo stato normale subito dopo un accesso.',
         'cc_j_live_no_token': 'Le credenziali vive non hanno un token di accesso.',
         'cc_j_live_ok': 'Le credenziali vive sono leggibili e complete.',
-        'cc_j_name_taken': 'Esiste gia un profilo che si chiama "{name}".',
+        'cc_j_name_taken': 'Esiste già un profilo che si chiama "{name}".',
         'cc_j_no_access': 'Nessun token di accesso.',
         'cc_j_no_answer': 'Nessuna risposta da Claude.',
         'cc_j_no_block': 'Questo profilo non contiene credenziali.',
-        'cc_j_no_org': 'Nessuna organizzazione: il profilo e nel formato vecchio.',
-        'cc_j_no_refresh': 'Nessun token di rinnovo: non potra rinnovarsi da solo.',
-        'cc_j_no_refresh_expiry_access_alive': 'La data di rinnovo non e registrata, ma il token di accesso vale fino al {when}.',
-        'cc_j_no_refresh_expiry_access_dead': 'La data di rinnovo non e registrata e il token di accesso e scaduto il {when}. Il token di rinnovo c’e e potrebbe funzionare ancora.',
+        'cc_j_no_org': 'Nessuna organizzazione: il profilo è nel formato vecchio.',
+        'cc_j_no_refresh': 'Nessun token di rinnovo: non potrà rinnovarsi da solo.',
+        'cc_j_no_refresh_expiry_access_alive': 'La data di rinnovo non è registrata, ma il token di accesso vale fino al {when}.',
+        'cc_j_no_refresh_expiry_access_dead': 'La data di rinnovo non è registrata e il token di accesso è scaduto il {when}. Il token di rinnovo c’è e potrebbe funzionare ancora.',
         'cc_j_no_such_profile': 'Non esiste un profilo che si chiama "{name}". Salvati: {known}.',
         'cc_j_other_account': 'Quelle credenziali funzionano, ma sono di {email}.',
         'cc_j_outgoing_not_saved': 'Non sono riuscito a salvare il conto che stai lasciando: {why}',
-        'cc_j_profile_outdated': 'Questa fotografia e indietro: il {when} il conto portava gia un altro token di rinnovo.',
+        'cc_j_profile_outdated': 'Questa fotografia è indietro: il {when} il conto portava già un altro token di rinnovo.',
         'cc_j_rate_limited': 'Claude ha chiesto di rallentare.',
-        'cc_j_refresh_expired': 'Il rinnovo e scaduto il {when}.',
+        'cc_j_refresh_expired': 'Il rinnovo è scaduto il {when}.',
         'cc_j_refresh_soon': 'Il rinnovo scade il {when}, fra meno di tre giorni.',
         'cc_j_rename_failed': 'Non sono riuscito a rinominarlo: {why}',
         'cc_j_renamed': '"{old}" adesso si chiama "{new}".',
-        'cc_j_renamed_not_inside': 'La cartella e stata rinominata, ma il nome dentro il file e rimasto quello vecchio.',
+        'cc_j_renamed_not_inside': 'La cartella è stata rinominata, ma il nome dentro il file è rimasto quello vecchio.',
         'cc_j_server_error': 'Claude ha un problema suo (HTTP {code}).',
-        'cc_j_snapshot_behind': 'E il conto che stai usando, e funziona. La sua fotografia, salvata il {saved}, e indietro.',
-        'cc_j_switched': 'Claude Code adesso e autenticato come {name}.',
+        'cc_j_snapshot_behind': 'È il conto che stai usando, e funziona. La sua fotografia, salvata il {saved}, è indietro.',
+        'cc_j_switched': 'Claude Code adesso è autenticato come {name}.',
         'cc_j_unexpected_code': 'Risposta inattesa da Claude (HTTP {code}).',
         'cc_j_unrecognised': 'Nessun profilo salvato corrisponde al login su questo computer. Ho provato: {tried}.',
         'cc_j_usable': 'Utilizzabile.',
-        'cc_j_write_unverified': 'Non ho potuto verificare cio che e stato scritto. Il file precedente e in {backups}.',
-        'cc_r_applies_at_once': 'Vale subito e per tutte le chat gia aperte. Non serve chiudere ne riaprire niente.',
-        'cc_r_archive_is_reversible': 'Non e stato distrutto niente: sta in {where}, e rispostando la cartella torna nell’elenco.',
+        'cc_j_write_unverified': 'Non ho potuto verificare ciò che è stato scritto. Il file precedente è in {backups}.',
+        'cc_r_applies_at_once': 'Vale subito e per tutte le chat già aperte. Non serve chiudere né riaprire niente.',
+        'cc_r_archive_is_reversible': 'Non è stato distrutto niente: sta in {where}, e rispostando la cartella torna nell’elenco.',
         'cc_r_check_connection': 'Controlla la connessione.',
-        'cc_r_check_permissions': 'Controlla chi puo leggere quel file.',
+        'cc_r_check_permissions': 'Controlla chi può leggere quel file.',
         'cc_r_close_what_uses_it': 'Chiudi cio che sta usando quella cartella.',
-        'cc_r_email_is_a_label': 'L’email e solo un’etichetta: un conto si riconosce dalla sua organizzazione.',
+        'cc_r_email_is_a_label': 'L’email è solo un’etichetta: un conto si riconosce dalla sua organizzazione.',
         'cc_r_from_backup': 'Recuperalo dalla cartella delle copie.',
-        'cc_r_nothing_to_do': 'Non c’e niente da fare.',
+        'cc_r_nothing_to_do': 'Non c’è niente da fare.',
         'cc_r_pick_another_name': 'Scegli un altro nome.',
         'cc_r_pick_existing': 'Scegli uno dei profili salvati.',
-        'cc_r_resave_while_active': 'Risalva questo profilo mentre quel conto e quello autenticato.',
+        'cc_r_resave_while_active': 'Risalva questo profilo mentre quel conto è quello autenticato.',
         'cc_r_restore_from_backup': 'Rimetti il file precedente dalla cartella delle copie.',
-        'cc_r_save_current': 'Salva il conto autenticato adesso, cosi avra un profilo suo.',
+        'cc_r_save_current': 'Salva il conto autenticato adesso, così avrà un profilo suo.',
         'cc_r_save_now': 'Salvalo adesso: rimette in pari la fotografia.',
         'cc_r_save_repairs_org': 'Salvare il profilo rimette a posto l’organizzazione.',
         'cc_r_sign_in': 'Esegui `claude` una volta e accedi.',
@@ -1604,29 +1623,33 @@ CC_LANG = {
         'cc_r_switch_and_save': 'Passa a quel conto e risalvalo.',
         'cc_r_try_again': 'Riprova.',
         'cc_r_try_again_soon': 'Riprova fra poco.',
-        'cc_r_try_later': 'Riprova piu tardi: questo non dipende dalle tue credenziali.',
+        'cc_r_try_later': 'Riprova più tardi: questo non dipende dalle tue credenziali.',
         'cc_r_wait_a_few_minutes': 'Aspetta qualche minuto prima di richiedere.',
         'cc_why_same_refresh': 'stesso token di rinnovo delle credenziali vive',
         'cc_why_same_org_live': 'stessa organizzazione delle credenziali vive',
-        'cc_why_same_org_cache': 'stessa organizzazione della cache di identita',
+        'cc_why_same_org_cache': 'stessa organizzazione della cache di identità',
         'cc_try_refresh_print': 'l’impronta del token di rinnovo',
         'cc_try_no_refresh_print': 'l’impronta del token di rinnovo, che manca',
         'cc_try_org_live': 'l’organizzazione nelle credenziali vive',
         'cc_try_no_org_live': 'l’organizzazione nelle credenziali vive, che manca',
-        'cc_try_org_cache': 'l’organizzazione nella cache di identita',
-        'cc_try_no_org_cache': 'l’organizzazione nella cache di identita, che manca',
+        'cc_try_org_cache': 'l’organizzazione nella cache di identità',
+        'cc_try_no_org_cache': 'l’organizzazione nella cache di identità, che manca',
         'cc_try_live_unreadable': 'le credenziali vive, che non si leggono',
         'cc_e_bad_name': 'Lettere, numeri, spazio, punto, trattino e trattino basso, fino a 41 caratteri.',
         'cc_e_no_live_token': 'Le credenziali vive non hanno un token di accesso.',
-        'cc_e_save_other_account': 'Non salvato: il conto autenticato adesso non e quello a cui appartiene questo profilo, e salvare lo sovrascriverebbe con un altro conto.',
-        'cc_e_save_unproven': 'Non salvato: non ho potuto confermare quale conto e autenticato adesso, e sbagliando sovrascriverei questo profilo con un altro conto.',
+        'cc_e_save_other_account': 'Non salvato: il conto autenticato adesso non è quello a cui appartiene questo profilo, e salvare lo sovrascriverebbe con un altro conto.',
+        'cc_e_save_unproven': 'Non salvato: non ho potuto confermare quale conto è autenticato adesso, e sbagliando sovrascriverei questo profilo con un altro conto.',
         'cc_ui_section': 'Account di Claude Code',
         'cc_ui_switch': 'Passa',
         'cc_ui_close': 'Chiudi',
-        'cc_ui_snapshot_saved': 'Istantanea salvata alle {when}. Adesso e in pari con le credenziali in uso.',
+        'cc_ui_snapshot_saved': 'Istantanea salvata alle {when}. Adesso è in pari con le credenziali in uso.',
         'cc_ui_switch_to': 'Passa a {name}',
+        'cc_j_no_subscription': 'L’abbonamento di {email} non è più attivo, quindi Claude non rinnoverà questo accesso. Passando a questo conto, Claude Code ti chiederebbe di accedere al comando successivo.',
+        'cc_r_renew_or_pick_other': 'Rinnova l’abbonamento, oppure passa a un altro conto.',
+        'cc_ui_synced': 'Istantanea di {name} aggiornata da sola: hai fatto un nuovo accesso con questo conto.',
+        'cc_ui_not_verified': 'Non verificabile adesso. Se questo accesso è scaduto, Claude Code ti chiederà di accedere di nuovo.',
         'cc_ui_signed_in_here': 'autenticato qui',
-        'cc_ui_no_profile': 'Nessun profilo salvato per questo conto: non c’e niente a cui passare.',
+        'cc_ui_no_profile': 'Nessun profilo salvato per questo conto: non c’è niente a cui passare.',
         'cc_ui_no_profiles': 'Nessun profilo di Claude Code salvato su questo computer.',
         'cc_ui_checking': 'Verifico le credenziali…',
         'cc_ui_saving_out': 'Salvo il conto che stai lasciando…',
@@ -1729,6 +1752,10 @@ CC_LANG = {
         'cc_ui_close': '閉じる',
         'cc_ui_snapshot_saved': '{when} にスナップショットを保存しました。現在の認証情報と一致しています。',
         'cc_ui_switch_to': '{name} に切り替え',
+        'cc_j_no_subscription': '{email} \u306e\u30b5\u30d6\u30b9\u30af\u30ea\u30d7\u30b7\u30e7\u30f3\u304c\u6709\u52b9\u3067\u306f\u306a\u3044\u305f\u3081\u3001\u3053\u306e\u30ed\u30b0\u30a4\u30f3\u306f\u66f4\u65b0\u3055\u308c\u307e\u305b\u3093\u3002\u5207\u308a\u66ff\u3048\u308b\u3068\u3001\u6b21\u306e\u30b3\u30de\u30f3\u30c9\u3067 Claude Code \u304c\u30b5\u30a4\u30f3\u30a4\u30f3\u3092\u6c42\u3081\u307e\u3059\u3002',
+        'cc_r_renew_or_pick_other': '\u30b5\u30d6\u30b9\u30af\u30ea\u30d7\u30b7\u30e7\u30f3\u3092\u66f4\u65b0\u3059\u308b\u304b\u3001\u5225\u306e\u30a2\u30ab\u30a6\u30f3\u30c8\u306b\u5207\u308a\u66ff\u3048\u3066\u304f\u3060\u3055\u3044\u3002',
+        'cc_ui_synced': '\u518d\u5ea6\u30b5\u30a4\u30f3\u30a4\u30f3\u3057\u305f\u305f\u3081\u3001{name} \u306e\u30b9\u30ca\u30c3\u30d7\u30b7\u30e7\u30c3\u30c8\u3092\u81ea\u52d5\u3067\u66f4\u65b0\u3057\u307e\u3057\u305f\u3002',
+        'cc_ui_not_verified': '\u4eca\u306f\u78ba\u8a8d\u3067\u304d\u307e\u305b\u3093\u3002\u3053\u306e\u30ed\u30b0\u30a4\u30f3\u304c\u5931\u52b9\u3057\u3066\u3044\u308b\u5834\u5408\u3001Claude Code \u304c\u30b5\u30a4\u30f3\u30a4\u30f3\u3092\u6c42\u3081\u307e\u3059\u3002',
         'cc_ui_signed_in_here': 'このPCでサインイン中',
         'cc_ui_no_profile': 'このアカウントの保存済みプロファイルがないため、切り替え先がありません。',
         'cc_ui_no_profiles': 'このコンピューターに保存された Claude Code のプロファイルはありません。',
@@ -2117,6 +2144,31 @@ def token_expiry():
         return f'{datetime.fromtimestamp(exp / 1000):%d/%m/%Y %H:%M}'
     except (ValueError, OSError, OverflowError):
         return ''
+
+
+def elide(text, font, limit):
+    """`text` cut with an ellipsis so that it measures no more than `limit`.
+
+    🔴 A Tk label does not wrap and does not shrink: it asks for the
+    width its text needs, the frame around it asks for the same, and the row
+    ends up wider than the window, which is then clipped at its own edge. From
+    outside that looks like the text sliding underneath the buttons on the
+    right, which is what the account list did in Italian as soon as a second
+    button appeared on the row.
+    """
+    if not text or limit <= 0:
+        return text
+    if font.measure(text) <= limit:
+        return text
+    dots = '\u2026'
+    lo, hi = 0, len(text)
+    while lo < hi:
+        mid = (lo + hi + 1) // 2
+        if font.measure(text[:mid] + dots) <= limit:
+            lo = mid
+        else:
+            hi = mid - 1
+    return text[:lo] + dots if lo else dots
 
 
 def account_methods(acc):
@@ -3350,6 +3402,29 @@ CC_RATE_LIMIT_PAUSE_S = 15 * 60
 _cc_paused_until = 0.0
 
 
+class NoActivePlan(RuntimeError):
+    """The account answered, and it has no plan to report limits for."""
+
+
+def no_active_plan(data):
+    """True when the answer is the one a lapsed subscription gives.
+
+    🔴 Measured on 2026-09-21 against a real account whose subscription
+    had lapsed: HTTP 200, every window null, `limits` an empty list. Shown as
+    "not available", which is what the widget says about a value the server did
+    not report, it read as a fault of the widget; and nothing anywhere said the
+    plain fact, which is that the account has no plan any more.
+
+    Only that exact shape counts. A missing key answers 401 and a fault answers
+    nothing, and neither must ever be dressed up as "your subscription ended".
+    """
+    if not isinstance(data, dict):
+        return False
+    return (data.get('limits') == []
+            and data.get('five_hour') is None
+            and data.get('seven_day') is None)
+
+
 def fetch_usage_claude_code(retry_transient=True, expect_org=None):
     """Usage via the OAuth endpoint Claude Code itself uses. Same five_hour /
     seven_day shape as the claude.ai endpoint, so _on_data needs no change.
@@ -3376,9 +3451,12 @@ def fetch_usage_claude_code(retry_transient=True, expect_org=None):
     if not body:
         raise RuntimeError(t('empty_response'))
     try:
-        return json.loads(body)
+        data = json.loads(body)
     except json.JSONDecodeError as e:
         raise RuntimeError(f'invalid response: {e}')
+    if no_active_plan(data):
+        raise NoActivePlan(t('plan_inactive'))
+    return data
 
 
 def _fetch_usage_key(src):
@@ -3400,9 +3478,12 @@ def _fetch_usage_key(src):
     if new_key:
         rotation = (src.get('id'), new_key)
     try:
-        return json.loads(body), rotation
+        data = json.loads(body)
     except json.JSONDecodeError as e:
         raise RuntimeError(f'invalid response: {e}')
+    if no_active_plan(data):
+        raise NoActivePlan(t('plan_inactive'))
+    return data, rotation
 
 
 def fetch_usage(cfg):
@@ -3892,6 +3973,8 @@ class Section:
         self._reset_level = RESET_FULL   # width of the reset sub-label
         self._resets_at = None           # last reset time, to re-render at another width
         self._state = 'empty'            # 'empty' | 'missing' | 'ok' (see _render_reset)
+        self._pace_days = 0              # 0 = off; else the days to spread over
+        self._window_start = None        # start of the 7-day window, from the server
 
         self.frame = tk.Frame(parent, bg=BG)
         self.frame.pack(fill='x', padx=PAD, pady=(3, 0))
@@ -4050,6 +4133,71 @@ class Section:
         self._render_reset()
         self._draw(self.cv.winfo_width())
 
+    def set_pace(self, days):
+        """Divide the bar into `days` parts and mark where usage should be.
+
+        Zero turns it off. The number is the user's, not the calendar's:
+        somebody who works five days and stops at the weekend spends the week's
+        budget in five parts, and a marker drawn on sevenths would tell them
+        they are behind every Friday.
+        """
+        days = int(days or 0)
+        if days == self._pace_days:
+            return
+        self._pace_days = days
+        self._draw(self.cv.winfo_width())
+
+    def set_window_start(self, iso):
+        """When the current weekly window began, as the server reports it."""
+        if iso == self._window_start:
+            return
+        self._window_start = iso
+        if self._pace_days:
+            self._draw(self.cv.winfo_width())
+
+    def _pace_target(self):
+        """The share of the budget that should be gone by now, or None.
+
+        🔴 Measured on 2026-09-21: the usage answer carries
+        `window_started_at` (15 Sep 21:00) beside `resets_at` (22 Sep 21:00),
+        exactly seven days apart. So the start of the window is a fact the
+        server gives, not something inferred from a subtraction, and the
+        marker stands on it. The subtraction is kept only as the fallback for
+        an answer that does not carry the start.
+        """
+        start = None
+        for value, shift in ((self._window_start, 0), (self._resets_at, -7)):
+            if not value:
+                continue
+            try:
+                start = (datetime.fromisoformat(str(value).replace('Z', '+00:00'))
+                         + timedelta(days=shift))
+                break
+            except (ValueError, TypeError):
+                continue
+        if start is None or not self._pace_days:
+            return None
+        gone = (datetime.now(timezone.utc) - start).total_seconds() / 86400.0
+        return min(1.0, max(0.0, gone / self._pace_days))
+
+    def _draw_pace(self, w, fw):
+        """The day divisions, and the line where the consumption should be."""
+        def under(x):
+            if self._pct <= 0:
+                return BAR_BG
+            return self._color if x < fw else self._trackc
+
+        for k in range(1, self._pace_days):
+            x = round(w * k / self._pace_days)
+            bg = under(x)
+            self.cv.create_line(x, 4, x, BAR_H - 4,
+                                fill=_lerp_hex(bg, ink_on(bg), 0.35))
+        target = self._pace_target()
+        if target is None:
+            return
+        x = min(max(round(w * target), 1), w - 2)
+        self.cv.create_line(x, 1, x, BAR_H - 1, fill=ink_on(under(x)), width=2)
+
     def set_dynamic(self, on):
         """Switch this bar between the percentage-driven palette and its own
         fixed colour, recomputing the drawn colours for the current value."""
@@ -4085,6 +4233,8 @@ class Section:
         if self._pct > 0:
             fw = max(BAR_H, w * self._pct / 100)
             pill(self.cv, 0, 0, fw, BAR_H, self._color)
+        if self._pace_days and self._state == 'ok':
+            self._draw_pace(w, fw if self._pct > 0 else 0)
         pct_str = f'{self._pct:.0f}%' if self._pct > 0 else '0%'
         if self._compact and self._cd_txt:
             txt = f'{pct_str}  {self._cd_txt}'
@@ -4499,6 +4649,7 @@ class Widget:
         if self.cfg.get('bar_dynamic', False):
             for sec in self._all_sections():
                 sec._dynamic = True
+        self._apply_pace()
 
         # Hamburger menu pill - shown on the right of the side-by-side strip
         # whenever essential mode is collapsed. It pushes the bars left so the
@@ -5410,6 +5561,9 @@ class Widget:
         self.s_session.update(fh['utilization'] if fh else None,
                               fh.get('resets_at') if fh else None)
         sd = d.get('seven_day')
+        week_start = (d.get('seven_day_breakdown') or {}).get('window_started_at')
+        self.s_weekly.set_window_start(week_start)
+        self.ess_bars['weekly'].set_window_start(week_start)
         self.s_weekly.update(sd['utilization'] if sd else None,
                              sd.get('resets_at') if sd else None)
         sp, sr, sname = scoped_model(d)
@@ -5839,6 +5993,12 @@ class Widget:
             self.refresh()
         except Exception as e:
             wlog(f'SCHED  refresh error: {e}')
+        try:
+            # A sign-in made while the widget was running is caught here; one
+            # made while it was closed is caught by the first tick.
+            self._cc_watch_login()
+        except Exception as e:
+            wlog(f'CC     login watch error: {_redact(str(e))}')
         self._schedule()
 
     # ── Drag ─────────────────────────────────────────
@@ -6602,6 +6762,20 @@ class Widget:
             self._menu_row(m, (t('menu_colors_dynamic') if dyn else t('menu_colors_fixed')),
                            lambda: self._flyout_set(lambda: self._toggle_bar_dynamic(close=False)),
                            icon='\U0001F3A8︎', icon_ft=FT_EMOJI, tip=t('tip_colors'))
+            # Over how many days the week's budget is meant to be spent. The
+            # number is the user's own working rhythm, not the calendar's:
+            # sevenths would tell somebody who rests at the weekend that they
+            # are behind every Friday.
+            #
+            # \U0001F534 One row that opens a window, not one row per number:
+            # measured on 2026-09-21, eight more rows took this flyout to
+            # 1092px at 150% scaling against 1020px of usable height on a
+            # 1080p screen, and a menu does not scroll.
+            pace = int(self.cfg.get('weekly_pace_days', 0) or 0)
+            self._menu_row(m, t('menu_pace') + ': ' + (
+                t('pace_days').format(n=pace) if pace else t('pace_off')),
+                lambda: self._menu_do(self._pace_dialog),
+                icon='\U0001F4C5︎', icon_ft=FT_EMOJI, tip=t('tip_pace'))
             # Whether the widget has a taskbar button is a question about how it
             # is shown, so it belongs here rather than beside the alerts.
             tb = self.cfg.get('show_in_taskbar', False)
@@ -7192,6 +7366,59 @@ class Widget:
         render_hue()
         render_preview()
         self._place_dialog(dlg, dw)
+
+    def _apply_pace(self, days=None):
+        """Put the pace setting on both copies of the weekly bar."""
+        if days is None:
+            days = self.cfg.get('weekly_pace_days', 0)
+        for bar in (self.s_weekly, self.ess_bars['weekly']):
+            bar.set_pace(days)
+
+    def _set_pace_days(self, days, close=True):
+        """Choose over how many days the week's budget is meant to be spent."""
+        self.cfg['weekly_pace_days'] = int(days)
+        save_cfg(self.cfg)
+        wlog(f'PACE   weekly_pace_days -> {days}')
+        self._apply_pace(days)
+        if close:
+            self._close_menu()
+
+    def _pace_dialog(self):
+        """Choose over how many days the week's budget is meant to last."""
+        dw, dh = self._dlg_size(420, 190)
+        dlg, body = self._build_dialog_frame(t('menu_pace'), dw, dh, key='pace')
+
+        bottom = tk.Frame(body, bg=BG)
+        bottom.pack(fill='x', side='bottom')
+        tk.Frame(bottom, bg=BAR_BG, height=1).pack(fill='x', pady=(14, 12))
+        self._secondary_pill(bottom, t('cc_ui_close'), dlg.destroy).pack(side='right')
+
+        tk.Label(body, text=t('tip_pace'), font=FT_DLG_HINT, fg=DIM, bg=BG,
+                 anchor='w', justify='left',
+                 wraplength=dw - self.dp(48)).pack(fill='x', pady=(0, 12))
+
+        choices = tk.Frame(body, bg=BG)
+        choices.pack(fill='x')
+
+        def render():
+            # Redrawn rather than restyled: the chosen number is the filled
+            # pill, and there is no other state to keep in step.
+            for w_ in choices.winfo_children():
+                w_.destroy()
+            now = int(self.cfg.get('weekly_pace_days', 0) or 0)
+            for value in (0, 2, 3, 4, 5, 6, 7):
+                label = t('pace_off') if not value else str(value)
+                make = self._primary_pill if value == now else self._secondary_pill
+                make(choices, label, lambda v=value: pick(v)).pack(
+                    side='left', padx=(0, 6))
+
+        def pick(value):
+            self._set_pace_days(value, close=False)
+            if choices.winfo_exists():
+                render()
+
+        render()
+        self._place_dialog(dlg, dw, dh_floor=dh)
 
     def _toggle_bar_dynamic(self, close=True):
         """Switch the whole widget between the fixed per-bar palette and the
@@ -8744,17 +8971,100 @@ class Widget:
 
 
     # ── Claude Code accounts: the saved OAuth profiles ─────────────────────
-    def _cc_state(self):
+    def _cc_state(self, call=None):
         """The saved profiles and the live login, from one read of the disk.
 
         Never raises: a store that is not there, or a file somebody has been
         editing, is one of the answers this window has to be able to show.
         """
         try:
-            return cc_accounts.state()
+            return cc_accounts.state(call)
         except Exception as e:
             wlog(f'CC     could not read the profiles: {_redact(str(e))}')
             return None
+
+    def _cc_sync_login(self, after=None):
+        """Find out whose login is live, and bring its own snapshot in step.
+
+        🔴 Signing in again mints a new renewal token AND leaves the
+        organization out of the live file. Until the profile of that same
+        account catches up, nothing here recognises the account: no badge, a
+        "switch" button on the row of the account already in use, and a switch
+        that writes a months-old token over a login made a minute earlier -
+        which is what happened on 2026-09-21. It used to be a button the user
+        had to know about and press. It happens by itself now.
+
+        Off the main thread: it is one network call, and the window has to
+        paint before it.
+        """
+        def work():
+            try:
+                done = cc_accounts.sync_live_into_profile(call=cc_http)
+                fresh = cc_accounts.state(call=cc_http)
+            except Exception as e:
+                wlog(f'CC     login watch failed: {_redact(str(e))}')
+                return
+            if done:
+                wlog(f"CC     snapshot of {done['updated']} refreshed after a "
+                     f"new sign-in")
+
+            def apply():
+                self._cc_saved = fresh
+                if done:
+                    self._cc_flash = (t('cc_ui_synced').format(
+                        name=done['updated']), DOT_GREEN)
+                if after:
+                    after()
+            try:
+                self.root.after(0, apply)
+            except (tk.TclError, RuntimeError):
+                # The window, or the interpreter, has gone while we were away.
+                pass
+        threading.Thread(target=work, daemon=True).start()
+
+    def _cc_watch_login(self):
+        """Notice a new sign-in the way the disk shows one: the file changed.
+
+        Cheap enough for every refresh tick - one `stat` - and it costs a
+        network call only when the file has actually been rewritten.
+        """
+        if not any(a.get('cc_linked') for a in self.cfg.get('accounts', [])):
+            return
+        try:
+            stamp = os.path.getmtime(cc_accounts.cred_file())
+        except OSError:
+            return
+        if stamp == getattr(self, '_cc_cred_stamp', None):
+            return
+        self._cc_cred_stamp = stamp
+        # Logged even when nothing comes of it: the next person diagnosing
+        # "the widget did not notice my new login" needs to see whether this
+        # ever ran, which is the lesson of every silent guard before it.
+        wlog('CC     credentials file changed, checking whose login it is')
+        self._cc_sync_login()
+
+    def _cc_plan_alive(self, org):
+        """Whether that organization still has a plan. None when unknown.
+
+        🔴 Measured on 2026-09-21 against a real lapsed account: the
+        usage endpoint answers 200 with EVERY limit null and `limits` an empty
+        list. Nothing in the OAuth credentials shows this - their dates stay in
+        the future - so a switch onto such an account succeeded and Claude Code
+        answered the next command with "OAuth session expired and could not be
+        refreshed". A stale key answers 401 and a fault answers nothing: only
+        the empty answer is turned into a NO, everything else stays unknown,
+        because refusing a switch on a guess would block work that is fine.
+        """
+        acc = next((a for a in self.cfg.get('accounts', [])
+                    if a.get('org_id') == org and a.get('session_key')), None)
+        if acc is None:
+            return None
+        try:
+            data, _rotation = _fetch_usage_key(acc)
+        except Exception as e:
+            wlog(f'CC     could not read the plan: {_redact(str(e))}')
+            return None
+        return None if not isinstance(data, dict) else not no_active_plan(data)
 
     def _cc_profile_for(self, acc, st=None):
         """The saved profile of a widget account, matched by ORGANIZATION.
@@ -8847,7 +9157,8 @@ class Widget:
         def work():
             try:
                 result = cc_accounts.switch(name, knowingly=st['knowingly'],
-                                            check=cc_http)
+                                            check=cc_http,
+                                            plan_check=self._cc_plan_alive)
             except Exception as e:
                 wlog(f'CC     switch raised: {_redact(str(e))}')
                 result = {'done': False, 'asks': False,
@@ -8887,6 +9198,10 @@ class Widget:
                 verified = (result.get('checked') or {}).get('judgement') or {}
                 if verified.get('kind') == cc_accounts.GOOD:
                     lines.append(cc_say(verified))
+                elif (result.get('checked') or {}).get('skipped'):
+                    # Said plainly rather than left out: the switch went
+                    # through on the strength of the renewal date alone.
+                    lines.append(t('cc_ui_not_verified'))
                 show(note or t('cc_j_switched').format(name=name), DOT_GREEN,
                      '\n'.join(lines), t('cc_r_applies_at_once'))
                 render_buttons(closing=True)
@@ -8977,7 +9292,7 @@ class Widget:
             status.config(text=t('dlg_verifying'), fg=BLUE)
         threading.Thread(target=work, daemon=True).start()
 
-    def _account_row(self, parent, acc, rebuild, cc_org=None):
+    def _account_row(self, parent, acc, rebuild, cc_state=None, width=None):
         """One account in the list.
 
         Two different things can be true of a row and they are shown apart: the
@@ -9014,12 +9329,16 @@ class Widget:
         # move Claude Code onto this account. It appears only when there is
         # something to move onto, and not on the account already signed in,
         # where it would do nothing.
-        profile = self._cc_profile_for(acc, getattr(self, '_cc_saved', None))
-        # The same rule as the account page: a profile counts as the one in use
-        # only when that is proved, never on the identity cache's word alone.
-        proven_live = bool(profile and profile.get('active')
-                           and profile.get('certainty') == 'certain')
-        if profile and not proven_live:
+        st_cc = cc_state or getattr(self, '_cc_saved', None) or {}
+        profile = self._cc_profile_for(acc, st_cc or None)
+        # 🔴 One decision, two things drawn from it: this button and the
+        # badge below. The module elects ONE profile as the account in use;
+        # when each profile answered for itself, two of them could say yes at
+        # once and the badge went to whichever name sorted first - and right
+        # after a sign-in none of them said yes, so every row offered a switch
+        # onto the account the user was already on.
+        signed_in_here = bool(profile and profile['name'] == st_cc.get('active_name'))
+        if profile and not signed_in_here:
             switch_btn = self._secondary_pill(
                 row, t('cc_ui_switch'),
                 lambda n=profile['name']: self._cc_switch_dialog(n, rebuild))
@@ -9042,8 +9361,18 @@ class Widget:
         head = tk.Frame(txt, bg=base)
         head.pack(fill='x')
         cells.append(head)
-        name_lbl = tk.Label(head, text=acc.get('name') or '-', font=FT_DLG_BTN_B,
-                            fg=FG, bg=base, anchor='w')
+        # What is left once the stripe, the bubble and the buttons on the
+        # right have taken theirs. Measured from the widgets themselves, so a
+        # translation that makes a button wider narrows the text instead of
+        # pushing the row out of the window.
+        room = (width or self.dp(540)) - self.dp(58)
+        for c in controls:
+            room -= c.winfo_reqwidth() + self.dp(8)
+        room = max(self.dp(80), room)
+
+        name_lbl = tk.Label(head, text=elide(acc.get('name') or '-', FT_DLG_BTN_B,
+                                             room - self.dp(96)),
+                            font=FT_DLG_BTN_B, fg=FG, bg=base, anchor='w')
         name_lbl.pack(side='left')
         cells.append(name_lbl)
 
@@ -9055,7 +9384,7 @@ class Widget:
 
         if active:
             badge(t('dlg_active'), accent)
-        if cc_org and acc.get('org_id') == cc_org:
+        if signed_in_here:
             # Whose login is currently on this machine, which is a fact about
             # Claude Code and not about what the widget is showing.
             badge(t('dlg_cc_here'), BLUE)
@@ -9064,9 +9393,12 @@ class Widget:
         how = (t('auth_claude_code') if methods and methods[0] == AUTH_CC
                else t('auth_key') if methods else t('dlg_account_no_method'))
         sub_txt = ' \u00b7 '.join([x for x in (acc.get('email'), acc.get('plan'), how) if x])
-        sub_lbl = tk.Label(txt, text=sub_txt, font=FT_DLG_HINT, fg=DIM,
+        shown = elide(sub_txt, FT_DLG_HINT, room)
+        sub_lbl = tk.Label(txt, text=shown, font=FT_DLG_HINT, fg=DIM,
                            bg=base, anchor='w')
         sub_lbl.pack(fill='x')
+        if shown != sub_txt:
+            self._tooltip(sub_lbl, sub_txt)
         cells.append(sub_lbl)
 
         def switch(_e=None):
@@ -9078,9 +9410,10 @@ class Widget:
 
 
     def _accounts_dialog(self):
-        # Wider than it was: each row now carries a second control, and in
-        # Italian and Japanese the two labels together need the room.
-        dw, dh = self._dlg_size(540, 150)
+        # Wider than it was: each row carries two controls, and in Italian and
+        # Japanese the labels beside them need the room. The rows cut their own
+        # text to whatever is left, so this is comfort, not correctness.
+        dw, dh = self._dlg_size(580, 150)
         # dh is just a floor; the dialog is resized to fit the list on every
         # rebuild (fit) so the height grows with the account count and the Add
         # button below the list stays visible without a cap or scrolling.
@@ -9134,7 +9467,8 @@ class Widget:
             # It used to come from a network probe made once when the window
             # opened, so after a switch the button moved and the badge stayed
             # where it was until the window was closed and opened again.
-            live_org = ((self._cc_saved or {}).get('live') or {}).get('org')
+            st_read = self._cc_saved or {}
+            live_org = (st_read.get('live') or {}).get('org')
             for w in list_frame.winfo_children():
                 w.destroy()
             accounts = self.cfg.get('accounts', [])
@@ -9142,7 +9476,7 @@ class Widget:
                 tk.Label(list_frame, text=t('dlg_no_accounts'), font=FT_DLG_BODY,
                          fg=DIM, bg=BG, anchor='w').pack(fill='x', padx=8, pady=10)
             for acc in accounts:
-                self._account_row(list_frame, acc, rebuild, live_org)
+                self._account_row(list_frame, acc, rebuild, st_read, width=dw)
             self._place_dialog(dlg, dw)
             # The line above the list carries the email, which only the server
             # can give: ask again whenever the account underneath has changed.
@@ -9168,6 +9502,10 @@ class Widget:
                 pass
 
         rebuild()
+        # The live file may hold a sign-in nothing here has caught up with yet.
+        # Asking the server whose it is, and bringing that profile back in
+        # step, happens off the main thread; the list is drawn again after.
+        self._cc_sync_login(after=rebuild)
 
     def _backfill_identity(self):
         """One-time identity fill for the active account. A config migrated
