@@ -239,7 +239,7 @@ BAR_DEFAULT_FILL = {'session': BAR_FILL_SESSION,
 BAR_PRESETS = [BAR_FILL_SESSION, BAR_FILL_WEEKLY, BAR_FILL_HIGH, BAR_FILL_PURPLE]
 
 # ─── App ────────────────────────────────────────────
-APP_VERSION = '2.10.0-test8'
+APP_VERSION = '2.10.0-test9'
 
 # ─── Auto-update ────────────────────────────────────
 UPDATE_REPO = 'niccolo-sabato/claude-usage-widget'
@@ -4219,24 +4219,23 @@ class Section:
         self._draw(self.cv.winfo_width())
 
     def _draw_split(self, w, fw):
-        """The divisions, as ticks at the two edges.
+        """The divisions: one short line each, centred on the bar\'s height.
 
-        \U0001F534 Never a line across: the percentage is centred, and a
-        full-height line fell straight through it ("77|%"). At the edges the
-        divisions read as a ruler and the number stays whole on any bar,
-        including the narrow ones of the taskbar strip.
+        \U0001F534 On the user\'s word, after trying both (2026-09-25): a single
+        line in the middle reads better than a notch at each edge, which
+        looked like two marks where there is one. The line is faint and the
+        percentage is drawn after it, so where the two meet the number stays
+        on top.
         """
         def under(x):
             if self._pct <= 0:
                 return BAR_BG
             return self._color if x < fw else self._trackc
 
-        tick = max(3, BAR_H // 4)
         for k in range(1, self._split):
             x = round(w * k / self._split)
-            col = _lerp_hex(under(x), ink_on(under(x)), 0.45)
-            self.cv.create_line(x, 0, x, tick, fill=col, tags='split')
-            self.cv.create_line(x, BAR_H - tick, x, BAR_H, fill=col, tags='split')
+            col = _lerp_hex(under(x), ink_on(under(x)), 0.35)
+            self.cv.create_line(x, 4, x, BAR_H - 4, fill=col, tags='split')
 
     def set_dynamic(self, on):
         """Switch this bar between the percentage-driven palette and its own
@@ -7504,23 +7503,29 @@ class Widget:
         that does not fit simply runs off the edge of the window.
         """
         n = len(options)
-        h = self.dp(32)
+        width, h = int(width), self.dp(32)
         seg = width / n
         cv = tk.Canvas(parent, width=width, height=h, bg=BG,
                        highlightthickness=0, bd=0, cursor='hand2')
         state = {'hover': None}
 
         def paint():
+            # \U0001F534 Images, not Tk ovals: the ovals are drawn without
+            # antialiasing, so at this size the curves came out as steps and
+            # the chosen pill had a one-pixel bump under each rounded end,
+            # where the oval reached lower than the rectangle between them.
+            # The same 4x-rendered pills the buttons use.
             cv.delete('all')
-            pill(cv, 0, 0, width, h, SOFT_BG)
+            cv.create_image(0, 0, image=_render_pill_image(width, h, SOFT_BG),
+                            anchor='nw')
             for i, (value, label) in enumerate(options):
-                x0, mid = i * seg, i * seg + seg / 2
+                x0, x1 = round(i * seg), round((i + 1) * seg)
                 on = value == selected
-                if on:
-                    pill(cv, x0 + 3, 3, seg - 6, h - 6, CLAUDE)
-                elif state['hover'] == i:
-                    pill(cv, x0 + 3, 3, seg - 6, h - 6, SOFT_BG_HV)
-                cv.create_text(mid, h / 2, text=label,
+                if on or state['hover'] == i:
+                    colour = CLAUDE if on else SOFT_BG_HV
+                    cv.create_image(x0 + 3, 3, anchor='nw',
+                                    image=_render_pill_image(x1 - x0 - 6, h - 6, colour))
+                cv.create_text((x0 + x1) / 2, h / 2, text=label,
                                font=FT_DLG_BTN_B if on else FT_DLG_BTN,
                                fill='#FFFFFF' if on else FG)
 
