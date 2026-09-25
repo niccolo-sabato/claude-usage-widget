@@ -239,7 +239,7 @@ BAR_DEFAULT_FILL = {'session': BAR_FILL_SESSION,
 BAR_PRESETS = [BAR_FILL_SESSION, BAR_FILL_WEEKLY, BAR_FILL_HIGH, BAR_FILL_PURPLE]
 
 # ─── App ────────────────────────────────────────────
-APP_VERSION = '2.10.0-test5'
+APP_VERSION = '2.10.0-test8'
 
 # ─── Auto-update ────────────────────────────────────
 UPDATE_REPO = 'niccolo-sabato/claude-usage-widget'
@@ -730,9 +730,13 @@ LANG = {
         'action_setup_now': 'Configure now',
         'action_renew_now': 'Renew session',
         'cc_use_login': 'Use Claude Code login',
+        'cc_linking': 'Linking this computer\u2019s Claude Code login.',
+        'dlg_retry': 'Try again',
+        'dlg_use_key_instead': 'Use a session key',
         'cc_no_creds': 'Claude Code login not found. Run `claude` once and sign in.',
         'cc_token_expired': 'Claude Code login expired. Run `claude` once to refresh it.',
-        'cc_rate_limited': 'Claude asked to slow down. The login is fine; the widget will use it again shortly.',
+        'cc_rate_limited': 'Claude asked to slow down. Try again in a few minutes.',
+        'cc_rate_limited_until': 'Claude asked to slow down. Trying again at {when}.',
         'cc_account_name': 'Claude Code',
         # Toast notifications
         'toast_title': 'Claude Usage',
@@ -854,10 +858,12 @@ LANG = {
         'dlg_account_exists_title': 'Account already added',
         'dlg_account_exists': 'This is the same account as "{name}". Update it instead of adding a second one?',
         'tip_colors': 'Fixed: each bar keeps its own colour. By usage: every bar is coloured by its consumption (blue, amber, red).',
-        'menu_pace': 'Weekly pace',
-        'pace_off': 'Off',
-        'pace_days': '{n} days',
-        'tip_pace': 'Divides the weekly bar into that many parts and marks where the usage should be by now. Choose the days you actually work: five, if you stop at the weekend.',
+        'menu_split': 'Weekly split',
+        'split_none': 'none',
+        'split_parts': '{n} parts',
+        'split_intro': 'Split the weekly bar into equal parts.',
+        'split_remove': 'Remove split',
+        'tip_split': 'Splits the weekly bar into equal parts.',
         'tip_notifications': 'Windows notification when session usage crosses a threshold.',
         'tip_taskbar': 'Show a taskbar button with a usage progress overlay.',
         'menu_refresh_interval': 'Refresh interval\u2026',
@@ -1054,8 +1060,12 @@ LANG = {
         'cc_account_name': 'Claude Code',
         'cc_token_expired': 'Login di Claude Code scaduto. Esegui `claude` una volta per rinnovarlo.',
         'cc_no_creds': 'Login di Claude Code non trovato. Esegui `claude` una volta e accedi.',
-        'cc_rate_limited': 'Claude ha chiesto di rallentare. Il login è a posto: il widget lo riuserà fra poco.',
+        'cc_rate_limited': 'Claude ha chiesto di rallentare. Riprova fra qualche minuto.',
+        'cc_rate_limited_until': 'Claude ha chiesto di rallentare. Riprovo alle {when}.',
         'cc_use_login': 'Usa il login di Claude Code',
+        'cc_linking': 'Collego il login di Claude Code di questo computer.',
+        'dlg_retry': 'Riprova',
+        'dlg_use_key_instead': 'Usa una session key',
         'auth_claude_code': 'Login di Claude Code',
         'auth_key': 'Chiave di sessione',
         'cc_here': 'Claude Code su questo computer: {email}',
@@ -1094,10 +1104,12 @@ LANG = {
         'dlg_account_exists_title': 'Account gi\u00e0 presente',
         'dlg_account_exists': '\u00c8 lo stesso account di "{name}". Vuoi aggiornarlo invece di aggiungerne un altro?',
         'tip_colors': 'Fissi: ogni barra tiene il suo colore. Per consumo: ogni barra \u00e8 colorata in base al consumo (blu, giallo, rosso).',
-        'menu_pace': 'Ritmo settimanale',
-        'pace_off': 'Spento',
-        'pace_days': '{n} giorni',
-        'tip_pace': 'Divide la barra settimanale in altrettante parti e segna dove dovrebbe essere il consumo adesso. Scegli i giorni in cui lavori davvero: cinque, se nel fine settimana ti fermi.',
+        'menu_split': 'Suddivisione settimanale',
+        'split_none': 'nessuna',
+        'split_parts': '{n} parti',
+        'split_intro': 'Dividi la barra settimanale in parti uguali.',
+        'split_remove': 'Rimuovi divisione',
+        'tip_split': 'Divide la barra settimanale in parti uguali.',
         'tip_notifications': 'Notifica di Windows quando il consumo della sessione supera una soglia.',
         'tip_taskbar': 'Mostra un pulsante nella taskbar con la barra di avanzamento del consumo.',
         'menu_refresh_interval': 'Intervallo aggiornamento\u2026',
@@ -1297,8 +1309,12 @@ LANG = {
         'cc_account_name': 'Claude Code',
         'cc_token_expired': 'Claude Code \u306e\u30ed\u30b0\u30a4\u30f3\u306e\u6709\u52b9\u671f\u9650\u304c\u5207\u308c\u307e\u3057\u305f\u3002`claude` \u3092\u4e00\u5ea6\u5b9f\u884c\u3057\u3066\u66f4\u65b0\u3057\u3066\u304f\u3060\u3055\u3044\u3002',
         'cc_no_creds': 'Claude Code \u306e\u30ed\u30b0\u30a4\u30f3\u304c\u898b\u3064\u304b\u308a\u307e\u305b\u3093\u3002`claude` \u3092\u4e00\u5ea6\u5b9f\u884c\u3057\u3066\u30b5\u30a4\u30f3\u30a4\u30f3\u3057\u3066\u304f\u3060\u3055\u3044\u3002',
-        'cc_rate_limited': 'Claude \u304b\u3089\u901f\u5ea6\u3092\u843d\u3068\u3059\u3088\u3046\u6c42\u3081\u3089\u308c\u307e\u3057\u305f\u3002\u30ed\u30b0\u30a4\u30f3\u306f\u6709\u52b9\u3067\u3001\u307e\u3082\u306a\u304f\u518d\u3073\u4f7f\u7528\u3057\u307e\u3059\u3002',
+        'cc_rate_limited': 'Claude \u304b\u3089\u901f\u5ea6\u3092\u843d\u3068\u3059\u3088\u3046\u6c42\u3081\u3089\u308c\u307e\u3057\u305f\u3002\u6570\u5206\u5f8c\u306b\u3082\u3046\u4e00\u5ea6\u304a\u8a66\u3057\u304f\u3060\u3055\u3044\u3002',
+        'cc_rate_limited_until': 'Claude \u304b\u3089\u901f\u5ea6\u3092\u843d\u3068\u3059\u3088\u3046\u6c42\u3081\u3089\u308c\u307e\u3057\u305f\u3002{when} \u306b\u518d\u8a66\u884c\u3057\u307e\u3059\u3002',
         'cc_use_login': 'Claude Code \u306e\u30ed\u30b0\u30a4\u30f3\u3092\u4f7f\u3046',
+        'cc_linking': '\u3053\u306e\u30b3\u30f3\u30d4\u30e5\u30fc\u30bf\u30fc\u306e Claude Code \u30ed\u30b0\u30a4\u30f3\u3092\u63a5\u7d9a\u3057\u3066\u3044\u307e\u3059\u3002',
+        'dlg_retry': '\u518d\u8a66\u884c',
+        'dlg_use_key_instead': '\u30bb\u30c3\u30b7\u30e7\u30f3\u30ad\u30fc\u3092\u4f7f\u3046',
         'auth_claude_code': 'Claude Code \u30ed\u30b0\u30a4\u30f3',
         'auth_key': '\u30bb\u30c3\u30b7\u30e7\u30f3\u30ad\u30fc',
         'cc_here': '\u3053\u306ePC\u306eClaude Code: {email}',
@@ -1337,10 +1353,12 @@ LANG = {
         'dlg_account_exists_title': '\u65e2\u306b\u8ffd\u52a0\u6e08\u307f',
         'dlg_account_exists': '\u300c{name}\u300d\u3068\u540c\u3058\u30a2\u30ab\u30a6\u30f3\u30c8\u3067\u3059\u3002\u65b0\u3057\u304f\u8ffd\u52a0\u305b\u305a\u306b\u66f4\u65b0\u3057\u307e\u3059\u304b\uff1f',
         'tip_colors': '\u56fa\u5b9a: \u5404\u30d0\u30fc\u304c\u72ec\u81ea\u306e\u8272\u3092\u4fdd\u3061\u307e\u3059\u3002\u6d88\u8cbb\u91cf: \u3059\u3079\u3066\u306e\u30d0\u30fc\u304c\u6d88\u8cbb\u91cf\u306b\u5fdc\u3058\u3066\u8272\u5206\u3051\u3055\u308c\u307e\u3059 (\u9752\u3001\u9ec4\u3001\u8d64)\u3002',
-        'menu_pace': '\u9031\u9593\u30da\u30fc\u30b9',
-        'pace_off': '\u30aa\u30d5',
-        'pace_days': '{n} \u65e5',
-        'tip_pace': '\u9031\u9593\u30d0\u30fc\u3092\u6307\u5b9a\u3057\u305f\u6570\u306b\u5206\u3051\u3001\u4eca\u3042\u308b\u3079\u304d\u6d88\u8cbb\u91cf\u3092\u793a\u3057\u307e\u3059\u3002\u5b9f\u969b\u306b\u50cd\u304f\u65e5\u6570\u3092\u9078\u3093\u3067\u304f\u3060\u3055\u3044\uff08\u9031\u672b\u306b\u4f11\u3080\u306a\u3089 5 \u65e5\uff09\u3002',
+        'menu_split': '\u9031\u9593\u30d0\u30fc\u306e\u5206\u5272',
+        'split_none': '\u306a\u3057',
+        'split_parts': '{n} \u5206\u5272',
+        'split_intro': '\u9031\u9593\u30d0\u30fc\u3092\u7b49\u5206\u3057\u307e\u3059\u3002',
+        'split_remove': '\u5206\u5272\u3092\u89e3\u9664',
+        'tip_split': '\u9031\u9593\u30d0\u30fc\u3092\u7b49\u5206\u3057\u307e\u3059\u3002',
         'tip_notifications': '\u30bb\u30c3\u30b7\u30e7\u30f3\u4f7f\u7528\u91cf\u304c\u3057\u304d\u3044\u5024\u3092\u8d85\u3048\u308b\u3068Windows\u901a\u77e5\u3092\u8868\u793a\u3057\u307e\u3059\u3002',
         'tip_taskbar': '\u30bf\u30b9\u30af\u30d0\u30fc\u306b\u4f7f\u7528\u72b6\u6cc1\u3092\u91cd\u306d\u305f\u30dc\u30bf\u30f3\u3092\u8868\u793a\u3057\u307e\u3059\u3002',
         'menu_refresh_interval': '\u66f4\u65b0\u9593\u9694\u2026',
@@ -2144,6 +2162,12 @@ def token_expiry():
         return f'{datetime.fromtimestamp(exp / 1000):%d/%m/%Y %H:%M}'
     except (ValueError, OSError, OverflowError):
         return ''
+
+
+# In how many equal parts the weekly bar can be split. 2 and 3 were offered
+# once and dropped: a week's budget cannot be spent in two or three days when
+# every five hours has its own cap.
+SPLIT_CHOICES = (4, 5, 6, 7)
 
 
 def elide(text, font, limit):
@@ -3332,6 +3356,10 @@ def fetch_claude_code_profile(force=False):
     code = _http_status(headers)
     if code in (401, 403):
         raise PermissionError(t('cc_token_expired'))
+    if code == 429:
+        # Detto per nome anche qui: chi chiama puo' cosi' distinguere "il
+        # login non va" da "aspetta un momento", e sono due cose diverse.
+        raise RateLimited(t('cc_rate_limited'))
     if code and code >= 400:
         raise RuntimeError(f'HTTP {code}')
     try:
@@ -3388,6 +3416,14 @@ def claude_code_status():
         return None
 
 
+# 🔴 L'endpoint OAuth di Claude Code non regge un widget che aggiorna
+# ogni 30 secondi: il 25 settembre ha risposto 429, e da li' in poi ogni
+# aggiornamento ci riprovava e ne prendeva un altro. I numeri cambiano lenti,
+# quindi la risposta si riusa per questo intervallo invece di richiederla.
+CC_MIN_GAP_S = 120
+_CC_USAGE_CACHE = {'key': None, 'at': 0.0, 'data': None}
+
+
 class RateLimited(RuntimeError):
     """The endpoint asked us to slow down. It says nothing about the
     credential, so it must never be reported as an expired login."""
@@ -3398,7 +3434,7 @@ class RateLimited(RuntimeError):
 # whole session while the profile endpoint answered 200 for the same token, so
 # the credential was fine and only the polling was too eager. Asking again a
 # minute later keeps the limit tripped and the reading never comes back.
-CC_RATE_LIMIT_PAUSE_S = 15 * 60
+CC_RATE_LIMIT_PAUSE_S = 5 * 60
 _cc_paused_until = 0.0
 
 
@@ -3425,6 +3461,13 @@ def no_active_plan(data):
             and data.get('seven_day') is None)
 
 
+def _cc_cache_key(token, expect_org):
+    # Il pezzo finale del token, mai il token: identifica la sessione senza
+    # portarsi dietro il segreto. L'organizzazione entra nella chiave perche'
+    # una risposta non deve MAI poter essere riusata per un altro conto.
+    return (token[-12:], expect_org or '')
+
+
 def fetch_usage_claude_code(retry_transient=True, expect_org=None):
     """Usage via the OAuth endpoint Claude Code itself uses. Same five_hour /
     seven_day shape as the claude.ai endpoint, so _on_data needs no change.
@@ -3438,6 +3481,10 @@ def fetch_usage_claude_code(retry_transient=True, expect_org=None):
             raise PermissionError(
                 t('cc_other_account').format(email=prof.get('email') or '?'))
     token, _ = read_claude_code_token()
+    cache_key = _cc_cache_key(token, expect_org)
+    if (_CC_USAGE_CACHE['key'] == cache_key
+            and time.time() - _CC_USAGE_CACHE['at'] < CC_MIN_GAP_S):
+        return _CC_USAGE_CACHE['data']
     headers, body = _curl_call(
         CC_USAGE_URL, None, retry_transient=retry_transient,
         headers=(f'Authorization: Bearer {token}', 'anthropic-beta: oauth-2025-04-20'))
@@ -3456,6 +3503,7 @@ def fetch_usage_claude_code(retry_transient=True, expect_org=None):
         raise RuntimeError(f'invalid response: {e}')
     if no_active_plan(data):
         raise NoActivePlan(t('plan_inactive'))
+    _CC_USAGE_CACHE.update(key=cache_key, at=time.time(), data=data)
     return data
 
 
@@ -3516,20 +3564,38 @@ def fetch_usage(cfg):
     global _cc_paused_until
     first_error = None
     for method in methods:
-        # A reading that was rate limited is left alone for a while, but only
-        # while there is another way in: pausing the last one would leave the
-        # widget with nothing to show and no reason given.
-        if (method == AUTH_CC and len(methods) > 1
-                and time.time() < _cc_paused_until):
+        # \U0001F534 La pausa vale SEMPRE, anche se e' l'unico modo di leggere.
+        # Prima veniva rispettata solo quando c'era un'altra credenziale: con
+        # il solo login di Claude Code il widget richiamava l'endpoint gia'
+        # limitato a ogni aggiornamento, si riprendeva un 429, e mostrava
+        # l'errore in continuazione (25 set 2026, una volta ogni 20 secondi).
+        # Meglio non chiamare e dire quando si riprova.
+        if method == AUTH_CC and time.time() < _cc_paused_until:
             continue
         try:
             if method == AUTH_CC:
-                return fetch_usage_claude_code(expect_org=acc.get('org_id')), None
+                org = acc.get('org_id')
+                if not org:
+                    # Senza organizzazione non si puo' sapere di CHI sono i
+                    # numeri che tornerebbero, e mostrarli sotto il nome
+                    # sbagliato e' peggio che non mostrarli.
+                    wlog('FETCH  claude_code has no organisation on this '
+                         'account, not using it')
+                    continue
+                return fetch_usage_claude_code(expect_org=org), None
             return _fetch_usage_key(acc)
         except RateLimited as e:
-            _cc_paused_until = time.time() + CC_RATE_LIMIT_PAUSE_S
-            wlog(f'FETCH  {method} is rate limited, leaving it alone for '
-                 f'{CC_RATE_LIMIT_PAUSE_S // 60} minutes')
+            # Non si allunga una pausa gia' in corso: ogni tentativo la
+            # rimandava avanti, e il widget non ne usciva piu'.
+            if time.time() >= _cc_paused_until:
+                _cc_paused_until = time.time() + CC_RATE_LIMIT_PAUSE_S
+                wlog(f'FETCH  {method} is rate limited, leaving it alone for '
+                     f'{CC_RATE_LIMIT_PAUSE_S // 60} minutes')
+            # With the time in it from the very first refusal: the generic
+            # sentence went on screen once per start before the timed one
+            # took over, and it was the one the user read.
+            e = RateLimited(t('cc_rate_limited_until').format(
+                when=datetime.fromtimestamp(_cc_paused_until).strftime('%H:%M')))
             first_error = first_error if first_error is not None else e
         except Exception as e:
             # The reason is logged, not just the fact: a reading that quietly
@@ -3540,8 +3606,11 @@ def fetch_usage(cfg):
                      f'trying the other way')
             first_error = first_error if first_error is not None else e
     if first_error is None:
-        # Every method was skipped, which can only be the paused one.
-        raise RateLimited(t('cc_rate_limited'))
+        # Every method was skipped, which can only be the paused one. Il
+        # messaggio porta l'ora: "fra poco" non dice niente a chi lo legge
+        # per la decima volta in due minuti.
+        raise RateLimited(t('cc_rate_limited_until').format(
+            when=datetime.fromtimestamp(_cc_paused_until).strftime('%H:%M')))
     raise first_error
 
 
@@ -3973,8 +4042,7 @@ class Section:
         self._reset_level = RESET_FULL   # width of the reset sub-label
         self._resets_at = None           # last reset time, to re-render at another width
         self._state = 'empty'            # 'empty' | 'missing' | 'ok' (see _render_reset)
-        self._pace_days = 0              # 0 = off; else the days to spread over
-        self._window_start = None        # start of the 7-day window, from the server
+        self._split = 0                  # 0 = whole; else the equal parts shown
 
         self.frame = tk.Frame(parent, bg=BG)
         self.frame.pack(fill='x', padx=PAD, pady=(3, 0))
@@ -4133,70 +4201,42 @@ class Section:
         self._render_reset()
         self._draw(self.cv.winfo_width())
 
-    def set_pace(self, days):
-        """Divide the bar into `days` parts and mark where usage should be.
+    def set_split(self, parts):
+        """Show the bar in `parts` equal parts, 0 to show it whole.
 
-        Zero turns it off. The number is the user's, not the calendar's:
-        somebody who works five days and stops at the weekend spends the week's
-        budget in five parts, and a marker drawn on sevenths would tell them
-        they are behind every Friday.
+        \U0001F534 Only the division, on the user\'s word (2026-09-25). The
+        7-day window starts wherever Anthropic starts it - one of the user\'s
+        accounts on a Tuesday at 02:59, the other on a Wednesday at 06:00 - so
+        the parts cannot be tied to days of the week, and the mark that used
+        to say where the usage "should" be by today rested on exactly that
+        guess: on screen it looked placed at random, because it was.
         """
-        days = int(days or 0)
-        if days == self._pace_days:
+        parts = int(parts or 0)
+        parts = parts if parts in SPLIT_CHOICES else 0
+        if parts == self._split:
             return
-        self._pace_days = days
+        self._split = parts
         self._draw(self.cv.winfo_width())
 
-    def set_window_start(self, iso):
-        """When the current weekly window began, as the server reports it."""
-        if iso == self._window_start:
-            return
-        self._window_start = iso
-        if self._pace_days:
-            self._draw(self.cv.winfo_width())
+    def _draw_split(self, w, fw):
+        """The divisions, as ticks at the two edges.
 
-    def _pace_target(self):
-        """The share of the budget that should be gone by now, or None.
-
-        🔴 Measured on 2026-09-21: the usage answer carries
-        `window_started_at` (15 Sep 21:00) beside `resets_at` (22 Sep 21:00),
-        exactly seven days apart. So the start of the window is a fact the
-        server gives, not something inferred from a subtraction, and the
-        marker stands on it. The subtraction is kept only as the fallback for
-        an answer that does not carry the start.
+        \U0001F534 Never a line across: the percentage is centred, and a
+        full-height line fell straight through it ("77|%"). At the edges the
+        divisions read as a ruler and the number stays whole on any bar,
+        including the narrow ones of the taskbar strip.
         """
-        start = None
-        for value, shift in ((self._window_start, 0), (self._resets_at, -7)):
-            if not value:
-                continue
-            try:
-                start = (datetime.fromisoformat(str(value).replace('Z', '+00:00'))
-                         + timedelta(days=shift))
-                break
-            except (ValueError, TypeError):
-                continue
-        if start is None or not self._pace_days:
-            return None
-        gone = (datetime.now(timezone.utc) - start).total_seconds() / 86400.0
-        return min(1.0, max(0.0, gone / self._pace_days))
-
-    def _draw_pace(self, w, fw):
-        """The day divisions, and the line where the consumption should be."""
         def under(x):
             if self._pct <= 0:
                 return BAR_BG
             return self._color if x < fw else self._trackc
 
-        for k in range(1, self._pace_days):
-            x = round(w * k / self._pace_days)
-            bg = under(x)
-            self.cv.create_line(x, 4, x, BAR_H - 4,
-                                fill=_lerp_hex(bg, ink_on(bg), 0.35))
-        target = self._pace_target()
-        if target is None:
-            return
-        x = min(max(round(w * target), 1), w - 2)
-        self.cv.create_line(x, 1, x, BAR_H - 1, fill=ink_on(under(x)), width=2)
+        tick = max(3, BAR_H // 4)
+        for k in range(1, self._split):
+            x = round(w * k / self._split)
+            col = _lerp_hex(under(x), ink_on(under(x)), 0.45)
+            self.cv.create_line(x, 0, x, tick, fill=col, tags='split')
+            self.cv.create_line(x, BAR_H - tick, x, BAR_H, fill=col, tags='split')
 
     def set_dynamic(self, on):
         """Switch this bar between the percentage-driven palette and its own
@@ -4233,13 +4273,13 @@ class Section:
         if self._pct > 0:
             fw = max(BAR_H, w * self._pct / 100)
             pill(self.cv, 0, 0, fw, BAR_H, self._color)
-        if self._pace_days and self._state == 'ok':
-            self._draw_pace(w, fw if self._pct > 0 else 0)
         pct_str = f'{self._pct:.0f}%' if self._pct > 0 else '0%'
         if self._compact and self._cd_txt:
             txt = f'{pct_str}  {self._cd_txt}'
         else:
             txt = pct_str
+        if self._split and self._state == 'ok':
+            self._draw_split(w, fw if self._pct > 0 else 0)
         # The text is centred, so it sits on the fill once the bar is past
         # half and on the track before that. Ask the one it is actually on.
         behind = self._color if (self._pct > 0 and fw >= w / 2) else track
@@ -4649,7 +4689,7 @@ class Widget:
         if self.cfg.get('bar_dynamic', False):
             for sec in self._all_sections():
                 sec._dynamic = True
-        self._apply_pace()
+        self._apply_split()
 
         # Hamburger menu pill - shown on the right of the side-by-side strip
         # whenever essential mode is collapsed. It pushes the bars left so the
@@ -5508,6 +5548,18 @@ class Widget:
                         action_cmd=self._renew_session))
             except Exception as ex:
                 wlog(f'FETCH  error after PermissionError: {ex}')
+        except RateLimited as e:
+            # \U0001F534 Non e' un guasto: e' un'attesa. Con dei numeri gia'
+            # sullo schermo, sostituirli con un pannello rosso li fa sparire
+            # per un motivo che non riguarda l'utente. Restano dove sono, e la
+            # cosa finisce nel registro.
+            msg = _redact(e)
+            wlog(f'FETCH  {msg}')
+            if not self._has_usage:
+                try:
+                    self.root.after(0, self._error, msg)
+                except Exception as ex:
+                    wlog(f'FETCH  error after RateLimited: {ex}')
         except Exception as e:
             # Redacted: an exception raised below the transport can still carry
             # the request that produced it, and this text is both logged and
@@ -5561,9 +5613,6 @@ class Widget:
         self.s_session.update(fh['utilization'] if fh else None,
                               fh.get('resets_at') if fh else None)
         sd = d.get('seven_day')
-        week_start = (d.get('seven_day_breakdown') or {}).get('window_started_at')
-        self.s_weekly.set_window_start(week_start)
-        self.ess_bars['weekly'].set_window_start(week_start)
         self.s_weekly.update(sd['utilization'] if sd else None,
                              sd.get('resets_at') if sd else None)
         sp, sr, sname = scoped_model(d)
@@ -6762,20 +6811,18 @@ class Widget:
             self._menu_row(m, (t('menu_colors_dynamic') if dyn else t('menu_colors_fixed')),
                            lambda: self._flyout_set(lambda: self._toggle_bar_dynamic(close=False)),
                            icon='\U0001F3A8︎', icon_ft=FT_EMOJI, tip=t('tip_colors'))
-            # Over how many days the week's budget is meant to be spent. The
-            # number is the user's own working rhythm, not the calendar's:
-            # sevenths would tell somebody who rests at the weekend that they
-            # are behind every Friday.
+            # How many equal parts the weekly bar is shown in.
             #
             # \U0001F534 One row that opens a window, not one row per number:
             # measured on 2026-09-21, eight more rows took this flyout to
             # 1092px at 150% scaling against 1020px of usable height on a
             # 1080p screen, and a menu does not scroll.
-            pace = int(self.cfg.get('weekly_pace_days', 0) or 0)
-            self._menu_row(m, t('menu_pace') + ': ' + (
-                t('pace_days').format(n=pace) if pace else t('pace_off')),
-                lambda: self._menu_do(self._pace_dialog),
-                icon='\U0001F4C5︎', icon_ft=FT_EMOJI, tip=t('tip_pace'))
+            split = int(self.cfg.get('weekly_split', 0) or 0)
+            self._menu_row(m, t('menu_split') + ': ' + (
+                t('split_parts').format(n=split) if split in SPLIT_CHOICES
+                else t('split_none')),
+                lambda: self._menu_do(self._split_dialog),
+                icon='\U0001F4C5\ufe0e', icon_ft=FT_EMOJI, tip=t('tip_split'))
             # Whether the widget has a taskbar button is a question about how it
             # is shown, so it belongs here rather than beside the alerts.
             tb = self.cfg.get('show_in_taskbar', False)
@@ -7367,58 +7414,132 @@ class Widget:
         render_preview()
         self._place_dialog(dlg, dw)
 
-    def _apply_pace(self, days=None):
-        """Put the pace setting on both copies of the weekly bar."""
-        if days is None:
-            days = self.cfg.get('weekly_pace_days', 0)
+    def _apply_split(self, parts=None):
+        """Put the split on both copies of the weekly bar."""
+        if parts is None:
+            parts = self.cfg.get('weekly_split', 0)
         for bar in (self.s_weekly, self.ess_bars['weekly']):
-            bar.set_pace(days)
+            bar.set_split(parts)
 
-    def _set_pace_days(self, days, close=True):
-        """Choose over how many days the week's budget is meant to be spent."""
-        self.cfg['weekly_pace_days'] = int(days)
+    def _set_split(self, parts, close=True):
+        """Choose in how many equal parts the weekly bar is shown."""
+        self.cfg['weekly_split'] = int(parts)
         save_cfg(self.cfg)
-        wlog(f'PACE   weekly_pace_days -> {days}')
-        self._apply_pace(days)
+        wlog(f'SPLIT  weekly_split -> {parts}')
+        self._apply_split(parts)
         if close:
             self._close_menu()
 
-    def _pace_dialog(self):
-        """Choose over how many days the week's budget is meant to last."""
-        dw, dh = self._dlg_size(420, 190)
-        dlg, body = self._build_dialog_frame(t('menu_pace'), dw, dh, key='pace')
+    def _split_dialog(self):
+        """Choose in how many equal parts the weekly bar is shown.
 
+        \U0001F534 Rebuilt on 2026-09-25 from what the user found in the first
+        version: a row of pills that ran past the window and cut the "7" in
+        half, pills of different sizes (the chosen one was a primary pill,
+        bigger by construction), an "Off" nobody could read as "remove the
+        split", and a paragraph that explained nothing. One control of equal
+        segments, the bar itself shown as it will look, and the way back
+        named for what it does.
+        """
+        dw, dh = self._dlg_size(420, 220)
+        dlg, body = self._build_dialog_frame(t('menu_split'), dw, dh, key='split')
+        inner_w = dw - self.dp(48)
+
+        # Bottom controls first (see the layout contract in _build_dialog_frame).
         bottom = tk.Frame(body, bg=BG)
         bottom.pack(fill='x', side='bottom')
         tk.Frame(bottom, bg=BAR_BG, height=1).pack(fill='x', pady=(14, 12))
-        self._secondary_pill(bottom, t('cc_ui_close'), dlg.destroy).pack(side='right')
+        buttons = tk.Frame(bottom, bg=BG)
+        buttons.pack(fill='x')
+        self._secondary_pill(buttons, t('cc_ui_close'), dlg.destroy).pack(side='right')
+        remove_host = tk.Frame(buttons, bg=BG)
+        remove_host.pack(side='left')
 
-        tk.Label(body, text=t('tip_pace'), font=FT_DLG_HINT, fg=DIM, bg=BG,
+        tk.Label(body, text=t('split_intro'), font=FT_DLG_HINT, fg=DIM, bg=BG,
                  anchor='w', justify='left',
-                 wraplength=dw - self.dp(48)).pack(fill='x', pady=(0, 12))
+                 wraplength=inner_w).pack(fill='x', pady=(0, 12))
+        seg_host = tk.Frame(body, bg=BG)
+        seg_host.pack(fill='x')
 
-        choices = tk.Frame(body, bg=BG)
-        choices.pack(fill='x')
+        # The weekly bar as it will look, with the user\'s own number when there
+        # is one. The bar on the widget may not even be on show - the strip can
+        # hold the session bar alone - and a choice whose effect cannot be seen
+        # is a choice made blind.
+        src = self.s_weekly
+        prev = Section(body, src.lbl.cget('text'), src._fill, src._track)
+        prev.frame.pack_configure(padx=0, pady=(16, 0))
+        prev._dynamic = src._dynamic
+        prev.update(src._pct if src._state == 'ok' else 30, src._resets_at)
+
+        def chosen():
+            v = int(self.cfg.get('weekly_split', 0) or 0)
+            return v if v in SPLIT_CHOICES else 0
 
         def render():
-            # Redrawn rather than restyled: the chosen number is the filled
-            # pill, and there is no other state to keep in step.
-            for w_ in choices.winfo_children():
+            for w_ in seg_host.winfo_children():
                 w_.destroy()
-            now = int(self.cfg.get('weekly_pace_days', 0) or 0)
-            for value in (0, 2, 3, 4, 5, 6, 7):
-                label = t('pace_off') if not value else str(value)
-                make = self._primary_pill if value == now else self._secondary_pill
-                make(choices, label, lambda v=value: pick(v)).pack(
-                    side='left', padx=(0, 6))
+            for w_ in remove_host.winfo_children():
+                w_.destroy()
+            now = chosen()
+            self._segmented(seg_host, [(v, str(v)) for v in SPLIT_CHOICES],
+                            now, pick, inner_w).pack(anchor='w')
+            if now:
+                self._secondary_pill(remove_host, t('split_remove'),
+                                     lambda: pick(0)).pack(side='left')
+            prev.set_split(now)
 
         def pick(value):
-            self._set_pace_days(value, close=False)
-            if choices.winfo_exists():
+            self._set_split(value, close=False)
+            if seg_host.winfo_exists():
                 render()
 
         render()
         self._place_dialog(dlg, dw, dh_floor=dh)
+
+    def _segmented(self, parent, options, selected, on_pick, width):
+        """A row of equal segments, one of them chosen.
+
+        One control rather than a row of pills: a pill sizes itself to its
+        text and to its style, so no row of them comes out even, and a row
+        that does not fit simply runs off the edge of the window.
+        """
+        n = len(options)
+        h = self.dp(32)
+        seg = width / n
+        cv = tk.Canvas(parent, width=width, height=h, bg=BG,
+                       highlightthickness=0, bd=0, cursor='hand2')
+        state = {'hover': None}
+
+        def paint():
+            cv.delete('all')
+            pill(cv, 0, 0, width, h, SOFT_BG)
+            for i, (value, label) in enumerate(options):
+                x0, mid = i * seg, i * seg + seg / 2
+                on = value == selected
+                if on:
+                    pill(cv, x0 + 3, 3, seg - 6, h - 6, CLAUDE)
+                elif state['hover'] == i:
+                    pill(cv, x0 + 3, 3, seg - 6, h - 6, SOFT_BG_HV)
+                cv.create_text(mid, h / 2, text=label,
+                               font=FT_DLG_BTN_B if on else FT_DLG_BTN,
+                               fill='#FFFFFF' if on else FG)
+
+        def at(x):
+            return max(0, min(n - 1, int(x // seg)))
+
+        def hover(e):
+            state['hover'] = at(e.x)
+            paint()
+
+        def leave(_e):
+            state['hover'] = None
+            paint()
+
+        cv.bind('<Button-1>', lambda e: on_pick(options[at(e.x)][0]))
+        cv.bind('<Motion>', hover)
+        cv.bind('<Leave>', leave)
+        paint()
+        return cv
 
     def _toggle_bar_dynamic(self, close=True):
         """Switch the whole widget between the fixed per-bar palette and the
@@ -8175,12 +8296,20 @@ class Widget:
         if show_cc:
             dh += 56  # one more pill row above the key entry
         dw, dh = self._dlg_size(460, dh)
+        # The height for the whole key form, kept for when the login way gives
+        # up and the form is asked for; the login way alone needs a short one.
+        dh_full = dh
+        if start_cc:
+            dh = self._dlg_size(460, 190)[1]
         dlg, body = self._build_dialog_frame(title, dw, dh, key='session_key')
 
         # Bottom controls first (see the layout contract in _build_dialog_frame).
         btn_frame = tk.Frame(body, bg=BG)
         btn_frame.pack(fill='x', side='bottom', pady=(12, 0))
         connect_state = {'btn': None}
+        # 'login': the user chose the Claude Code login on the screen before,
+        # so only that way is on show until it fails and they ask for a key.
+        mode = {'login': bool(start_cc), 'hidden': [], 'extra': [], 'head': None}
 
         if is_setup:
             tk.Label(body, text=t('dlg_welcome_hint'), font=FT_DLG_BODY, fg=DIM,
@@ -8341,7 +8470,10 @@ class Widget:
             threading.Thread(target=detect, daemon=True).start()
 
         def use_claude_code():
-            build_connect(enabled=False)
+            if mode['login']:
+                clear_extra()
+            else:
+                build_connect(enabled=False)
             status_lbl.config(text=t('dlg_verifying'), fg=BLUE)
             # Read before anything can close the dialog: an Entry outlives its
             # window as a Python object, and reading it afterwards raises.
@@ -8349,12 +8481,43 @@ class Widget:
 
             def fail(msg):
                 status_lbl.config(text=f"{t('dlg_error_prefix')}: {msg}", fg=RED)
-                build_connect(enabled=True)
+                if mode['login']:
+                    login_failed()
+                else:
+                    build_connect(enabled=True)
 
             def verify():
+                """Chi e' questo login, e basta.
+
+                \U0001F534 Prima qui si leggeva anche l'uso, e un 429 su QUELLA
+                lettura faceva fallire tutto: il 25 settembre l'utente si e'
+                trovato la finestra "incolla la session key" con scritto che il
+                login era a posto, senza che il conto venisse aggiunto. Chi
+                aggiunge un conto vuole collegarlo; i numeri arrivano al primo
+                aggiornamento.
+                """
                 try:
                     prof = fetch_claude_code_profile(force=True)
+                except RateLimited:
+                    # L'identita' sta anche nel file delle credenziali e nella
+                    # cache: non serve il server per sapere di chi e' il login
+                    # che e' gia' su questo computer.
+                    live = cc_accounts.active()
+                    if not live.get('org'):
+                        dlg.after(0, lambda: fail(t('cc_rate_limited')))
+                        return
+                    prof = {'org_id': live['org'], 'email': live.get('email') or '',
+                            'plan': live.get('plan') or '', 'name': ''}
+                except Exception as e:
+                    dlg.after(0, lambda msg=str(e): fail(msg))
+                    return
+                try:
                     fetch_usage_claude_code(expect_org=prof.get('org_id'))
+                except RateLimited:
+                    pass                      # il login e' provato: si procede
+                except NoActivePlan as e:
+                    dlg.after(0, lambda msg=str(e): fail(msg))
+                    return
                 except Exception as e:
                     dlg.after(0, lambda msg=str(e): fail(msg))
                     return
@@ -8421,9 +8584,66 @@ class Widget:
 
         build_connect(enabled=True)
         entry.bind('<Return>', lambda e: save_key())
+        def clear_extra():
+            for w_ in mode['extra']:
+                try:
+                    w_.destroy()
+                except tk.TclError:
+                    pass
+            mode['extra'] = []
+
+        def enter_login_mode():
+            """Show only what the chosen way needs.
+
+            \U0001F534 From the user, 2026-09-25: "I chose the Claude Code
+            login, and got the page that asks me to paste the session key".
+            The login way used to run inside the key form, so a login that
+            failed left them facing a field they had not asked for, with an
+            error about something else above it.
+            """
+            for w_ in body.winfo_children():
+                if w_ in (status_lbl, btn_frame) or w_.winfo_manager() != 'pack':
+                    continue
+                mode['hidden'].append((w_, w_.pack_info()))
+                w_.pack_forget()
+            if connect_state['btn'] is not None:
+                connect_state['btn'].destroy()
+                connect_state['btn'] = None
+            mode['head'] = tk.Label(body, text=t('cc_linking'), font=FT_DLG_H,
+                                    fg=FG, bg=BG, anchor='w', justify='left',
+                                    wraplength=dw - 40)
+            mode['head'].pack(fill='x', before=status_lbl)
+
+        def login_failed():
+            """Two ways on: the same login again, or a key instead."""
+            clear_extra()
+            again = self._primary_pill(btn_frame, t('dlg_retry'), use_claude_code)
+            again.pack(side='right')
+            other = self._secondary_pill(btn_frame, t('dlg_use_key_instead'),
+                                         leave_login_mode)
+            other.pack(side='left')
+            mode['extra'] = [again, other]
+
+        def leave_login_mode():
+            clear_extra()
+            mode['login'] = False
+            if mode['head'] is not None:
+                mode['head'].destroy()
+                mode['head'] = None
+            for w_, info in mode['hidden']:
+                info = dict(info)
+                info.pop('in', None)
+                w_.pack(before=status_lbl, **info)
+            mode['hidden'] = []
+            status_lbl.config(text='')
+            build_connect(enabled=True)
+            entry.focus_set()
+            self._place_dialog(dlg, dw, dh_floor=dh_full)
+
         if start_cc:
-            # The user already chose the login on the previous screen; do not
-            # make them choose again on this one.
+            # The user already chose the login on the previous screen: this
+            # window is about that login, not about a key.
+            enter_login_mode()
             dlg.after(60, use_claude_code)
 
     def _setup_dialog(self):
