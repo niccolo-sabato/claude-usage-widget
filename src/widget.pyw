@@ -651,6 +651,17 @@ def show_toast(title, lines):
     Synchronous call with a 5 s timeout so failures are surfaced into
     widget.log instead of disappearing.
     """
+    # \U0001F534 Never from a test run. Every bench, probe and photograph loads
+    # this file with CLAUDE_USAGE_DEV=1, and on 2026-09-25 two of them fed the
+    # widget a session at 40% and at 77% and sent the user real Windows
+    # notifications, over and over, for sessions that did not exist. Muting
+    # each tool one by one had already failed once the same evening, so the
+    # rule lives here, where no tool can forget it. CLAUDE_USAGE_TOASTS=1 lets
+    # a deliberate test of the notifications through.
+    if (os.environ.get('CLAUDE_USAGE_DEV') == '1'
+            and os.environ.get('CLAUDE_USAGE_TOASTS') != '1'):
+        wlog(f'TOAST  (test run, not sent) {title}: {lines}')
+        return
     try:
         if isinstance(lines, str):
             lines = [lines]
@@ -826,6 +837,7 @@ LANG = {
         'cc_here_checking': 'Checking the Claude Code login...',
         'cc_here_none': 'No Claude Code login on this computer',
         'cc_other_account': 'That login belongs to {email}',
+        'cc_elsewhere': 'Claude Code is now signed in as {email}. This account can be read with its own session key, or by switching Claude Code back to it.',
         'cc_state_linked': 'Linked',
         'cc_state_available': 'Available on this computer',
         'cc_state_absent': 'Not found on this computer',
@@ -1072,6 +1084,7 @@ LANG = {
         'cc_here_checking': 'Controllo del login di Claude Code...',
         'cc_here_none': 'Nessun login di Claude Code su questo computer',
         'cc_other_account': 'Quel login appartiene a {email}',
+        'cc_elsewhere': 'Claude Code ora è collegato a {email}. Questo conto si legge con la sua session key, oppure riportando Claude Code su di lui.',
         'cc_state_linked': 'Collegato',
         'cc_state_available': 'Disponibile su questo computer',
         'cc_state_absent': 'Non presente su questo computer',
@@ -1321,6 +1334,7 @@ LANG = {
         'cc_here_checking': 'Claude Code\u306e\u30ed\u30b0\u30a4\u30f3\u3092\u78ba\u8a8d\u3057\u3066\u3044\u307e\u3059...',
         'cc_here_none': '\u3053\u306ePC\u306bClaude Code\u306e\u30ed\u30b0\u30a4\u30f3\u306f\u3042\u308a\u307e\u305b\u3093',
         'cc_other_account': '\u305d\u306e\u30ed\u30b0\u30a4\u30f3\u306f {email} \u306e\u3082\u306e\u3067\u3059',
+        'cc_elsewhere': 'Claude Code \u306f\u73fe\u5728 {email} \u306b\u63a5\u7d9a\u3055\u308c\u3066\u3044\u307e\u3059\u3002\u3053\u306e\u30a2\u30ab\u30a6\u30f3\u30c8\u3092\u8868\u793a\u3059\u308b\u306b\u306f\u3001\u30bb\u30c3\u30b7\u30e7\u30f3\u30ad\u30fc\u3092\u8ffd\u52a0\u3059\u308b\u304b\u3001Claude Code \u3092\u3053\u306e\u30a2\u30ab\u30a6\u30f3\u30c8\u306b\u5207\u308a\u66ff\u3048\u3066\u304f\u3060\u3055\u3044\u3002',
         'cc_state_linked': '\u9023\u643a\u6e08\u307f',
         'cc_state_available': '\u3053\u306ePC\u3067\u5229\u7528\u3067\u304d\u307e\u3059',
         'cc_state_absent': '\u3053\u306ePC\u306b\u306f\u3042\u308a\u307e\u305b\u3093',
@@ -2164,10 +2178,11 @@ def token_expiry():
         return ''
 
 
-# In how many equal parts the weekly bar can be split. 2 and 3 were offered
-# once and dropped: a week's budget cannot be spent in two or three days when
-# every five hours has its own cap.
-SPLIT_CHOICES = (4, 5, 6, 7)
+# In how many equal parts the weekly bar can be split. Two is not offered: a
+# week's budget cannot be spent in two days when every five hours has its own
+# cap. Three was dropped once and brought back at the user's request
+# (2026-09-26).
+SPLIT_CHOICES = (3, 4, 5, 6, 7)
 
 
 def elide(text, font, limit):
@@ -3424,6 +3439,20 @@ CC_MIN_GAP_S = 120
 _CC_USAGE_CACHE = {'key': None, 'at': 0.0, 'data': None}
 
 
+class CCLoginElsewhere(PermissionError):
+    """Claude Code on this computer is signed in as another account.
+
+    Not an expired credential: nothing is wrong with the account on show, it
+    simply is not the one the single Claude Code login belongs to right now.
+    Named so the message can say that, instead of "session expired, renew the
+    session key" on an account that has no session key at all (2026-09-25).
+    """
+
+    def __init__(self, email):
+        self.email = email or '?'
+        super().__init__(t('cc_other_account').format(email=self.email))
+
+
 class RateLimited(RuntimeError):
     """The endpoint asked us to slow down. It says nothing about the
     credential, so it must never be reported as an expired login."""
@@ -3468,19 +3497,22 @@ def _cc_cache_key(token, expect_org):
     return (token[-12:], expect_org or '')
 
 
-def fetch_usage_claude_code(retry_transient=True, expect_org=None):
+def fetch_usage_claude_code(retry_transient=True, expect_org=None, token=None):
     """Usage via the OAuth endpoint Claude Code itself uses. Same five_hour /
     seven_day shape as the claude.ai endpoint, so _on_data needs no change.
-    A 401 means the token on disk expired: running the CLI refreshes it."""
-    if expect_org:
-        # The token follows whoever signed in last. Reading it for an account
-        # it does not belong to would put one account's numbers under another
-        # account's name, which is the confusion issue #11 was filed about.
-        prof = fetch_claude_code_profile()
-        if prof.get('org_id') and prof['org_id'] != expect_org:
-            raise PermissionError(
-                t('cc_other_account').format(email=prof.get('email') or '?'))
-    token, _ = read_claude_code_token()
+    A 401 means the token on disk expired: running the CLI refreshes it.
+
+    `token` reads with a token the caller already vouches for (the saved copy
+    of an account's login, see saved_login_token) instead of the live one."""
+    if token is None:
+        if expect_org:
+            # The token follows whoever signed in last. Reading it for an
+            # account it does not belong to would put one account's numbers
+            # under another account's name (issue #11).
+            prof = fetch_claude_code_profile()
+            if prof.get('org_id') and prof['org_id'] != expect_org:
+                raise CCLoginElsewhere(prof.get('email'))
+        token, _ = read_claude_code_token()
     cache_key = _cc_cache_key(token, expect_org)
     if (_CC_USAGE_CACHE['key'] == cache_key
             and time.time() - _CC_USAGE_CACHE['at'] < CC_MIN_GAP_S):
@@ -3505,6 +3537,38 @@ def fetch_usage_claude_code(retry_transient=True, expect_org=None):
         raise NoActivePlan(t('plan_inactive'))
     _CC_USAGE_CACHE.update(key=cache_key, at=time.time(), data=data)
     return data
+
+
+def saved_login_token(org):
+    """The access token of this account\'s saved login, while it is still good.
+
+    \U0001F534 There is one Claude Code login per computer. When it moves to
+    another account, an account that has only that login cannot be read the
+    usual way - which is what the user met on 2026-09-25, as "session expired"
+    and an empty bar. But the switch saved this account\'s login, and its short
+    token stays valid for hours (only the account in use has it renewed). A
+    read with it rotates nothing and spends nothing. None once it has expired,
+    or when there is no saved login for the organization.
+    """
+    if not org:
+        return None
+    try:
+        prof = cc_accounts.find_profile_for_org(org)
+        if not prof or not prof.get('readable', True):
+            return None
+        data, failure = cc_accounts.read_profile(prof['name'])
+        if failure or data.get('organizationUuid') != org:
+            return None
+        oauth = data.get('claudeAiOauth') or {}
+        expires = oauth.get('expiresAt')
+        if not oauth.get('accessToken') or not expires:
+            return None
+        if expires / 1000 < time.time() + 120:
+            return None                        # expired, or about to
+        return oauth['accessToken']
+    except Exception as e:
+        wlog(f'FETCH  saved login unreadable: {_redact(str(e))}')
+        return None
 
 
 def _fetch_usage_key(src):
@@ -3582,7 +3646,21 @@ def fetch_usage(cfg):
                     wlog('FETCH  claude_code has no organisation on this '
                          'account, not using it')
                     continue
-                return fetch_usage_claude_code(expect_org=org), None
+                try:
+                    return fetch_usage_claude_code(expect_org=org), None
+                except CCLoginElsewhere as elsewhere:
+                    # Claude Code has moved to another account: read this one
+                    # with the copy of its login saved at the switch, while
+                    # that copy lasts. When it does not, the reason stays the
+                    # true one - never "session expired".
+                    saved = saved_login_token(org)
+                    if not saved:
+                        raise
+                    try:
+                        return fetch_usage_claude_code(expect_org=org,
+                                                       token=saved), None
+                    except PermissionError:
+                        raise elsewhere
             return _fetch_usage_key(acc)
         except RateLimited as e:
             # Non si allunga una pausa gia' in corso: ogni tentativo la
@@ -4113,6 +4191,22 @@ class Section:
             return
         self._reset_level = level
         self._render_reset()
+
+    def clear(self):
+        """Back to no value at all, as before the first reading.
+
+        \U0001F534 For a change of account. The bars used to keep the numbers of
+        the account shown before until the new one answered - and when it did
+        not, they kept them for good, with "error" underneath: one account's
+        usage under another account's name (2026-09-25).
+        """
+        self._pct = 0
+        self._resets_at = None
+        self._state = 'empty'
+        self._err = False
+        self._color = BAR_BG
+        self.lbl_sub.config(text='')
+        self._draw(self.cv.winfo_width())
 
     def set_error(self, on):
         """Say (or stop saying) that the last refresh failed.
@@ -5019,6 +5113,8 @@ class Widget:
         bare = full.removeprefix(t('reset_prefix') + ' ') if full else ''
         if full and shown not in (full, bare):
             lines.append(full)
+        if sec._err and getattr(self, '_last_error', None):
+            lines.append(self._last_error)
         return '\n'.join(lines)
 
     def _on_root_configure(self, e):
@@ -5536,6 +5632,15 @@ class Widget:
             self.root.after(0, self._on_data, data)
             if rotation:
                 self.root.after(0, self._apply_rotated_key, rotation[0], rotation[1])
+        except CCLoginElsewhere as e:
+            wlog('FETCH  claude code is signed in as another account')
+            try:
+                self.root.after(0, lambda em=e.email: self._error(
+                    t('cc_elsewhere').format(email=em),
+                    action_label=t('menu_accounts'),
+                    action_cmd=self._accounts_dialog))
+            except Exception as ex:
+                wlog(f'FETCH  error after CCLoginElsewhere: {ex}')
         except PermissionError:
             wlog('FETCH  session expired (401/403)')
             try:
@@ -5992,6 +6097,7 @@ class Widget:
 
     def _clear_error(self):
         """Hide the error panel and drop any pending action binding."""
+        self._last_error = None
         self.err_btn.pack_forget()
         self.err_frame.pack_forget()
         for sec in self._all_sections():
@@ -6006,6 +6112,9 @@ class Widget:
     def _error(self, msg, action_label=None, action_cmd=None):
         """Show an error panel. If action_label/action_cmd are given, render a button below."""
         wlog(f'ERROR  {msg}')
+        # Kept for the bars' hover text: in the strip the panel is not on
+        # show, and the bars said "error" with no way to learn why.
+        self._last_error = msg
         self.lbl_err.config(text=msg)
         self.err_btn.pack_forget()
         if self._err_action is not None:
@@ -9771,6 +9880,9 @@ class Widget:
         mirror_active(self.cfg)
         save_cfg(self.cfg)
         self._clear_error()
+        for sec in self._all_sections():
+            sec.clear()
+        self._has_usage = False
         # Reset the countdown / dot so they restart for the new account, the
         # same way the other setters do.
         self._set_pulse(False)
