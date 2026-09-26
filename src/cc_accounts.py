@@ -449,7 +449,7 @@ def _saved_at(data, name):
     return saved_at
 
 
-def _outdated(data, saved_at, shots):
+def _outdated(data, saved_at, shots, name=None):
     """What the historic copies say about a saved profile: (aligned, judgements).
 
     A copy says the profile is behind only when it is NEWER than the profile
@@ -459,6 +459,12 @@ def _outdated(data, saved_at, shots):
     to it would put a dead token live, so the remedy is to sign in with that
     account, never to switch to it. A copy of another sign-in proves nothing
     of the kind, and a profile whose date is not known is not judged.
+
+    Nor does a copy of a state the saved login `name` has already moved past
+    (history_prints): that copy is BEHIND the saved login, not ahead of it.
+    A switch that went on from such a state backed it up, and the copy
+    declared the account's working saved login outdated and refused every
+    switch back (review of 2026-09-27).
     """
     org = data.get('organizationUuid')
     oauth = data.get('claudeAiOauth') or {}
@@ -470,6 +476,8 @@ def _outdated(data, saved_at, shots):
     if shot['refresh_print'] == print_:
         return True, []
     if saved_at is None or shot['at'] > saved_at + 60:
+        if name and shot['refresh_print'] in history_prints(name):
+            return True, []
         return False, [verdict(BAD, 'cc_j_profile_outdated',
                                {'when': datetime.fromtimestamp(shot['at'])},
                                'cc_r_sign_in_then_save')]
@@ -574,7 +582,7 @@ def profiles(live=None):
                     'cc_r_save_now'))
         else:
             judgements = health(data)
-            aligned, stale = _outdated(data, saved_at, shots)
+            aligned, stale = _outdated(data, saved_at, shots, name)
             judgements += stale
 
         judgements = judgements or [verdict(GOOD, 'cc_j_usable')]
@@ -778,7 +786,8 @@ def has_profile_for_org(org):
             continue
         if shots is None:
             shots = backups(held)
-        if any(j['kind'] == BAD for j in _outdated(data, _saved_at(data, name), shots)[1]):
+        if any(j['kind'] == BAD
+               for j in _outdated(data, _saved_at(data, name), shots, name)[1]):
             continue
         return True
     return False
@@ -996,6 +1005,8 @@ def read_live_for_write(reference):
 
 
 PROFILE_BACKUPS_KEPT = 5
+# path -> ((mtime, size), refresh fingerprint): what history_prints() has read.
+_HISTORY_SEEN = {}
 _PROFILE_BACKUP = re.compile(r'^profile-(.+)\.\d{8}-\d{6}-\d{3}\.bak$')
 
 
@@ -1051,15 +1062,26 @@ def history_prints(name):
         m = _PROFILE_BACKUP.match(n)
         if not (m and m.group(1) == name):
             continue
+        path = os.path.join(folder, n)
         try:
-            with open(os.path.join(folder, n), encoding='utf-8') as f:
-                data = json.load(f)
-        except (OSError, ValueError):
+            st = os.stat(path)
+        except OSError:
             continue
-        p = fingerprint(((data if isinstance(data, dict) else {})
-                         .get('claudeAiOauth') or {}).get('refreshToken'))
-        if p:
-            out.add(p)
+        # Each copy parsed once, as backups() does: the list is redrawn often.
+        stamp = (st.st_mtime, st.st_size)
+        known = _HISTORY_SEEN.get(path)
+        if known is None or known[0] != stamp:
+            try:
+                with open(path, encoding='utf-8') as f:
+                    data = json.load(f)
+                p = fingerprint(((data if isinstance(data, dict) else {})
+                                 .get('claudeAiOauth') or {}).get('refreshToken'))
+            except (OSError, ValueError, AttributeError):
+                p = ''
+            known = (stamp, p)
+            _HISTORY_SEEN[path] = known
+        if known[1]:
+            out.add(known[1])
     return out
 
 
@@ -1464,7 +1486,7 @@ def switch(name, *, knowingly=False, call=None, plan_check=None, name_for_org=No
     held = {p['refresh_print']: p['org'] for p in saved
             if p.get('readable', True) and p.get('refresh_print') and p.get('org')}
     judgements = health(target) + _outdated(target, _saved_at(target, name),
-                                            backups(held))[1]
+                                            backups(held), name)[1]
     bad = [j for j in judgements if j['kind'] == BAD]
     if bad:
         return {'done': False, 'asks': False, 'judgement': bad[0]}
@@ -1590,6 +1612,7 @@ def switch(name, *, knowingly=False, call=None, plan_check=None, name_for_org=No
                 return {'done': False, 'asks': False,
                         'judgement': verdict(BAD, 'cc_j_outgoing_not_saved',
                                              {'why': str(e)}, 'cc_r_try_again')}
+            saved_out = None           # nothing was saved: say none
         except OSError as e:
             return {'done': False, 'asks': False,
                     'judgement': verdict(BAD, 'cc_j_outgoing_not_saved',

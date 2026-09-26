@@ -9101,6 +9101,16 @@ class Widget:
                 except Exception as e:
                     dlg.after(0, lambda msg=str(e): fail(msg))
                     return
+                # Renewing the account on show: a login of ANOTHER account is
+                # said as such before its plan is read, as decide() says it.
+                # Read first, that account's lapsed plan came out as advice to
+                # remove this one (review of 2026-09-27).
+                if on_success is None:
+                    target = active_account(self.cfg)
+                    if (target is not None and target.get('org_id') and prof.get('org_id')
+                            and target['org_id'] != prof['org_id']):
+                        dlg.after(0, lambda: fail(t('dlg_login_other_account')))
+                        return
                 try:
                     fetch_usage_claude_code(expect_org=prof.get('org_id'))
                 except NoActivePlan as e:
@@ -9544,7 +9554,7 @@ class Widget:
                  justify='left').pack(side='left', fill='x', expand=True)
         return row
 
-    def _account_details_dialog(self, acc, rebuild):
+    def _account_details_dialog(self, acc, rebuild, advanced=False):
         """One account, in the order a person looks for it.
 
         🔴 Rebuilt on 2026-09-26 from the user's verdict, "too
@@ -9620,6 +9630,10 @@ class Widget:
             self._avatar_dialog(acc, st, on_done)
 
         def draw_bubble():
+            # The picker can outlive the page (a page closed or drawn again
+            # while it was open): nothing left to draw on.
+            if not bub_host.winfo_exists():
+                return
             for w_ in bub_host.winfo_children():
                 w_.destroy()
             try:
@@ -9767,8 +9781,26 @@ class Widget:
                         return
                 except tk.TclError:
                     return
-                if ((getattr(self, '_cc_saved', None) or {}).get('live') or {}).get('org'):
-                    reopen()
+                if not ((getattr(self, '_cc_saved', None) or {}).get('live') or {}).get('org'):
+                    return
+                # Drawn again only if nothing on the page is in the user's
+                # hands: a name being typed, a picture or colour chosen, the
+                # picker open, a message on screen (Link or a save at work).
+                # The redraw threw those away (review of 2026-09-27); the
+                # next opening shows the login recognised anyway. The
+                # Advanced section stays as it was.
+                try:
+                    picker = self._dialogs.get('avatar')
+                    busy = (name_entry.get().strip() != (acc.get('name') or '')
+                            or st['color'] != account_color(acc)
+                            or st['avatar'] != dict(acc.get('avatar') or {})
+                            or bool(status_lbl.cget('text'))
+                            or bool(picker is not None and picker.winfo_exists()))
+                except tk.TclError:
+                    return
+                if not busy:
+                    close_and(lambda: self._account_details_dialog(
+                        acc, rebuild, advanced=st['advanced']))
             self._cc_sync_login(after=identified)
 
         def card(title, chip, chip_fg, text, actions, is_source):
@@ -9944,6 +9976,8 @@ class Widget:
 
         adv_head.config(text='▸ ' + t('acct_advanced'))
         adv_head.bind('<Button-1>', toggle_advanced)
+        if advanced:
+            toggle_advanced()
 
         # A message left by a gesture that had to reopen this window to show
         # its result: shown once, and only on the page of the account it is
