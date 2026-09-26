@@ -113,9 +113,12 @@ def on_bench():
                 or os.environ.get('CLAUDE_WIDGET_CC_CRED'))
 
 
-# One writer at a time inside this process. Claude Code can still rewrite the
-# file from outside, which is why every write re-reads immediately before.
-_LOCK = threading.Lock()
+# One writer at a time inside this process, for the live file and for every
+# profile. Re-entrant because a switch holds it while it saves the outgoing
+# account. Claude Code can still rewrite the live file from outside, so a write
+# over it is made on a read taken inside the lock, through read_live_for_write,
+# never on an older read. No network call is made while it is held.
+_LOCK = threading.RLock()
 
 # ── the vocabulary of a judgement ──────────────────────────────────────────
 GOOD, BAD, UNKNOWN, WARN = 'good', 'bad', 'unknown', 'warn'
@@ -319,6 +322,11 @@ def health(prof):
 
 
 # ── the historic copies ────────────────────────────────────────────────────
+# path -> ((mtime, size), organization, refresh fingerprint): what backups()
+# has already read. Fingerprints only, never a token.
+_BACKUP_SEEN = {}
+
+
 def backups():
     """{organization: newest backup seen for it}.
 
@@ -337,17 +345,27 @@ def backups():
             continue
         path = os.path.join(folder, name)
         try:
-            with open(path, encoding='utf-8') as f:
-                data = json.load(f)
-            org = data.get('organizationUuid')
-            if not org:
-                continue
-            seen = {'file': name,
-                    'refresh_print': fingerprint(
-                        (data.get('claudeAiOauth') or {}).get('refreshToken')),
-                    'at': os.path.getmtime(path)}
-        except (OSError, ValueError):
+            st = os.stat(path)
+        except OSError:
             continue
+        # A copy never changes once written, and there are dozens of them:
+        # each is parsed once and remembered for as long as its size and time
+        # stay the same, instead of on every refresh.
+        stamp = (st.st_mtime, st.st_size)
+        known = _BACKUP_SEEN.get(path)
+        if known is None or known[0] != stamp:
+            try:
+                with open(path, encoding='utf-8') as f:
+                    data = json.load(f)
+                known = (stamp, data.get('organizationUuid'), fingerprint(
+                    (data.get('claudeAiOauth') or {}).get('refreshToken')))
+            except (OSError, ValueError, AttributeError):
+                known = (stamp, None, '')
+            _BACKUP_SEEN[path] = known
+        _stamp, org, print_ = known
+        if not org:
+            continue
+        seen = {'file': name, 'refresh_print': print_, 'at': st.st_mtime}
         if org not in out or seen['at'] > out[org]['at']:
             out[org] = seen
     return out
@@ -370,6 +388,40 @@ def profile_path(name):
 def read_profile(name):
     """(profile, failure)."""
     return read_json(profile_path(name))
+
+
+def _saved_at(data, name):
+    """When a profile was saved: its own `savedAt`, else the file's time."""
+    saved_at = instant(data.get('savedAt'))
+    if saved_at is None:
+        try:
+            saved_at = os.path.getmtime(profile_path(name))
+        except OSError:
+            saved_at = None
+    return saved_at
+
+
+def _outdated(data, saved_at, shots):
+    """What the historic copies say about a saved profile: (aligned, judgements).
+
+    A copy says the profile is behind only when it is NEWER than the profile
+    and carries another renewal token for the same organization (rule 4). The
+    account has then renewed since the snapshot, and the renewal in it was
+    retired when it rotated: switching to it would put a dead token live, so
+    the remedy is to sign in with that account, never to switch to it.
+    """
+    org = data.get('organizationUuid')
+    print_ = fingerprint((data.get('claudeAiOauth') or {}).get('refreshToken'))
+    shot = shots.get(org)
+    if not (shot and print_):
+        return None, []
+    if shot['refresh_print'] == print_:
+        return True, []
+    if saved_at is None or shot['at'] > saved_at + 60:
+        return False, [verdict(BAD, 'cc_j_profile_outdated',
+                               {'when': datetime.fromtimestamp(shot['at'])},
+                               'cc_r_sign_in_then_save')]
+    return True, []
 
 
 def profiles(live=None):
@@ -410,12 +462,7 @@ def profiles(live=None):
         else:
             claim = None
 
-        saved_at = instant(data.get('savedAt'))
-        if saved_at is None:
-            try:
-                saved_at = os.path.getmtime(profile_path(name))
-            except OSError:
-                saved_at = None
+        saved_at = _saved_at(data, name)
         seen.append({'name': name, 'readable': True, 'data': data, 'org': org,
                      'print': print_, 'claim': claim, 'saved_at': saved_at})
 
@@ -462,19 +509,8 @@ def profiles(live=None):
                     'cc_r_save_now'))
         else:
             judgements = health(data)
-            aligned = None
-            shot = shots.get(org)
-            if shot and print_:
-                if shot['refresh_print'] == print_:
-                    aligned = True
-                elif saved_at is None or shot['at'] > saved_at + 60:
-                    aligned = False
-                    judgements.append(verdict(
-                        BAD, 'cc_j_profile_outdated',
-                        {'when': datetime.fromtimestamp(shot['at'])},
-                        'cc_r_switch_and_save'))
-                else:
-                    aligned = True
+            aligned, stale = _outdated(data, saved_at, shots)
+            judgements += stale
 
         judgements = judgements or [verdict(GOOD, 'cc_j_usable')]
         rt, _, _ = when((data.get('claudeAiOauth') or {}).get('refreshTokenExpiresAt'))
@@ -512,7 +548,7 @@ def unrecognised(live, saved):
                    'cc_r_save_current')
 
 
-def live_identity(live, call=None):
+def live_identity(live, call=None, confirm=False):
     """Fill in whose login the live file holds, asking the server if it must.
 
     🔴 Signing in rewrites the live credentials WITHOUT
@@ -523,23 +559,49 @@ def live_identity(live, call=None):
     account of before. The server is, and asking it is one read that rotates
     nothing and spends nothing.
 
+    `confirm` asks even when the file names an organization. That key is
+    written by the tools that switch accounts, not by Claude Code, and a tool
+    that swapped only the tokens, or stamped the key from the lagging cache,
+    leaves a file whose tokens belong to one account and whose organization
+    names another. The server answers about the TOKEN, so when the two
+    disagree its answer is the identity and the dict says the file is
+    incoherent (`org_file` keeps what the file said).
+
     Returns the same live dict, with `org` and `org_source` filled in when the
-    server answered. Never raises: no transport, no network, no answer, all
-    leave the dict as it was.
+    server answered, and `server_email` when it gave one. Never raises: no
+    transport, no network, no answer, all leave the dict as it was.
     """
-    if not live.get('read') or live.get('org') or call is None:
+    if not live.get('read') or call is None:
+        return live
+    if live.get('org') and not confirm:
         return live
     data, failure = read_json(cred_file())
     if failure:
         return live
-    token = (data.get('claudeAiOauth') or {}).get('accessToken')
-    org = ask_server_org(token, call) if token else None
-    if org:
-        live['org'], live['org_source'] = org, 'server'
+    oauth = data.get('claudeAiOauth') or {}
+    # The answer is pinned on the read it describes: a file rewritten since
+    # `live` was taken holds another token, and an answer about that one must
+    # not be filed under this one.
+    if fingerprint(oauth.get('refreshToken')) != live.get('refresh_print'):
+        return live
+    # A token known to have expired would only earn a refusal, and a refusal
+    # says nothing about whose it is.
+    _at, at_expired, _ = when(oauth.get('expiresAt'))
+    if at_expired:
+        return live
+    org, email = ask_server_identity(oauth.get('accessToken'), call)
+    if not org:
+        return live
+    if live.get('org') and live['org'] != org:
+        live['org_file'] = live['org']
+        live['incoherent'] = True
+    live['org'], live['org_source'] = org, 'server'
+    if email:
+        live['server_email'] = email
     return live
 
 
-def state(call=None):
+def state(call=None, confirm=False, known=None):
     """Everything the interface needs, from one read of the disk.
 
     One read, so that what is drawn cannot mix two different instants: the
@@ -547,10 +609,24 @@ def state(call=None):
     another is how a profile ends up described as somebody else.
 
     `call` is optional and buys one thing: the identity of a login the live
-    file does not name (see `live_identity`). Disk-only is the default so the
-    first paint never waits on a network.
+    file does not name (see `live_identity`), or with `confirm` the check that
+    the organization it does name is really the tokens' own. Disk-only is the
+    default so the first paint never waits on a network.
+
+    `known` is a `live` dict from an earlier state. What the server said about
+    a token stays true for as long as that token is the live one, so it is
+    carried over when the renewal token is still the same: a list redrawn from
+    the disk alone used to throw away the identity the server had just given,
+    and put the badge and the switch back on the wrong rows.
     """
-    live = live_identity(active(), call)
+    live = active()
+    if (known and known.get('org_source') == 'server' and known.get('org')
+            and known.get('refresh_print')
+            and known['refresh_print'] == live.get('refresh_print')):
+        for k in ('org', 'org_source', 'server_email', 'incoherent', 'org_file'):
+            if k in known:
+                live[k] = known[k]
+    live = live_identity(live, call, confirm=confirm)
     saved = profiles(live)
     active_name = next((p['name'] for p in saved if p['active']), None)
     out = {'live': live, 'profiles': saved, 'active_name': active_name,
@@ -560,14 +636,71 @@ def state(call=None):
     return out
 
 
+def _usable_name(name):
+    """A folder name a switch could actually use: valid_name, unchanged."""
+    try:
+        return valid_name(name) == name
+    except ValueError:
+        return False
+
+
 def find_profile_for_org(org, saved=None):
-    """The saved profile of an organization, if there is one."""
+    """The ONE saved profile of an organization, chosen as profiles() elects.
+
+    The profile Claude Code is using, when it is among them; otherwise one not
+    judged unusable, the longest renewal first, then the newest snapshot. Never
+    a name valid_name refuses, since nothing could switch to it.
+
+    🔴 It used to be the first profile of the organization in name order. With
+    two snapshots of one account (a parked twin, or the `_auto-` copy another
+    tool leaves), the row, the page, the sync and the saved-token read could
+    each land on the stale one, and a switch onto it put a renewal token the
+    account had already rotated away from back in the live file.
+    """
     if not org:
         return None
-    for p in (saved if saved is not None else profiles()):
-        if p.get('org') == org:
+    saved = saved if saved is not None else profiles()
+    mine = [p for p in saved
+            if p.get('readable', True) and p.get('org') == org
+            and _usable_name(p.get('name'))]
+    if not mine:
+        return None
+    for p in mine:
+        if p.get('active'):
             return p
-    return None
+    return max(mine, key=lambda p: (p.get('verdict') != BAD,
+                                    p.get('refresh_expires') or datetime.min,
+                                    p.get('saved_at') or 0))
+
+
+def usable_access_token(org, margin_s=120):
+    """(access token, profile name) of this organization's saved login while
+    its short token is still good, else (None, None).
+
+    Light on purpose: it runs on the refresh thread every time Claude Code is
+    signed in as another account, so it reads the profiles and nothing else,
+    none of the live file, the identity cache or the historic copies that
+    profiles() walks. Among twins it takes the token that lasts longest.
+    """
+    if not org:
+        return None, None
+    best = None
+    for name in profile_names():
+        if not _usable_name(name):
+            continue
+        data, failure = read_profile(name)
+        if failure or data.get('organizationUuid') != org:
+            continue
+        oauth = data.get('claudeAiOauth') or {}
+        try:
+            expires = int(oauth.get('expiresAt')) / 1000
+        except (TypeError, ValueError):
+            continue
+        if not oauth.get('accessToken') or expires < time.time() + margin_s:
+            continue
+        if best is None or expires > best[0]:
+            best = (expires, oauth['accessToken'], name)
+    return (best[1], best[2]) if best else (None, None)
 
 
 # ── the live check, which is a read and nothing else ───────────────────────
@@ -730,6 +863,64 @@ def backup_live(tag='credentials'):
     return dst
 
 
+def read_live_for_write(reference):
+    """The live file read again right before writing on it, or None.
+
+    🔴 The one place where "re-read the live file, then write on it" is
+    allowed. In claude-account.ps1 the same gesture lived in three places, and
+    three times the gate was fixed in one and forgotten in the others: once it
+    left the machine with no credentials. The fresh object comes back ONLY when
+    it still carries the token block and the same renewal token as
+    `reference`, i.e. when it provably describes the same credentials. The
+    renewal rotates, so a mismatch means "I do not know", never "same file":
+    writing anyway is how older tokens were put back on disk, and an MCP token
+    obtained meanwhile dropped (measured on 2026-09-13).
+    """
+    fresh, failure = read_json(cred_file())
+    if failure or not isinstance(fresh, dict):
+        return None
+    mine = (fresh.get('claudeAiOauth') or {}).get('refreshToken')
+    theirs = ((reference or {}).get('claudeAiOauth') or {}).get('refreshToken')
+    return fresh if mine and theirs and mine == theirs else None
+
+
+PROFILE_BACKUPS_KEPT = 5
+_PROFILE_BACKUP = re.compile(r'^profile-(.+)\.\d{8}-\d{6}-\d{3}\.bak$')
+
+
+def backup_profile(name):
+    """A copy of a profile before it is overwritten.
+
+    Rule 7 holds for profiles too: they carry tokens, and a profile written
+    over with the wrong account's credentials used to survive only if some
+    copy of the live file happened to hold its tokens. Only the newest few are
+    kept per profile, because the automatic sync rewrites the profile of the
+    account in use after every renewal; those are the only files this module
+    ever deletes. The copies of the live file beside them are the user's own
+    history, written by other tools as well, and are never touched.
+    """
+    path = profile_path(name)
+    if not os.path.exists(path):
+        return None
+    ensure_store()
+    now = time.time()
+    dst = os.path.join(backups_dir(), 'profile-%s.%s-%03d.bak' % (
+        name, time.strftime('%Y%m%d-%H%M%S', time.localtime(now)), int(now % 1 * 1000)))
+    shutil.copyfile(path, dst)
+    try:
+        folder = backups_dir()
+        mine = []
+        for n in os.listdir(folder):
+            m = _PROFILE_BACKUP.match(n)
+            if m and m.group(1) == name:
+                mine.append((os.path.getmtime(os.path.join(folder, n)), n))
+        for _t, old in sorted(mine)[:-PROFILE_BACKUPS_KEPT]:
+            os.remove(os.path.join(folder, old))
+    except OSError:
+        pass
+    return dst
+
+
 def valid_name(name):
     """A profile name that cannot break out of its folder, or ValueError."""
     clean = ' '.join(str(name or '').split())
@@ -738,26 +929,54 @@ def valid_name(name):
     return clean
 
 
-def ask_server_org(access_token, call):
-    """The organization an access token really belongs to, from the server.
+# (transport, access-token fingerprint) -> (organization, email). The account
+# a token belongs to never changes, so an answer is kept for as long as the
+# process runs; a failure is not, so the next caller asks again. The transport
+# is part of the key so that two different ways of asking never share answers.
+_SERVER_SAID = {}
+
+
+def ask_server_identity(access_token, call):
+    """(organization, email) an access token really belongs to, from the server.
 
     A read: the profile endpoint answers with the account and does not rotate
     anything. It is the one source that cannot be behind, which is why a write
     that needs the organization asks it before trusting anything cached.
+    (None, None) when it cannot be asked or does not answer with data.
     """
     if not access_token or call is None:
-        return None
+        return None, None
+    key = (call, fingerprint(access_token))
+    if key in _SERVER_SAID:
+        return _SERVER_SAID[key]
     code, body = call(PROFILE_URL, (f'Authorization: Bearer {access_token}',
                                     'anthropic-beta: oauth-2025-04-20'))
     if judge_response(code, body)['kind'] != GOOD:
-        return None
+        return None, None
     try:
-        return (json.loads(body).get('organization') or {}).get('uuid') or None
+        answer = json.loads(body)
     except ValueError:
-        return None
+        return None, None
+    if not isinstance(answer, dict):
+        return None, None
+    org = (answer.get('organization') or {}).get('uuid') or None
+    if not org:
+        return None, None
+    account = answer.get('account') or {}
+    said = (org, account.get('email_address') or account.get('email') or None)
+    _SERVER_SAID[key] = said
+    return said
 
 
-def save_profile(name, live_data=None, call=None):
+def ask_server_org(access_token, call):
+    """The organization alone: see ask_server_identity."""
+    return ask_server_identity(access_token, call)[0]
+
+
+UUID_SHAPE = '[0-9a-fA-F-]{36}'
+
+
+def save_profile(name, live_data=None, call=None, proven=None, require_proof=False):
     """Snapshot the live credentials under `name`, repairing what a login left out.
 
     `live_data` lets a caller hand over the credentials IT has already read, so
@@ -765,14 +984,28 @@ def save_profile(name, live_data=None, call=None):
     which profile the outgoing account belongs to from its own read; re-reading
     here would mean the name came from one read and the content from another.
 
+    `proven` is an identity the caller has already established for exactly
+    these tokens ({'org', 'email', 'note'}), so the server is not asked twice
+    and nothing goes on the network while a switch holds the lock.
+    `require_proof` refuses anything weaker than the server or a saved profile
+    holding the same renewal token: the automatic sync writes with nobody
+    watching, and the organization written in the file is not enough for that.
+
     🔴 It REFUSES to write one account's credentials over another account's
     profile. On 2026-09-13 it did exactly that: after a switch to Personal, the
     identity cache still named Work, the widget took Work for the account in
     use and offered to save it, and this function wrote Personal's tokens into
     the Work profile under Work's name and Work's email. The organization is
-    the identity, so it is compared before anything is written, and it is taken
-    from the live file, from a proof, or from the server - never from the cache
-    alone when there is an existing profile it could overwrite.
+    the identity, so it is compared before anything is written. It comes from
+    the strongest source that can answer: what the caller proved, a saved
+    profile holding the same renewal token, the live file's own key, and the
+    server when those are missing or cannot vouch for a replacement.
+
+    🔴 Never from the identity cache. It lags behind a sign-in and behind a
+    switch, and a label taken from it is what every later decision reads: a
+    fresh login parked under the previous account's organization and e-mail
+    showed that account's usage under the wrong name and fed a switch that put
+    one account's tokens under the other's organization (review of 2026-09-26).
     """
     name = valid_name(name)
     data = live_data
@@ -783,69 +1016,82 @@ def save_profile(name, live_data=None, call=None):
     oauth = data.get('claudeAiOauth') or {}
     if not oauth.get('accessToken'):
         raise ValueError('cc_e_no_live_token')
+    mine = fingerprint(oauth.get('refreshToken'))
+    file_org = data.get('organizationUuid')
 
-    org = data.get('organizationUuid')
-    org_note = 'live' if org else None
-    if not org:
-        # A login rewrites the live file WITHOUT the organization. Prefer a
-        # PROOF: a saved profile carrying the same refresh token IS this
-        # account, so its organization is certain.
-        mine = fingerprint(oauth.get('refreshToken'))
+    org, org_note, email = None, None, None
+    if proven and proven.get('org'):
+        org, org_note = proven['org'], proven.get('note') or 'server'
+        email = proven.get('email')
+    if not org and mine:
+        # A saved profile carrying the same renewal token IS this account.
         for other in profile_names():
             p, bad = read_profile(other)
             if bad or not p.get('organizationUuid'):
                 continue
-            if mine and fingerprint(
-                    (p.get('claudeAiOauth') or {}).get('refreshToken')) == mine:
-                org, org_note = p['organizationUuid'], 'proof'
+            if fingerprint((p.get('claudeAiOauth') or {}).get('refreshToken')) == mine:
+                org, org_note, email = p['organizationUuid'], 'proof', p.get('email')
                 break
-    if not org:
-        # Then the server, which cannot be behind.
-        org = ask_server_org(oauth.get('accessToken'), call)
-        org_note = 'server' if org else None
-    if not org:
-        # The cache last, and only for what it cannot damage: see below.
-        org = from_cache('organizationUuid', '[0-9a-fA-F-]{36}')
-        org_note = 'cache' if org else None
+    if not org and file_org:
+        org, org_note = file_org, 'live'
 
     previous, _ = read_profile(name)
-    previous_org = (previous or {}).get('organizationUuid')
-    if previous_org and org and previous_org != org:
-        raise ValueError('cc_e_save_other_account')
-    if previous_org and org_note in ('cache', None):
-        # The cache lags behind a sign-in and behind a switch. On its word
-        # alone "the same account with a renewed token" and "another account"
-        # look identical, and guessing wrong overwrites a working profile.
+    previous_print = fingerprint(
+        ((previous or {}).get('claudeAiOauth') or {}).get('refreshToken'))
+    # The server, which cannot be behind: asked when nothing above named the
+    # account, and when the file's own key is all there is while the profile
+    # is about to be replaced with different tokens. Before the lock.
+    if call is not None and (org is None or (org_note == 'live' and previous
+                                             and previous_print != mine)):
+        srv_org, srv_email = ask_server_identity(oauth.get('accessToken'), call)
+        if srv_org:
+            org, org_note, email = srv_org, 'server', srv_email
+    if not org:
+        raise ValueError('cc_e_save_unproven')
+    if require_proof and org_note not in ('server', 'proof'):
         raise ValueError('cc_e_save_unproven')
 
-    if org and org_note in ('proof', 'server') and not data.get('organizationUuid'):
-        # Repair the live file too, but only with an organization that was
-        # proved. An incoherent live file is what freezes every chat; a live
-        # file stamped with ANOTHER account's organization is worse.
-        backup_live('credentials-orgrecovery')
-        data['organizationUuid'] = org
-        write_json_atomic(cred_file(), data)
+    with _LOCK:
+        previous, _ = read_profile(name)
+        previous_org = (previous or {}).get('organizationUuid')
+        if previous_org and previous_org != org:
+            raise ValueError('cc_e_save_other_account')
 
-    # The email is a label from a cache that lags. When the existing profile
-    # already describes the same organization, its recorded email wins; with
-    # an organization taken from the live file, the cache's email is only used
-    # for a profile that is new.
-    email = from_cache('emailAddress')
-    if previous and previous.get('email') and previous_org == org:
-        email = previous['email']
+        if org_note in ('proof', 'server') and not file_org:
+            # Repair the live file too, but only with an organization that was
+            # proved, and only on a read taken now that still carries these
+            # very tokens. Claude Code may have rewritten the file since `data`
+            # was read; writing `data` back would reinstall an older renewal
+            # token and sign the user out at the next one (2026-09-26 review,
+            # and claude-account.ps1's seventh review of 2026-09-13).
+            fresh = read_live_for_write(data)
+            if fresh is not None and not fresh.get('organizationUuid'):
+                backup_live('credentials-orgrecovery')
+                fresh['organizationUuid'] = org
+                write_json_atomic(cred_file(), fresh)
 
-    prof = {
-        'schema': 2,
-        'name': name,
-        'savedAt': datetime.now().astimezone().isoformat(),
-        'email': email,
-        'subscriptionType': oauth.get('subscriptionType'),
-        'rateLimitTier': oauth.get('rateLimitTier'),
-        'organizationUuid': org,
-        'claudeAiOauth': oauth,
-    }
-    ensure_store()
-    write_json_atomic(profile_path(name), prof)
+        if not email:
+            # A label, never an identity. The profile's own e-mail when it
+            # describes this account; the cache's only when the cache is
+            # describing this very account too.
+            if previous and previous.get('email') and previous_org == org:
+                email = previous['email']
+            elif from_cache('organizationUuid', UUID_SHAPE) == org:
+                email = from_cache('emailAddress')
+
+        prof = {
+            'schema': 2,
+            'name': name,
+            'savedAt': datetime.now().astimezone().isoformat(),
+            'email': email,
+            'subscriptionType': oauth.get('subscriptionType'),
+            'rateLimitTier': oauth.get('rateLimitTier'),
+            'organizationUuid': org,
+            'claudeAiOauth': oauth,
+        }
+        ensure_store()
+        backup_profile(name)
+        write_json_atomic(profile_path(name), prof)
     prof['_org_note'] = org_note
     return prof
 
@@ -862,21 +1108,46 @@ def sync_live_into_profile(live=None, call=None):
     used to be a button the user had to know about and press after every
     login. It happens by itself now.
 
-    Writes only when the identity is PROVED: the organization comes from the
-    live file or from the server, never from the identity cache, which lags
-    behind precisely the event this reacts to.
+    🔴 It writes only when the SERVER says whose tokens these are. The
+    organization written in the file is not enough (review of 2026-09-26): that
+    key is written by the tools that switch accounts, and one that swapped only
+    the tokens, or stamped the key from the lagging cache, leaves Personal's
+    tokens under Work's organization - which this function then copied into
+    Work's profile, with no click and no copy of Work's own tokens kept. Never
+    from the identity cache either, which lags behind precisely the event this
+    reacts to. It writes into the profile profiles() elects for that account,
+    never into a twin, and never backwards.
 
-    Returns None when there was nothing to do, else
-    {'updated': name, 'org': ..., 'was': old fingerprint}.
+    Returns None when there is nothing to do; {'updated': name, 'org': ...,
+    'was': old fingerprint} after a write; {'pending': why} when it could not
+    decide now - the server did not answer, the short token has expired, the
+    file moved while it was being read - so the caller knows to try again.
     """
-    live = live_identity(active() if live is None else live, call)
+    live = active() if live is None else live
     if not live.get('read') or not live.get('refresh_print'):
         return None
-    org = live.get('org')
-    if not org:
+    data, failure = read_json(cred_file())
+    if failure:
         return None
-
+    oauth = data.get('claudeAiOauth') or {}
+    if fingerprint(oauth.get('refreshToken')) != live['refresh_print']:
+        return {'pending': 'changed'}
     saved = profiles(live)
+    if any(p.get('refresh_print') == live['refresh_print']
+           for p in saved if p.get('readable', True)):
+        return None                      # a profile already holds this login
+    _at, at_expired, _ = when(oauth.get('expiresAt'))
+    if at_expired:
+        # Nothing can be asked with it; Claude Code renews it at its next
+        # command, and the file changing is what brings this back here.
+        return {'pending': 'expired'}
+    org, email = ask_server_identity(oauth.get('accessToken'), call)
+    if not org:
+        return {'pending': 'unproven'}
+    if live.get('org') != org:
+        live = dict(live, org=org, org_source='server')
+        saved = profiles(live)
+
     target = find_profile_for_org(org, saved)
     if target is None or not target.get('readable', True):
         return None
@@ -891,11 +1162,9 @@ def sync_live_into_profile(live=None, call=None):
     if live_rt and target.get('refresh_expires') and live_rt < target['refresh_expires']:
         return None
 
-    data, failure = read_json(cred_file())
-    if failure:
-        return None
     try:
-        save_profile(target['name'], data, call=call)
+        save_profile(target['name'], data, require_proof=True,
+                     proven={'org': org, 'email': email, 'note': 'server'})
     except (ValueError, OSError):
         # A refusal here is save_profile protecting another account's profile.
         # It is not this function's business to argue with it.
@@ -904,7 +1173,23 @@ def sync_live_into_profile(live=None, call=None):
             'was': target.get('refresh_print')}
 
 
-def switch(name, *, knowingly=False, check=None, plan_check=None):
+def profile_name_for(label):
+    """A profile folder name made from a free-text label, or None.
+
+    Widget account names are chosen freely and can carry accents, brackets or
+    Japanese; a profile folder takes letters, digits, spaces, dots, hyphens
+    and underscores. What cannot be carried over is dropped, and a label that
+    leaves nothing usable gives None.
+    """
+    clean = re.sub(r'[^A-Za-z0-9 ._-]+', ' ', str(label or ''))
+    clean = ' '.join(clean.split()).lstrip('._- ')[:41].rstrip()
+    try:
+        return valid_name(clean)
+    except ValueError:
+        return None
+
+
+def switch(name, *, knowingly=False, check=None, plan_check=None, name_for_org=None):
     """Make `name` the account Claude Code authenticates with.
 
     The order matters and every step of it was paid for:
@@ -912,17 +1197,29 @@ def switch(name, *, knowingly=False, check=None, plan_check=None):
     0. find out whose login is live, asking the server when the file does not
        say, because right after a sign-in it does not: without this the switch
        cannot tell "the account you are already on" from "another account",
-       and writes an old token over a fresh login;
-    1. refuse a profile that cannot work, BEFORE touching anything;
-    2. an UNKNOWN profile is not refused, it is offered: the caller asks the
+       and writes an old token over a fresh login. When nobody can say whose
+       it is, nothing is written: an unidentified login may be a sign-in made
+       a minute ago, and parking it to put an older snapshot live signs the
+       user out (review of 2026-09-26);
+    1. "already on it" is said only when the tokens prove it or the server
+       confirms it: the organization in the file can name one account while
+       the tokens belong to another;
+    2. refuse a profile that cannot work, BEFORE touching anything, judged the
+       way the account list judges it, historic copies included;
+    3. an UNKNOWN profile is not refused, it is offered: the caller asks the
        user and comes back with knowingly=True;
-    3. re-read the live file immediately before writing, because Claude Code
-       rewrites it on every renewal;
-    4. snapshot the OUTGOING account from that same read, so the account being
-       left always has a fresh copy of itself;
-    5. back up, write both identity keys together, atomically;
-    6. read back from the disk and compare. A write that was not protested
+    4. work out whose the outgoing login is before taking the lock, so that no
+       network call is made while it is held;
+    5. snapshot the OUTGOING account from a read taken inside the lock, so the
+       account being left always has a fresh copy of itself;
+    6. back up, then write both identity keys together, atomically, on a read
+       taken right now that still carries the tokens just snapshotted;
+    7. read back from the disk and compare. A write that was not protested
        against is not a write that happened.
+
+    `name_for_org(org)` may name the profile the outgoing login is saved under
+    when its account has none yet (the widget passes its own name for that
+    account), instead of an anonymous `auto-<date>`.
 
     Returns {'done': bool, 'judgement': ..., 'asks': bool, 'saved_out': name}.
     """
@@ -941,23 +1238,62 @@ def switch(name, *, knowingly=False, check=None, plan_check=None):
                                      'cc_r_pick_existing')}
 
     live = live_identity(active(), check)
+    saved = profiles(live)
     target_print = fingerprint((target.get('claudeAiOauth') or {}).get('refreshToken'))
-    # Already on this account? The fingerprint proves it, but so does the
-    # organization, and only the second still holds once the live token has
-    # rotated. Deciding on the fingerprint alone would let a switch onto a
-    # stale snapshot of the CURRENT account write an old token over the live
-    # one: the account would be logged out by an action that claimed to change
-    # nothing. When the snapshot is behind, the answer says so and offers the
-    # gesture that fixes it rather than a bare "nothing to do".
-    same_token = bool(live.get('refresh_print')) and live['refresh_print'] == target_print
-    same_org = bool(live.get('org')) and target.get('organizationUuid') == live['org']
-    if live.get('read') and (same_token or same_org):
-        return {'done': False, 'asks': False,
-                'judgement': verdict(
-                    UNKNOWN, 'cc_j_already_active', {'name': name, 'behind': not same_token},
-                    'cc_r_nothing_to_do' if same_token else 'cc_r_save_now')}
+    # The saved profile, if any, holding the very login that is live now.
+    holder = next((p for p in saved
+                   if p.get('readable', True) and p.get('refresh_print')
+                   and p['refresh_print'] == live.get('refresh_print')), None)
 
-    judgements = health(target)
+    # Already on this account? The fingerprint proves it. The organization
+    # would too, but only when it is really the tokens' own: see below.
+    same_token = bool(live.get('refresh_print')) and live['refresh_print'] == target_print
+    if live.get('read') and same_token:
+        return {'done': False, 'asks': False,
+                'judgement': verdict(UNKNOWN, 'cc_j_already_active',
+                                     {'name': name, 'behind': False},
+                                     'cc_r_nothing_to_do')}
+
+    if (live.get('read') and live.get('access_print') and not live.get('org')
+            and holder is None):
+        # Nobody can say whose login this is: the file does not name it (the
+        # state right after a sign-in), no saved profile holds these tokens,
+        # and the server could not be asked. Treating "unknown" as "another
+        # account" parked a fresh login under an 'auto-' name and put an older
+        # snapshot live, and Claude Code answered the next command with
+        # "OAuth session expired" (review of 2026-09-26). Nothing is written.
+        return {'done': False, 'asks': False,
+                'judgement': verdict(UNKNOWN, 'cc_j_live_unidentified', {},
+                                     'cc_r_identify_live')}
+
+    same_org = bool(live.get('org')) and target.get('organizationUuid') == live['org']
+    if live.get('read') and same_org:
+        # The organization says "this account", and the tokens cannot: they
+        # have rotated since the snapshot. Deciding on the fingerprint alone
+        # would let a switch onto a stale snapshot of the CURRENT account write
+        # an old token over the live one. But the file's key can be wrong -
+        # written by a tool that swapped only the tokens, or from the lagging
+        # cache - and then "already on it" leaves the user on another account
+        # while the widget says otherwise. A saved profile of another account
+        # holding these tokens proves the file wrong; otherwise the server is
+        # asked about the token, when it can be.
+        foreign = holder is not None and holder.get('org') != live['org']
+        if not foreign and live.get('org_source') == 'live' and check is not None:
+            live = live_identity(live, check, confirm=True)
+            if live.get('org') != target.get('organizationUuid'):
+                foreign = True
+                saved = profiles(live)
+        if not foreign:
+            return {'done': False, 'asks': False,
+                    'judgement': verdict(UNKNOWN, 'cc_j_already_active',
+                                         {'name': name, 'behind': True},
+                                         'cc_r_save_now')}
+
+    # Judged as the list judges it: a newer copy of the live file carrying
+    # another renewal token for this account means the one in the profile
+    # has been retired, and a switch would put a dead token live.
+    judgements = health(target) + _outdated(target, _saved_at(target, name),
+                                            backups())[1]
     bad = [j for j in judgements if j['kind'] == BAD]
     if bad:
         return {'done': False, 'asks': False, 'judgement': bad[0]}
@@ -995,48 +1331,97 @@ def switch(name, *, knowingly=False, check=None, plan_check=None):
         return {'done': False, 'asks': True, 'judgement': unsure[0],
                 'checked': checked}
 
+    # Whose the outgoing login is, decided before the lock. The strongest
+    # answer first: the server (already asked above when the file did not say),
+    # then a saved profile holding the same tokens, then the file's own key.
+    pre, failure = read_json(cred_file())
+    if failure:
+        return {'done': False, 'asks': False, 'judgement': failure}
+    pre_oauth = pre.get('claudeAiOauth') or {}
+    pre_print = fingerprint(pre_oauth.get('refreshToken'))
+    out_proven = None
+    if (live.get('org_source') == 'server' and live.get('org')
+            and pre_print and pre_print == live.get('refresh_print')):
+        out_proven = {'org': live['org'], 'email': live.get('server_email'),
+                      'note': 'server'}
+    in_hand = holder if holder is not None and holder.get('refresh_print') == pre_print else None
+    out_org = ((out_proven or {}).get('org') or (in_hand or {}).get('org')
+               or pre.get('organizationUuid'))
+    out_prof = in_hand or find_profile_for_org(out_org, saved)
+    if (out_proven is None and in_hand is None and out_prof is not None
+            and out_prof.get('refresh_print') != pre_print and check is not None
+            and not when(pre_oauth.get('expiresAt'))[1]):
+        # Only the file's own key says whose this login is, and it is about to
+        # replace a snapshot holding other tokens: that is worth one read.
+        srv_org, srv_email = ask_server_identity(pre_oauth.get('accessToken'), check)
+        if srv_org:
+            out_proven = {'org': srv_org, 'email': srv_email, 'note': 'server'}
+            if srv_org != out_org:
+                out_org = srv_org
+                out_prof = find_profile_for_org(out_org, saved)
+    if out_prof is not None:
+        saved_out = out_prof['name']
+    else:
+        wanted = None
+        if name_for_org is not None and out_org:
+            try:
+                wanted = profile_name_for(name_for_org(out_org))
+            except Exception:
+                wanted = None
+        if wanted and not os.path.exists(os.path.join(store(), wanted)):
+            saved_out = wanted
+        else:
+            # Not '_auto-': valid_name refuses a leading underscore, so the
+            # parking name our own rule rejects made every switch from an
+            # account with no saved profile fail at the last step.
+            saved_out = 'auto-' + time.strftime('%Y%m%d-%H%M%S')
+
     with _LOCK:
-        # Re-read here, not earlier: Claude Code may have renewed in between.
+        # Re-read here: Claude Code may have renewed since the read above, and
+        # an identity proved for one token is not carried over to another.
         current, failure = read_json(cred_file())
         if failure:
             return {'done': False, 'asks': False, 'judgement': failure}
-
-        saved_out = None
-        # The live file has no organization for hours after a sign-in; the
-        # one resolved above is the same account's, so the outgoing snapshot
-        # lands in its own profile instead of piling up 'auto-' copies.
-        out_org = current.get('organizationUuid') or live.get('org')
-        mine = fingerprint((current.get('claudeAiOauth') or {}).get('refreshToken'))
-        for other in profile_names():
-            p, bad_read = read_profile(other)
-            if bad_read:
-                continue
-            same_token = mine and fingerprint(
-                (p.get('claudeAiOauth') or {}).get('refreshToken')) == mine
-            same_org = out_org and p.get('organizationUuid') == out_org
-            if same_token or same_org:
-                saved_out = other
-                break
-        if saved_out is None:
-            # Not '_auto-': valid_name refuses a leading underscore, so
-            # the parking name our own rule rejects made every switch
-            # from an account with no saved profile fail at the last step.
-            saved_out = 'auto-' + time.strftime('%Y%m%d-%H%M%S')
+        still = fingerprint((current.get('claudeAiOauth') or {}).get('refreshToken')) == pre_print
         try:
-            save_profile(saved_out, current, call=check)
+            save_profile(saved_out, current, proven=out_proven if still else None)
         except (ValueError, OSError) as e:
             return {'done': False, 'asks': False,
                     'judgement': verdict(BAD, 'cc_j_outgoing_not_saved',
                                          {'why': str(e)}, 'cc_r_try_again')}
 
         backup_live()
-        current['claudeAiOauth'] = target['claudeAiOauth']
+        # The swap goes onto a read taken NOW that still carries the tokens
+        # just snapshotted. The snapshot, the copy and the checks above leave
+        # a window in which Claude Code can renew or pick up an MCP token, and
+        # writing the older object back would undo it (claude-account.ps1,
+        # fourth and seventh reviews of 2026-09-13).
+        fresh = read_live_for_write(current)
+        if fresh is None:
+            # It moved: the snapshot is taken again from what is there, once.
+            # If it keeps moving, nothing is written.
+            current, failure = read_json(cred_file())
+            if failure:
+                return {'done': False, 'asks': False, 'judgement': failure}
+            try:
+                save_profile(saved_out, current)
+            except (ValueError, OSError) as e:
+                return {'done': False, 'asks': False,
+                        'judgement': verdict(BAD, 'cc_j_outgoing_not_saved',
+                                             {'why': str(e)}, 'cc_r_try_again')}
+            fresh = read_live_for_write(current)
+            if fresh is None:
+                return {'done': False, 'asks': False,
+                        'judgement': verdict(UNKNOWN, 'cc_j_live_moving', {},
+                                             'cc_r_try_again')}
+        had_mcp = 'mcpOAuth' in fresh
+        fresh['claudeAiOauth'] = target['claudeAiOauth']
         if target.get('organizationUuid'):
-            current['organizationUuid'] = target['organizationUuid']
+            fresh['organizationUuid'] = target['organizationUuid']
         # else: the old organization is LEFT IN PLACE. Writing null here is the
         # state that froze every chat, and a profile with no organization has
         # already been refused above, so this branch only exists as a guard.
-        write_json_atomic(cred_file(), current)
+        write_json_atomic(cred_file(), fresh)
 
         after, failure = read_json(cred_file())
         if failure:
@@ -1045,7 +1430,7 @@ def switch(name, *, knowingly=False, check=None, plan_check=None):
             (target.get('claudeAiOauth') or {}).get('accessToken')
         org_ok = (not target.get('organizationUuid')
                   or after.get('organizationUuid') == target['organizationUuid'])
-        mcp_kept = ('mcpOAuth' in after) or ('mcpOAuth' not in current)
+        mcp_kept = ('mcpOAuth' in after) or not had_mcp
         if not (token_ok and org_ok):
             return {'done': False, 'asks': False,
                     'judgement': verdict(BAD, 'cc_j_write_unverified',

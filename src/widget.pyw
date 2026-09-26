@@ -868,6 +868,8 @@ LANG = {
         'dlg_account_manage': 'Manage',
         'dlg_cc_here': 'Claude Code',
         'dlg_account_exists_title': 'Account already added',
+        'dlg_update': 'Update',
+        'dlg_login_other_account': 'Claude Code is signed in as another account, not this one. Sign in to Claude Code as this account first, then try again.',
         'dlg_account_exists': 'This is the same account as "{name}". Update it instead of adding a second one?',
         'tip_colors': 'Fixed: each bar keeps its own colour. By usage: every bar is coloured by its consumption (blue, amber, red).',
         'menu_split': 'Weekly split',
@@ -1115,6 +1117,8 @@ LANG = {
         'dlg_account_manage': 'Gestisci',
         'dlg_cc_here': 'Claude Code',
         'dlg_account_exists_title': 'Account gi\u00e0 presente',
+        'dlg_update': 'Aggiorna',
+        'dlg_login_other_account': 'Claude Code è entrato con un altro account, non con questo. Prima fai entrare Claude Code con questo account, poi riprova.',
         'dlg_account_exists': '\u00c8 lo stesso account di "{name}". Vuoi aggiornarlo invece di aggiungerne un altro?',
         'tip_colors': 'Fissi: ogni barra tiene il suo colore. Per consumo: ogni barra \u00e8 colorata in base al consumo (blu, giallo, rosso).',
         'menu_split': 'Suddivisione settimanale',
@@ -1365,6 +1369,8 @@ LANG = {
         'dlg_account_manage': '\u7ba1\u7406',
         'dlg_cc_here': 'Claude Code',
         'dlg_account_exists_title': '\u65e2\u306b\u8ffd\u52a0\u6e08\u307f',
+        'dlg_update': '\u66f4\u65b0',
+        'dlg_login_other_account': 'Claude Code はこのアカウントではなく、別のアカウントでサインインしています。先にこのアカウントで Claude Code にサインインしてから、もう一度お試しください。',
         'dlg_account_exists': '\u300c{name}\u300d\u3068\u540c\u3058\u30a2\u30ab\u30a6\u30f3\u30c8\u3067\u3059\u3002\u65b0\u3057\u304f\u8ffd\u52a0\u305b\u305a\u306b\u66f4\u65b0\u3057\u307e\u3059\u304b\uff1f',
         'tip_colors': '\u56fa\u5b9a: \u5404\u30d0\u30fc\u304c\u72ec\u81ea\u306e\u8272\u3092\u4fdd\u3061\u307e\u3059\u3002\u6d88\u8cbb\u91cf: \u3059\u3079\u3066\u306e\u30d0\u30fc\u304c\u6d88\u8cbb\u91cf\u306b\u5fdc\u3058\u3066\u8272\u5206\u3051\u3055\u308c\u307e\u3059 (\u9752\u3001\u9ec4\u3001\u8d64)\u3002',
         'menu_split': '\u9031\u9593\u30d0\u30fc\u306e\u5206\u5272',
@@ -1497,6 +1503,9 @@ CC_LANG = {
         'cc_j_live_no_org': 'The live credentials carry no organization, which is the normal state right after a sign-in.',
         'cc_j_live_no_token': 'The live credentials carry no access token.',
         'cc_j_live_ok': 'The live credentials are readable and complete.',
+        'cc_j_live_unidentified': 'I cannot tell which account Claude Code is signed in as right now, so I changed nothing: a switch could have written an older login over the one just made.',
+        'cc_j_live_moving': 'Claude Code was rewriting its login while I was switching, so I changed nothing.',
+        'cc_r_identify_live': 'Try again in a few minutes. If Claude Code has been idle for hours, run one command in it first, so that it renews its login.',
         'cc_j_name_taken': 'A profile called "{name}" already exists.',
         'cc_j_no_access': 'No access token.',
         'cc_j_no_answer': 'No answer from Claude.',
@@ -1570,8 +1579,6 @@ CC_LANG = {
         'cc_ui_switch_to': 'Switch to {name}',
         'cc_j_no_subscription': 'The subscription on {email} is not active any more, so Claude will not renew this login. Switching to it would leave Claude Code asking you to sign in at your next command.',
         'cc_r_renew_or_pick_other': 'Renew the subscription, or switch to another account.',
-        'cc_ui_synced': 'Snapshot of {name} brought up to date on its own: you signed in again with this account.',
-        'cc_ui_not_verified': 'Not verifiable right now. If this login has expired, Claude Code will ask you to sign in again.',
         'cc_ui_signed_in_here': 'signed in here',
         'cc_ui_no_profile': 'No saved profile for this account, so there is nothing to switch to.',
         'cc_ui_no_profiles': 'No saved Claude Code profiles on this computer.',
@@ -1579,7 +1586,6 @@ CC_LANG = {
         'cc_ui_saving_out': 'Saving the account you are leaving…',
         'cc_ui_switching': 'Switching…',
         'cc_ui_proceed': 'Switch anyway',
-        'cc_ui_now_cc': 'Claude Code: {name}',
         'cc_ui_now_widget': 'Widget now showing: {name}',
         'cc_ui_save_snapshot': 'Save snapshot',
         'cc_ui_verify': 'Check now',
@@ -1610,6 +1616,9 @@ CC_LANG = {
         'cc_j_live_no_org': 'Le credenziali vive non portano l’organizzazione: è lo stato normale subito dopo un accesso.',
         'cc_j_live_no_token': 'Le credenziali vive non hanno un token di accesso.',
         'cc_j_live_ok': 'Le credenziali vive sono leggibili e complete.',
+        'cc_j_live_unidentified': 'Non riesco a capire con quale account è entrato Claude Code in questo momento, quindi non ho cambiato niente: il cambio avrebbe potuto scrivere un accesso più vecchio sopra quello appena fatto.',
+        'cc_j_live_moving': 'Claude Code stava riscrivendo il suo accesso mentre cambiavo account, quindi non ho cambiato niente.',
+        'cc_r_identify_live': 'Riprova fra qualche minuto. Se Claude Code è fermo da ore, lancia prima un comando, così rinnova il suo accesso.',
         'cc_j_name_taken': 'Esiste già un profilo che si chiama "{name}".',
         'cc_j_no_access': 'Nessun token di accesso.',
         'cc_j_no_answer': 'Nessuna risposta da Claude.',
@@ -1678,8 +1687,6 @@ CC_LANG = {
         'cc_ui_switch_to': 'Passa a {name}',
         'cc_j_no_subscription': 'L’abbonamento di {email} non è più attivo, quindi Claude non rinnoverà questo accesso. Passando a questo conto, Claude Code ti chiederebbe di accedere al comando successivo.',
         'cc_r_renew_or_pick_other': 'Rinnova l’abbonamento, oppure passa a un altro conto.',
-        'cc_ui_synced': 'Istantanea di {name} aggiornata da sola: hai fatto un nuovo accesso con questo conto.',
-        'cc_ui_not_verified': 'Non verificabile adesso. Se questo accesso è scaduto, Claude Code ti chiederà di accedere di nuovo.',
         'cc_ui_signed_in_here': 'autenticato qui',
         'cc_ui_no_profile': 'Nessun profilo salvato per questo conto: non c’è niente a cui passare.',
         'cc_ui_no_profiles': 'Nessun profilo di Claude Code salvato su questo computer.',
@@ -1687,7 +1694,6 @@ CC_LANG = {
         'cc_ui_saving_out': 'Salvo il conto che stai lasciando…',
         'cc_ui_switching': 'Passo…',
         'cc_ui_proceed': 'Passa lo stesso',
-        'cc_ui_now_cc': 'Claude Code: {name}',
         'cc_ui_now_widget': 'Il widget ora mostra: {name}',
         'cc_ui_save_snapshot': 'Salva istantanea',
         'cc_ui_verify': 'Verifica adesso',
@@ -1718,6 +1724,9 @@ CC_LANG = {
         'cc_j_live_no_org': '現在の認証情報に組織がありません。サインイン直後の通常の状態です。',
         'cc_j_live_no_token': '現在の認証情報にアクセストークンがありません。',
         'cc_j_live_ok': '現在の認証情報は読み取れて、内容もそろっています。',
+        'cc_j_live_unidentified': 'Claude Code が今どのアカウントでサインインしているか確認できないため、何も変更していません。切り替えると、今行ったばかりのログインの上に古いログインを書き込むおそれがありました。',
+        'cc_j_live_moving': '切り替えの途中で Claude Code がログイン情報を書き換えていたため、何も変更していません。',
+        'cc_r_identify_live': '数分後にもう一度お試しください。Claude Code を何時間も使っていない場合は、先に何かコマンドを実行して、ログインを更新させてください。',
         'cc_j_name_taken': '「{name}」という名前のプロファイルはすでにあります。',
         'cc_j_no_access': 'アクセストークンがありません。',
         'cc_j_no_answer': 'Claude から応答がありません。',
@@ -1786,8 +1795,6 @@ CC_LANG = {
         'cc_ui_switch_to': '{name} に切り替え',
         'cc_j_no_subscription': '{email} \u306e\u30b5\u30d6\u30b9\u30af\u30ea\u30d7\u30b7\u30e7\u30f3\u304c\u6709\u52b9\u3067\u306f\u306a\u3044\u305f\u3081\u3001\u3053\u306e\u30ed\u30b0\u30a4\u30f3\u306f\u66f4\u65b0\u3055\u308c\u307e\u305b\u3093\u3002\u5207\u308a\u66ff\u3048\u308b\u3068\u3001\u6b21\u306e\u30b3\u30de\u30f3\u30c9\u3067 Claude Code \u304c\u30b5\u30a4\u30f3\u30a4\u30f3\u3092\u6c42\u3081\u307e\u3059\u3002',
         'cc_r_renew_or_pick_other': '\u30b5\u30d6\u30b9\u30af\u30ea\u30d7\u30b7\u30e7\u30f3\u3092\u66f4\u65b0\u3059\u308b\u304b\u3001\u5225\u306e\u30a2\u30ab\u30a6\u30f3\u30c8\u306b\u5207\u308a\u66ff\u3048\u3066\u304f\u3060\u3055\u3044\u3002',
-        'cc_ui_synced': '\u518d\u5ea6\u30b5\u30a4\u30f3\u30a4\u30f3\u3057\u305f\u305f\u3081\u3001{name} \u306e\u30b9\u30ca\u30c3\u30d7\u30b7\u30e7\u30c3\u30c8\u3092\u81ea\u52d5\u3067\u66f4\u65b0\u3057\u307e\u3057\u305f\u3002',
-        'cc_ui_not_verified': '\u4eca\u306f\u78ba\u8a8d\u3067\u304d\u307e\u305b\u3093\u3002\u3053\u306e\u30ed\u30b0\u30a4\u30f3\u304c\u5931\u52b9\u3057\u3066\u3044\u308b\u5834\u5408\u3001Claude Code \u304c\u30b5\u30a4\u30f3\u30a4\u30f3\u3092\u6c42\u3081\u307e\u3059\u3002',
         'cc_ui_signed_in_here': 'このPCでサインイン中',
         'cc_ui_no_profile': 'このアカウントの保存済みプロファイルがないため、切り替え先がありません。',
         'cc_ui_no_profiles': 'このコンピューターに保存された Claude Code のプロファイルはありません。',
@@ -1795,7 +1802,6 @@ CC_LANG = {
         'cc_ui_saving_out': '切り替え元のアカウントを保存しています…',
         'cc_ui_switching': '切り替えています…',
         'cc_ui_proceed': 'このまま切り替える',
-        'cc_ui_now_cc': 'Claude Code: {name}',
         'cc_ui_now_widget': 'ウィジェットの表示: {name}',
         'cc_ui_save_snapshot': 'スナップショットを保存',
         'cc_ui_verify': '今すぐ確認',
@@ -3549,26 +3555,43 @@ def saved_login_token(org):
     token stays valid for hours (only the account in use has it renewed). A
     read with it rotates nothing and spends nothing. None once it has expired,
     or when there is no saved login for the organization.
+
+    Light, because it runs on the refresh thread every time Claude Code is
+    signed in as another account: it reads the saved profiles and nothing else
+    (it used to walk the live file, the identity cache and every historic copy
+    on every tick). And before its numbers go under this account's name, the
+    token is confirmed once to be this organization's: a profile labelled from
+    the lagging cache, by an older build or by another tool, would otherwise
+    show one account's usage as the other's. The answer is kept per token.
+    When the server cannot be asked, the label is trusted rather than the bar
+    emptied on a guess, and the question is asked again ten minutes later.
     """
     if not org:
         return None
     try:
-        prof = cc_accounts.find_profile_for_org(org)
-        if not prof or not prof.get('readable', True):
-            return None
-        data, failure = cc_accounts.read_profile(prof['name'])
-        if failure or data.get('organizationUuid') != org:
-            return None
-        oauth = data.get('claudeAiOauth') or {}
-        expires = oauth.get('expiresAt')
-        if not oauth.get('accessToken') or not expires:
-            return None
-        if expires / 1000 < time.time() + 120:
-            return None                        # expired, or about to
-        return oauth['accessToken']
+        token, name = cc_accounts.usable_access_token(org)
     except Exception as e:
         wlog(f'FETCH  saved login unreadable: {_redact(str(e))}')
         return None
+    if not token:
+        return None
+    key = cc_accounts.fingerprint(token)
+    said = _SAVED_TOKEN_ORG.get(key)
+    if said is None or (said[0] is None and time.time() - said[1] > 600):
+        try:
+            said = (cc_accounts.ask_server_org(token, cc_http), time.time())
+        except Exception:
+            said = (None, time.time())
+        _SAVED_TOKEN_ORG[key] = said
+    if said[0] and said[0] != org:
+        wlog(f'FETCH  the saved login "{name}" belongs to another organisation, '
+             f'not using it')
+        return None
+    return token
+
+
+# token fingerprint -> (organisation the server named, or None; when asked)
+_SAVED_TOKEN_ORG = {}
 
 
 def _fetch_usage_key(src):
@@ -6436,7 +6459,7 @@ class Widget:
         close_btn = tk.Label(tb, text='\u2715', font=('Segoe UI', 10),
                              fg=DIM, bg=BG_TITLE, cursor='hand2', padx=12, pady=4)
         close_btn.pack(side='right')
-        close_btn.bind('<Button-1>', lambda e: dlg.destroy())
+        close_btn.bind('<Button-1>', lambda e: self._close_dialog(dlg))
         close_btn.bind('<Enter>', lambda e: close_btn.config(fg=FG, bg=CLOSE_HV))
         close_btn.bind('<Leave>', lambda e: close_btn.config(fg=DIM, bg=BG_TITLE))
 
@@ -6542,6 +6565,22 @@ class Widget:
             padx=self.dp(PILL_PAD_SECONDARY_X),
             pady=self.dp(PILL_PAD_SECONDARY_Y))
 
+    def _close_dialog(self, dlg):
+        """Close a dialog from its X or from Escape, unless it asks to stay.
+
+        A dialog sets `hold_open` to a callable while it is writing something
+        that must not be abandoned halfway (a switch of the Claude Code
+        account): closing it then would lose the result the user is waiting
+        for, while the write went on regardless.
+        """
+        hold = getattr(dlg, 'hold_open', None)
+        try:
+            if hold is not None and hold():
+                return
+            dlg.destroy()
+        except tk.TclError:
+            pass
+
     def _build_dialog_frame(self, title, dw, dh, key=None):
         """Create a Toplevel with the standard chrome. Returns (dlg, body).
 
@@ -6597,7 +6636,7 @@ class Widget:
         body = tk.Frame(dlg, bg=BG)
         body.pack(fill='both', expand=True,
                   padx=DLG_PAD_X, pady=(DLG_PAD_TOP, DLG_PAD_BTM))
-        dlg.bind('<Escape>', lambda e: dlg.destroy())
+        dlg.bind('<Escape>', lambda e: self._close_dialog(dlg))
 
         def _finalize():
             # Measure and place (see docstring); dh is the floor. Runs for
@@ -8620,8 +8659,17 @@ class Widget:
                     if not live.get('org'):
                         dlg.after(0, lambda: fail(t('cc_rate_limited')))
                         return
-                    prof = {'org_id': live['org'], 'email': live.get('email') or '',
-                            'plan': live.get('plan') or '', 'name': ''}
+                    # Only the organization is known here. The e-mail comes
+                    # from the identity cache, which lags behind a switch for
+                    # hours: it is used only when the cache is describing this
+                    # very organization, and the identity is marked partial so
+                    # that nothing already known about the account is replaced
+                    # with less (review of 2026-09-26).
+                    same = live.get('org_cache') == live['org']
+                    prof = {'org_id': live['org'],
+                            'email': (live.get('email') or '') if same else '',
+                            'plan': live.get('plan') or '', 'name': '',
+                            '_partial': True}
                 except Exception as e:
                     dlg.after(0, lambda msg=str(e): fail(msg))
                     return
@@ -8649,15 +8697,35 @@ class Widget:
                 # one Claude account would count the same usage twice and put
                 # the user in front of a choice that has no right answer.
                 target = active_account(self.cfg) if on_success is None else None
-                existing = find_account_by_identity(self.cfg, prof.get('org_id'),
-                                                    prof.get('email'))
+                # By organization only when that is all that is proven: the
+                # e-mail fallback matched the account the cache still named,
+                # and its organization was then replaced with this one.
+                if prof.get('_partial'):
+                    existing = find_account_by_org(self.cfg, prof.get('org_id'))
+                else:
+                    existing = find_account_by_identity(self.cfg, prof.get('org_id'),
+                                                        prof.get('email'))
+                if (existing is not None and existing.get('org_id')
+                        and prof.get('org_id') and existing['org_id'] != prof['org_id']):
+                    # Same e-mail, another organization: another account (a
+                    # personal and a team organization share one address).
+                    existing = None
+                if (target is not None and target.get('org_id') and prof.get('org_id')
+                        and target['org_id'] != prof['org_id']):
+                    # Linking the login to the account on show while Claude
+                    # Code is signed in as a different one used to give this
+                    # account the other one's organization: every number
+                    # after that was the other account's. Said here, while
+                    # the window is still open to say it.
+                    fail(t('dlg_login_other_account'))
+                    return
                 if existing is not None and existing is not target:
                     close()
                     self._confirm_dialog(
                         t('dlg_account_exists_title'),
                         t('dlg_account_exists').format(
                             name=existing.get('name') or '-'),
-                        lambda: attach(existing, prof))
+                        lambda: attach(existing, prof), label=t('dlg_update'))
                     return
                 close()
                 attach(target, prof)
@@ -8673,13 +8741,23 @@ class Widget:
                 # the account is left alone: the two credentials cover for each
                 # other now, and throwing one away to add the other would undo
                 # the only protection against an expired token.
+                # Never another organization on top of the one the account
+                # counts its usage against; and a partial identity (the server
+                # did not answer) never replaces what the account knew.
+                if (acc.get('org_id') and prof.get('org_id')
+                        and acc['org_id'] != prof['org_id']):
+                    # decide() has already refused this with a reason on
+                    # screen; this is the last line, not the message.
+                    wlog('ACCT   refused to give an account another organisation')
+                    return
                 for field, value in (('org_id', prof.get('org_id')),
                                      ('email', prof.get('email')),
                                      ('plan', prof.get('plan'))):
                     if value:
                         acc[field] = value
-                        acc['profile'] = {k: v for k, v in prof.items()
-                                          if k not in ('org_id', 'email', 'plan')}
+                if not prof.get('_partial'):
+                    acc['profile'] = {k: v for k, v in prof.items()
+                                      if k not in ('org_id', 'email', 'plan')}
                 if nm:
                     acc['name'] = nm
                 elif not acc.get('name'):
@@ -9308,11 +9386,16 @@ class Widget:
     def _cc_state(self, call=None):
         """The saved profiles and the live login, from one read of the disk.
 
+        Carries over what the server last said about the live login while it
+        is still the same login (see cc_accounts.state), so a redraw does not
+        undo the identity the login check has just established.
+
         Never raises: a store that is not there, or a file somebody has been
         editing, is one of the answers this window has to be able to show.
         """
+        known = (getattr(self, '_cc_saved', None) or {}).get('live')
         try:
-            return cc_accounts.state(call)
+            return cc_accounts.state(call, known=known)
         except Exception as e:
             wlog(f'CC     could not read the profiles: {_redact(str(e))}')
             return None
@@ -9329,26 +9412,56 @@ class Widget:
         had to know about and press. It happens by itself now.
 
         Off the main thread: it is one network call, and the window has to
-        paint before it.
+        paint before it. One at a time: a second request made while one is
+        running waits for it, and is answered by it.
+
+        It says nothing on screen when it brings a snapshot in step: that is
+        housekeeping, it follows every renewal of the login and not only a new
+        sign-in, and announcing it on whichever account page opened next told
+        the user about a sign-in they had not made (review of 2026-09-26). The
+        log keeps it.
         """
+        waiting = self.__dict__.setdefault('_cc_sync_after', [])
+        if after:
+            waiting.append(after)
+        if getattr(self, '_cc_sync_busy', False):
+            return
+        self._cc_sync_busy = True
+
         def work():
+            done, fresh = None, None
             try:
                 done = cc_accounts.sync_live_into_profile(call=cc_http)
-                fresh = cc_accounts.state(call=cc_http)
+                fresh = cc_accounts.state(call=cc_http, confirm=True)
             except Exception as e:
                 wlog(f'CC     login watch failed: {_redact(str(e))}')
-                return
-            if done:
-                wlog(f"CC     snapshot of {done['updated']} refreshed after a "
-                     f"new sign-in")
+            if (done or {}).get('updated'):
+                wlog(f"CC     saved login of {done['updated']} brought in step "
+                     f"with the one Claude Code is using")
+            elif (done or {}).get('pending'):
+                wlog(f"CC     whose login this is cannot be settled yet "
+                     f"({done['pending']}), looking again later")
 
             def apply():
-                self._cc_saved = fresh
-                if done:
-                    self._cc_flash = (t('cc_ui_synced').format(
-                        name=done['updated']), DOT_GREEN)
-                if after:
-                    after()
+                self._cc_sync_busy = False
+                # Not settled is not forgotten: asked again in five minutes
+                # when the server did not answer, at once when the file moved
+                # under the read, and at the next rewrite of the file when the
+                # short token had expired (Claude Code renews it at its next
+                # command, and that rewrite is what brings this back).
+                pending = (done or {}).get('pending')
+                self._cc_sync_retry_at = (
+                    time.time() + 300 if pending == 'unproven'
+                    else time.time() if pending == 'changed' else None)
+                if fresh is not None:
+                    self._cc_saved = fresh
+                calls, self._cc_sync_after = self._cc_sync_after, []
+                for fn in calls:
+                    try:
+                        fn()
+                    except (tk.TclError, RuntimeError) as e:
+                        wlog(f'CC     could not redraw after the login check: '
+                             f'{_redact(str(e))}')
             try:
                 self.root.after(0, apply)
             except (tk.TclError, RuntimeError):
@@ -9360,7 +9473,9 @@ class Widget:
         """Notice a new sign-in the way the disk shows one: the file changed.
 
         Cheap enough for every refresh tick - one `stat` - and it costs a
-        network call only when the file has actually been rewritten.
+        network call only when the file has actually been rewritten, or when
+        an earlier look could not settle whose login it is (see
+        _cc_sync_login).
         """
         if not any(a.get('cc_linked') for a in self.cfg.get('accounts', [])):
             return
@@ -9368,13 +9483,17 @@ class Widget:
             stamp = os.path.getmtime(cc_accounts.cred_file())
         except OSError:
             return
-        if stamp == getattr(self, '_cc_cred_stamp', None):
+        retry_at = getattr(self, '_cc_sync_retry_at', None)
+        due = retry_at is not None and time.time() >= retry_at
+        if stamp == getattr(self, '_cc_cred_stamp', None) and not due:
             return
         self._cc_cred_stamp = stamp
+        self._cc_sync_retry_at = None
         # Logged even when nothing comes of it: the next person diagnosing
         # "the widget did not notice my new login" needs to see whether this
         # ever ran, which is the lesson of every silent guard before it.
-        wlog('CC     credentials file changed, checking whose login it is')
+        wlog('CC     looking again at whose login is live' if due else
+             'CC     credentials file changed, checking whose login it is')
         self._cc_sync_login()
 
     def _cc_plan_alive(self, org):
@@ -9394,10 +9513,23 @@ class Widget:
         if acc is None:
             return None
         try:
-            data, _rotation = _fetch_usage_key(acc)
+            data, rotation = _fetch_usage_key(acc)
+        except NoActivePlan:
+            # 🔴 The answer this function exists for. _fetch_usage_key turns
+            # the lapsed shape into this exception, and the generic handler
+            # below used to swallow it as "could not read": the guard on the
+            # switch could never say no (review of 2026-09-26).
+            return False
         except Exception as e:
             wlog(f'CC     could not read the plan: {_redact(str(e))}')
             return None
+        if rotation:
+            # Claude.ai rotated the key on this read: keep the new one, on the
+            # main thread, on the account it was issued for.
+            try:
+                self.root.after(0, self._apply_rotated_key, *rotation)
+            except (tk.TclError, RuntimeError):
+                pass
         return None if not isinstance(data, dict) else not no_active_plan(data)
 
     def _cc_profile_for(self, acc, st=None):
@@ -9426,6 +9558,18 @@ class Widget:
                  if j['kind'] == worst] or profile.get('judgements', [])
         return words.get(worst, ''), colours.get(worst, DIM), speak[0] if speak else None
 
+    def _cc_account_label(self, profile_name):
+        """What to call a saved profile on screen: the widget's own name for
+        its account when there is one, the folder name otherwise. A profile
+        parked as `auto-20260921-121440` is an account the user knows by name."""
+        try:
+            data, failure = cc_accounts.read_profile(profile_name)
+            org = None if failure else data.get('organizationUuid')
+        except Exception:
+            org = None
+        acc = find_account_by_org(self.cfg, org) if org else None
+        return (acc or {}).get('name') or profile_name
+
     def _cc_switch_dialog(self, name, rebuild=None):
         """Move Claude Code onto a saved profile, saying what is happening.
 
@@ -9434,11 +9578,29 @@ class Widget:
         cannot be checked instead of refusing it, and only then swap. The
         button goes quiet while it works, because a window that sits still for
         four seconds reads as "nothing happened".
+
+        A switch that has started is not cancelled: there is no safe halfway
+        point in a write of the credentials, so while it runs the window
+        offers no Cancel and ignores its X and Escape. And the result reaches
+        the widget even if the window is gone by then: the display follows
+        the account that became signed in, and the list is redrawn (review of
+        2026-09-26: Cancel used to close the window while the switch went on,
+        and the result was dropped).
         """
+        if getattr(self, '_cc_switch_busy', False):
+            running = self._dialogs.get('cc_switch')
+            try:
+                if running is not None and running.winfo_exists():
+                    running.lift()
+            except tk.TclError:
+                pass
+            return
+        label = self._cc_account_label(name)
         dw, dh = self._dlg_size(470, 250)
         dlg, body = self._build_dialog_frame(
-            t('cc_ui_switch_to').format(name=name), dw, dh, key='cc_switch')
+            t('cc_ui_switch_to').format(name=label), dw, dh, key='cc_switch')
         st = {'busy': False, 'knowingly': False, 'done': False}
+        dlg.hold_open = lambda: st['busy']
 
         bottom = tk.Frame(body, bg=BG)
         bottom.pack(fill='x', side='bottom')
@@ -9470,29 +9632,39 @@ class Widget:
                 extra.pack_forget()
             self._place_dialog(dlg, dw, dh_floor=dh)
 
+        def on_destroy(e):
+            # Every way of closing redraws the list once: the X, Escape, Close,
+            # or another window of this kind taking its place. While a switch
+            # runs the redraw waits for its result instead.
+            if e.widget is dlg and not st['busy'] and rebuild:
+                rebuild()
+
+        dlg.bind('<Destroy>', on_destroy, add='+')
+
         def close():
             try:
                 dlg.destroy()
             except tk.TclError:
                 pass
-            if rebuild:
-                rebuild()
 
         def render_buttons(primary_label=None, primary_cmd=None, closing=False):
             for w in buttons.winfo_children():
                 w.destroy()
+            if st['busy']:
+                return
             self._secondary_pill(
                 buttons, t('cc_ui_close') if closing else t('dlg_cancel'),
                 close).pack(side='left')
             if primary_label:
-                self._primary_pill(buttons, primary_label, primary_cmd,
-                                   enabled=not st['busy']).pack(side='right')
+                self._primary_pill(buttons, primary_label, primary_cmd).pack(side='right')
 
         def work():
             try:
-                result = cc_accounts.switch(name, knowingly=st['knowingly'],
-                                            check=cc_http,
-                                            plan_check=self._cc_plan_alive)
+                result = cc_accounts.switch(
+                    name, knowingly=st['knowingly'], check=cc_http,
+                    plan_check=self._cc_plan_alive,
+                    name_for_org=lambda org: (find_account_by_org(self.cfg, org)
+                                              or {}).get('name'))
             except Exception as e:
                 wlog(f'CC     switch raised: {_redact(str(e))}')
                 result = {'done': False, 'asks': False,
@@ -9511,32 +9683,39 @@ class Widget:
 
         def finish(result):
             st['busy'] = False
+            self._cc_switch_busy = False
+            done = bool(result.get('done'))
+            # The widget follows the account that is now signed in whether or
+            # not anybody is still looking at this window.
+            moved = self._cc_adopt_display(name) if done else None
+            if done:
+                wlog(f"CC     switched Claude Code to {name}"
+                     + (f" (outgoing saved as {result.get('saved_out')})"
+                        if result.get('saved_out') else ''))
             if not dlg.winfo_exists():
+                if rebuild:
+                    rebuild()
                 return
-            judgement = result.get('judgement') or {}
+            judgement = dict(result.get('judgement') or {})
+            if (judgement.get('data') or {}).get('name') == name:
+                # Named on screen as the widget names the account.
+                judgement['data'] = dict(judgement['data'], name=label)
             note = cc_say(judgement)
             remedy = cc_say(judgement, 'remedy')
 
-            if result.get('done'):
+            if done:
                 st['done'] = True
-                moved = self._cc_adopt_display(name)
-                # Two different things are true, and they are said apart: who
-                # Claude Code authenticates as, and what the widget is showing.
-                lines = [t('cc_ui_now_cc').format(name=name)]
+                lines = []
                 if moved:
                     lines.append(t('cc_ui_now_widget').format(
-                        name=moved.get('name') or name))
-                # Say it only when it is true. The check is made when the
-                # profile still carries a short token that has not expired,
-                # which is a matter of the clock, not of the account.
+                        name=moved.get('name') or label))
+                # Said only when it is true: the check is made when the
+                # profile still carries a short token that has not expired.
+                # A check that could not be made is not news to the user.
                 verified = (result.get('checked') or {}).get('judgement') or {}
                 if verified.get('kind') == cc_accounts.GOOD:
                     lines.append(cc_say(verified))
-                elif (result.get('checked') or {}).get('skipped'):
-                    # Said plainly rather than left out: the switch went
-                    # through on the strength of the renewal date alone.
-                    lines.append(t('cc_ui_not_verified'))
-                show(note or t('cc_j_switched').format(name=name), DOT_GREEN,
+                show(note or t('cc_j_switched').format(name=label), DOT_GREEN,
                      '\n'.join(lines), t('cc_r_applies_at_once'))
                 render_buttons(closing=True)
                 return
@@ -9553,11 +9732,15 @@ class Widget:
                 render_buttons(t('cc_ui_proceed'), proceed)
                 return
 
-            show(note, RED, remedy)
+            # A refusal is red; "not now" (the login cannot be identified, the
+            # file was moving) is not a fault, and is not painted as one.
+            bad = judgement.get('kind') == cc_accounts.BAD
+            show(note, RED if bad else ORANGE, remedy)
             render_buttons(closing=True)
 
         def start():
             st['busy'] = True
+            self._cc_switch_busy = True
             # Not "checking": the check only happens when the profile's short
             # token is still good, and promising it every time would be a
             # sentence that is usually false.
@@ -9671,8 +9854,21 @@ class Widget:
         # once and the badge went to whichever name sorted first - and right
         # after a sign-in none of them said yes, so every row offered a switch
         # onto the account the user was already on.
-        signed_in_here = bool(profile and profile['name'] == st_cc.get('active_name'))
-        if profile and not signed_in_here:
+        # The badge says a fact, so it needs a proof: a guess from the identity
+        # cache, which lags behind a sign-in, is not one (the account page
+        # already refused it; the list did not, and put the badge on the
+        # account the user had just left).
+        signed_in_here = bool(profile and profile.get('active')
+                              and profile.get('certainty') == 'certain')
+        # And a switch is offered only when it is known whose login is live.
+        # When nobody can say, the module refuses the switch anyway, and a
+        # button that can only answer "not now" is a button that should not
+        # be there.
+        live_cc = st_cc.get('live') or {}
+        cc_known = bool(live_cc.get('org')) or any(
+            p.get('active') and p.get('certainty') == 'certain'
+            for p in st_cc.get('profiles') or [])
+        if profile and not profile.get('active') and cc_known:
             switch_btn = self._secondary_pill(
                 row, t('cc_ui_switch'),
                 lambda n=profile['name']: self._cc_switch_dialog(n, rebuild))
@@ -9685,7 +9881,8 @@ class Widget:
             controls.append(switch_btn)
             word, colour, judgement = self._cc_verdict_text(profile)
             self._tooltip(switch_btn, '\n'.join(
-                x for x in (t('cc_ui_switch_to').format(name=profile['name']),
+                x for x in (t('cc_ui_switch_to').format(
+                                name=acc.get('name') or profile['name']),
                             cc_say(judgement) if judgement else '') if x))
 
         txt = tk.Frame(row, bg=base)
@@ -9907,7 +10104,7 @@ class Widget:
                 self._confirm_dialog(
                     t('dlg_account_exists_title'),
                     t('dlg_account_exists').format(name=existing.get('name') or '-'),
-                    lambda: adopt(existing, key, info, name))
+                    lambda: adopt(existing, key, info, name), label=t('dlg_update'))
                 return
             n = len(self.cfg.get('accounts', [])) + 1
             acc = {'id': _new_id(),
@@ -10077,8 +10274,9 @@ class Widget:
         entry.bind('<Return>', lambda e: confirm())
         self._place_dialog(dlg, dw)
 
-    def _confirm_dialog(self, title, msg, on_yes):
-        """Small yes/no confirmation (account removal)."""
+    def _confirm_dialog(self, title, msg, on_yes, label=None):
+        """Small yes/no confirmation. The button says what it will do: it
+        said "Remove" on the question that offers to UPDATE an account."""
         dw, dh = self._dlg_size(380, 180)
         dlg, body = self._build_dialog_frame(title, dw, dh, key='confirm')
         tk.Label(body, text=msg, font=FT_DLG_BODY, fg=FG, bg=BG, anchor='w',
@@ -10089,7 +10287,7 @@ class Widget:
         def confirm():
             on_yes()
             dlg.destroy()
-        self._primary_pill(btns, t('dlg_remove'), confirm).pack(side='right')
+        self._primary_pill(btns, label or t('dlg_remove'), confirm).pack(side='right')
         self._secondary_pill(btns, t('dlg_cancel'), dlg.destroy).pack(
             side='right', padx=(0, 8))
         self._place_dialog(dlg, dw)
