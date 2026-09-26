@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "__MSG_extName__",
   "short_name": "__MSG_extShortName__",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "__MSG_extDescription__",
   "default_locale": "en",
   "author": "Niccolo Sabato",
@@ -23,8 +23,8 @@
     "default_title": "__MSG_actionTitle__",
     "default_icon": {
       "16": "icon16.png",
-      "48": "icon48.png",
-      "128": "icon128.png"
+      "24": "icon24.png",
+      "32": "icon32.png"
     }
   },
   "side_panel": {
@@ -32,6 +32,7 @@
   },
   "icons": {
     "16": "icon16.png",
+    "32": "icon32.png",
     "48": "icon48.png",
     "128": "icon128.png"
   },

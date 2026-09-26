@@ -42,7 +42,7 @@ h1 {
   align-items: center;
   gap: 8px;
 }
-h1 img { width: 18px; height: 18px; display: block; }
+h1 img { width: 16px; height: 16px; display: block; }
 
 .status {
   font-size: 13px;

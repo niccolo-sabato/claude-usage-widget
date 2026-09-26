@@ -1,7 +1,7 @@
 {
   "extName":        { "message": "Claude Session Key" },
   "extShortName":   { "message": "Claude Session Key" },
-  "extDescription": { "message": "Copy your Claude.ai session key to clipboard with one click. Companion for Claude Usage Widget." },
+  "extDescription": { "message": "Copy your Claude.ai session key with one click. Companion for Claude Usage Widget. Unofficial, not affiliated with Anthropic." },
   "actionTitle":    { "message": "Copy Claude.ai session key" },
   "cmdCopyKey":     { "description": "Keyboard shortcut description", "message": "Copy session key to clipboard" },
 
