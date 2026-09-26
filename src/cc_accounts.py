@@ -257,6 +257,9 @@ def active():
     out = {
         'read': True,
         'org': org or None,
+        # What the file itself says, kept apart from `org`, which the
+        # server's answer replaces (live_identity).
+        'org_in_file': bool(org),
         'org_cache': org_cache,
         'org_source': 'live' if org else ('cache' if org_cache else None),
         'email': from_cache('emailAddress'),
@@ -325,6 +328,8 @@ def health(prof):
 # path -> ((mtime, size), organization, refresh fingerprint): what backups()
 # has already read. Fingerprints only, never a token.
 _BACKUP_SEEN = {}
+# The name a switch gives the copy of an incoherent live file (see switch()).
+INCOHERENT_COPY = 'credentials-incoherent'
 
 
 def backups(held=None):
@@ -342,7 +347,9 @@ def backups(held=None):
     account's key, which a switch backs up as it finds it. It says nothing
     about the account its key names: filed under that account, it declared the
     account's intact saved login outdated and the switch onto it was refused
-    (review of 2026-09-26, second iteration).
+    (review of 2026-09-26, second iteration). That only holds while the
+    tokens stay held, so a switch now names such a copy apart
+    (INCOHERENT_COPY), and it is never read here.
     """
     out = {}
     folder = backups_dir()
@@ -350,6 +357,8 @@ def backups(held=None):
         return out
     for name in os.listdir(folder):
         if not (name.startswith('credentials') and name.endswith('.bak')):
+            continue
+        if name.startswith(INCOHERENT_COPY):
             continue
         path = os.path.join(folder, name)
         try:
@@ -563,7 +572,13 @@ def unrecognised(live, saved):
     else:
         tried.append('cc_try_refresh_print' if live.get('refresh_print')
                      else 'cc_try_no_refresh_print')
-        tried.append('cc_try_org_live' if live.get('org') else 'cc_try_no_org_live')
+        # The file's own key, not `org`: after a sign-in the file has none
+        # and `org` is the server's answer, and the list said the file's
+        # organization had been tried (review of 2026-09-26, third iteration).
+        tried.append('cc_try_org_live' if live.get('org_in_file')
+                     else 'cc_try_no_org_live')
+        if live.get('org_source') == 'server':
+            tried.append('cc_try_org_server')
         tried.append('cc_try_org_cache' if live.get('org_cache')
                      else 'cc_try_no_org_cache')
     return verdict(UNKNOWN, 'cc_j_unrecognised',
@@ -698,21 +713,38 @@ def find_profile_for_org(org, saved=None):
 
 def has_profile_for_org(org):
     """Whether a saved login of this organization exists, and could be
-    switched to. Light, like usable_access_token: it is asked to choose which
-    advice a message gives, not to decide anything."""
+    switched to, judged as the account list judges it. Light: it reads the
+    profiles, and the historic copies (each parsed once, see backups()) only
+    when there is a candidate to judge. It is asked to choose which advice a
+    message gives, not to decide anything."""
     if not org:
         return False
+    mine, held = [], {}
     for name in profile_names():
-        if not _usable_name(name):
-            continue
         data, failure = read_profile(name)
-        if not failure and data.get('organizationUuid') == org:
-            # One that can still be switched to: an expired renewal is no way
-            # back, and "switch Claude Code back to it" sent the user to a
-            # switch that could only be refused (review of 2026-09-26).
-            if any(j['kind'] == BAD for j in health(data)):
-                continue
-            return True
+        if failure:
+            continue
+        print_ = fingerprint((data.get('claudeAiOauth') or {}).get('refreshToken'))
+        if print_ and data.get('organizationUuid'):
+            held[print_] = data['organizationUuid']
+        if _usable_name(name) and data.get('organizationUuid') == org:
+            mine.append((name, data))
+    if not mine:
+        return False
+    shots = None
+    for name, data in mine:
+        # One that can still be switched to: an expired renewal is no way
+        # back, and "switch Claude Code back to it" sent the user to a
+        # switch that could only be refused (review of 2026-09-26). Nor is one
+        # a newer copy shows to be behind: the list hides its Switch, and the
+        # advice named a button that was not there (third iteration).
+        if any(j['kind'] == BAD for j in health(data)):
+            continue
+        if shots is None:
+            shots = backups(held)
+        if any(j['kind'] == BAD for j in _outdated(data, _saved_at(data, name), shots)[1]):
+            continue
+        return True
     return False
 
 
@@ -1115,9 +1147,13 @@ def save_profile(name, live_data=None, call=None, proven=None, expect_org=None):
             # was read; writing `data` back would reinstall an older renewal
             # token and sign the user out at the next one (2026-09-26 review,
             # and claude-account.ps1's seventh review of 2026-09-13).
+            # The copy first, then the read, then the write at once, as the
+            # switch does: the copy runs icacls, a process of its own, and a
+            # read taken before it was an older read by the time of the write
+            # (review of 2026-09-26, third iteration).
+            backup_live('credentials-orgrecovery')
             fresh = read_live_for_write(data)
             if fresh is not None and not fresh.get('organizationUuid'):
-                backup_live('credentials-orgrecovery')
                 fresh['organizationUuid'] = org
                 write_json_atomic(cred_file(), fresh)
 
@@ -1480,7 +1516,14 @@ def switch(name, *, knowingly=False, call=None, plan_check=None, name_for_org=No
                     'judgement': verdict(BAD, 'cc_j_outgoing_not_saved',
                                          {'why': str(e)}, 'cc_r_try_again')}
 
-        backup_live()
+        # A copy of an incoherent file, one account's tokens under another
+        # account's key, is named apart: backups() read it as a copy of the
+        # key's account, and once the holder of these tokens renewed them it
+        # declared that account's intact saved login outdated (review of
+        # 2026-09-26, third iteration).
+        file_key = current.get('organizationUuid')
+        backup_live(INCOHERENT_COPY if file_key and file_key != out_org
+                    else 'credentials')
         # The swap goes onto a read taken NOW that still carries the tokens
         # just snapshotted. The snapshot, the copy and the checks above leave
         # a window in which Claude Code can renew or pick up an MCP token, and

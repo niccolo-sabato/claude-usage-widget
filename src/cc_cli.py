@@ -21,9 +21,11 @@ file the output is written to; without it the output goes to stdout.
 
 Exit codes are claude-account.ps1's, so every script built on it keeps
 working: 0 done, or nothing to do; 2 refused before anything was written;
-3 stopped before writing (the login in use could not be identified, it moved
-meanwhile, or the outgoing one could not be saved); 4 written, but not read
-back as expected; 1 an error that cannot be placed, before or after a write,
+3 stopped before the login was switched (the login in use could not be
+identified, it moved meanwhile, or the outgoing one could not be saved: that
+save may have added the organization to the file, next to the same account's
+tokens); 4 written, but not read back as expected; 1 an error that cannot be
+placed, before or after a write,
 as a failure of the old script was: the scripts then look at the
 credentials file themselves. Never a 3 for that: claude-switch-to.ps1 drops
 its way back on a 3 without looking.
@@ -45,6 +47,7 @@ import traceback
 import cc_accounts as cc
 
 EXIT_DONE, EXIT_ERROR, EXIT_REFUSED, EXIT_STOPPED, EXIT_UNVERIFIED = 0, 1, 2, 3, 4
+ACTIONS = ('list', 'save', 'switch', 'resolve', 'sync', 'doctor')
 
 # A switch stopped by these was not refused on the saved login's merits, and
 # stopped before the credentials file was written: the login in use could not
@@ -110,20 +113,28 @@ def resolve(name, cfg):
     return name if is_folder else None
 
 
+def _in_use(p):
+    """Whether a saved login is the one in use, as the widget's rows say it:
+    only on a certain proof. The identity cache's guess (profiles() calls it
+    'likely') lags behind a sign-in by hours, and said "in use here" of the
+    account Claude Code had just left (review of 2026-09-26, third iteration)."""
+    return bool(p.get('active') and p.get('certainty') == 'certain')
+
+
 def cmd_list(w, out, quiet):
     st = cc.state(call=w.cc_http, confirm=True)
     profiles = [p for p in st.get('profiles') or [] if p.get('readable', True)]
     if quiet:
-        out.append('active="%s" profiles="%s"' % (st.get('active_name') or '',
-                                                  ','.join(p['name'] for p in profiles)))
+        here = next((p['name'] for p in profiles if _in_use(p)), '')
+        out.append('active="%s" profiles="%s"' % (here, ','.join(p['name'] for p in profiles)))
         return EXIT_DONE
     for p in profiles:
-        mark = '*' if p.get('active') else ' '
+        mark = '*' if _in_use(p) else ' '
         until = w.t('acct_saved_login').format(
             when=w.pretty_date(p['refresh_expires'].isoformat(), True)
             if p.get('refresh_expires') else '?')
         line = '%s %-22s %-32s %s' % (mark, p['name'], p.get('email') or '', until)
-        if p.get('active'):
+        if _in_use(p):
             line += '  (%s)' % w.t('acct_cc_here')
         out.append(line)
         if p.get('verdict') != cc.GOOD:
@@ -132,6 +143,8 @@ def cmd_list(w, out, quiet):
                 out.append('    ' + _say(w, bad))
     if st.get('unrecognised'):
         out.append(_say(w, st['unrecognised']))
+    elif not any(_in_use(p) for p in profiles) and (st.get('live') or {}).get('read'):
+        out.append(w.t('cc_here_unknown'))
     return EXIT_DONE
 
 
@@ -238,7 +251,7 @@ def cmd_switch(w, out, name, force, quiet, cfg):
     else:
         out.append(_say(w, j))
         if r.get('asks'):
-            out.append(w.t('cc_cli_force'))
+            out.append(w.t('cc_cli_force').format(name=name))
     return EXIT_REFUSED
 
 
@@ -304,10 +317,13 @@ def cmd_doctor(w, out):
     out.append(_say(w, live.get('judgement')))
     if live.get('incoherent'):
         out.append(w.t('cc_cli_incoherent'))
-    if st.get('active_name'):
-        out.append('%s: %s' % (w.t('acct_cc_here'), st['active_name']))
+    here = next((p for p in st.get('profiles') or [] if _in_use(p)), None)
+    if here:
+        out.append('%s: %s' % (w.t('acct_cc_here'), here['name']))
     elif st.get('unrecognised'):
         out.append(_say(w, st['unrecognised']))
+    elif live.get('read'):
+        out.append(w.t('cc_here_unknown'))
     # The one repair there is: the saved login of the account in use brought
     # in step, with the organization put back in the live file, both only on
     # the server's word, exactly as the widget does it on its own.
@@ -323,21 +339,27 @@ def main(argv, w):
     """Run one command. `w` is the widget module, for its transport, its
     words and its log. Returns the exit code."""
     args = list(argv)
-    quiet = '--quiet' in args
-    force = '--force' in args
     out_file = None
     if '--out' in args:
         i = args.index('--out')
         out_file = args[i + 1] if i + 1 < len(args) else None
         del args[i:i + 2]
-    args = [a for a in args if a not in ('--quiet', '--force')]
+    # PowerShell's spelling of the flags too: the advice to force a switch is
+    # followed by people who read claude-account.ps1's help, where it is
+    # -Force, and '-Force' used to stay behind as a name and be ignored.
+    flags = {a.lower() for a in args if a.lower() in ('--quiet', '-quiet', '--force', '-force')}
+    quiet = bool(flags & {'--quiet', '-quiet'})
+    force = bool(flags & {'--force', '-force'})
+    args = [a for a in args if a.lower() not in ('--quiet', '-quiet', '--force', '-force')]
     action = args[0] if args else 'list'
     name = args[1] if len(args) > 1 else None
     cfg = _config(w)
     w.set_lang(cfg.get('language') or 'en')
     lines = []
-    # The name as typed can be anything, an e-mail address included.
-    w.wlog('CLI    %s%s' % (action, ' ' + w._redact(name) if name else ''))
+    # Only a known verb is logged as typed, and the name as typed can be
+    # anything, an e-mail address included: both come from outside.
+    shown = action if action in ACTIONS else '?'
+    w.wlog('CLI    %s%s' % (shown, ' ' + w._redact(name) if name else ''))
     try:
         if action == 'list':
             code = cmd_list(w, lines, quiet)
@@ -363,7 +385,7 @@ def main(argv, w):
         lines.append('error="%s" why="error"' % (name or action) if quiet
                      else w.t('cc_cli_failed'))
         code = EXIT_ERROR
-    w.wlog(f'CLI    {action} -> {code}')
+    w.wlog(f'CLI    {shown} -> {code}')
     text = '\n'.join(x for x in lines if x) + '\n'
     if out_file:
         try:

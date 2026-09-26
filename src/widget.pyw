@@ -813,7 +813,7 @@ LANG = {
         'acct_cc_elsewhere': 'Claude Code is signed in as another account right now.',
         'acct_cc_unknown': 'It is not clear yet which account Claude Code is signed in as.',
         'acct_cc_how': 'To be able to switch to it, sign in to Claude Code once with this account: the widget saves the login by itself.',
-        'acct_cc_how_manual': 'To be able to switch to it, sign in to Claude Code once with this account, then press "Save this login" on this page.',
+        'acct_cc_how_manual': 'To be able to switch to it, sign in to Claude Code once with this account, then open this page again and press "Save this login".',
         'acct_cc_dead_how': 'Sign in to Claude Code with this account: the widget brings the saved login up to date by itself.',
         'acct_switch_here': 'Switch to this account',
         'acct_save_login': 'Save this login',
@@ -1054,7 +1054,7 @@ LANG = {
         'acct_cc_elsewhere': 'Claude Code adesso è autenticato con un altro account.',
         'acct_cc_unknown': 'Non è ancora chiaro con quale account è autenticato Claude Code.',
         'acct_cc_how': 'Per poterci passare, accedi una volta a Claude Code con questo account: il widget salva l’accesso da solo.',
-        'acct_cc_how_manual': 'Per poterci passare, accedi una volta a Claude Code con questo account, poi premi "Salva questo accesso" in questa pagina.',
+        'acct_cc_how_manual': 'Per poterci passare, accedi una volta a Claude Code con questo account, poi riapri questa pagina e premi "Salva questo accesso".',
         'acct_cc_dead_how': 'Accedi a Claude Code con questo account: il widget rimette in pari da solo l’accesso salvato.',
         'acct_switch_here': 'Passa a questo account',
         'acct_save_login': 'Salva questo accesso',
@@ -1309,7 +1309,7 @@ LANG = {
         'acct_cc_elsewhere': 'Claude Code は現在、別のアカウントでサインインしています。',
         'acct_cc_unknown': 'Claude Code がどのアカウントでサインインしているか、まだ確認できていません。',
         'acct_cc_how': '切り替えられるようにするには、このアカウントで Claude Code に一度サインインしてください。ログインはウィジェットが自動で保存します。',
-        'acct_cc_how_manual': '切り替えられるようにするには、このアカウントで Claude Code に一度サインインしてから、このページで「このログインを保存」を押してください。',
+        'acct_cc_how_manual': '切り替えられるようにするには、このアカウントで Claude Code に一度サインインしてから、このページを開き直して「このログインを保存」を押してください。',
         'acct_cc_dead_how': 'このアカウントで Claude Code にサインインしてください。保存済みのログインはウィジェットが自動で更新します。',
         'acct_switch_here': 'このアカウントに切り替え',
         'acct_save_login': 'このログインを保存',
@@ -1605,6 +1605,7 @@ CC_LANG = {
         'cc_try_org_cache': 'the organization in the identity cache',
         'cc_try_no_org_cache': 'the organization in the identity cache, which is missing',
         'cc_try_live_unreadable': 'the live credentials, which could not be read',
+        'cc_try_org_server': 'the organization the server named for this login',
         # refusals
         'cc_e_bad_name': 'Letters, digits, space, dot, hyphen and underscore, up to 41 characters.',
         'cc_e_no_live_token': 'The live credentials carry no access token.',
@@ -1628,7 +1629,7 @@ CC_LANG = {
         'cc_ui_verdict_unknown': 'Cannot tell',
         'cc_cli_uses': 'For this account the widget uses the saved login "{name}".',
         'cc_cli_saved_into': 'This account already has a saved login, "{name}": it was saved there.',
-        'cc_cli_force': 'To switch anyway, run the same command with -Force.',
+        'cc_cli_force': 'To switch anyway: claude-account.ps1 switch "{name}" -Force',
         'cc_cli_incoherent': 'The credentials file names the organization of one account while its tokens belong to another.',
         'cc_cli_synced': 'The saved login "{name}" is now in step with the one in use.',
         'cc_cli_usage': 'Usage: --cc list | save NAME | switch NAME [--force] | resolve NAME | sync | doctor, with --quiet for one line and --out FILE for the output.',
@@ -1718,6 +1719,7 @@ CC_LANG = {
         'cc_try_org_cache': 'l’organizzazione nella cache di identità',
         'cc_try_no_org_cache': 'l’organizzazione nella cache di identità, che manca',
         'cc_try_live_unreadable': 'le credenziali in uso, che non si leggono',
+        'cc_try_org_server': 'l’organizzazione che il server ha indicato per questo login',
         'cc_e_bad_name': 'Lettere, numeri, spazio, punto, trattino e trattino basso, fino a 41 caratteri.',
         'cc_e_no_live_token': 'Le credenziali in uso non hanno un token di accesso.',
         'cc_e_save_other_account': 'Non salvato: l’account autenticato adesso non è quello a cui appartiene questo accesso salvato, e salvare lo sovrascriverebbe con un altro account.',
@@ -1739,7 +1741,7 @@ CC_LANG = {
         'cc_ui_verdict_unknown': 'Non verificabile',
         'cc_cli_uses': 'Per questo account il widget usa l’accesso salvato "{name}".',
         'cc_cli_saved_into': 'Questo account ha già un accesso salvato, "{name}": è stato salvato lì.',
-        'cc_cli_force': 'Per passare lo stesso, rilancia lo stesso comando con -Force.',
+        'cc_cli_force': 'Per passare lo stesso: claude-account.ps1 switch "{name}" -Force',
         'cc_cli_incoherent': 'Il file delle credenziali indica l’organizzazione di un account, ma i suoi token sono di un altro.',
         'cc_cli_synced': 'L’accesso salvato "{name}" adesso è in pari con quello in uso.',
         'cc_cli_usage': 'Uso: --cc list | save NOME | switch NOME [--force] | resolve NOME | sync | doctor, con --quiet per una riga sola e --out FILE per l’uscita.',
@@ -1829,6 +1831,7 @@ CC_LANG = {
         'cc_try_org_cache': '識別キャッシュの組織',
         'cc_try_no_org_cache': '識別キャッシュの組織 (ありません)',
         'cc_try_live_unreadable': '現在の認証情報 (読み取れませんでした)',
+        'cc_try_org_server': 'サーバーがこのログインについて示した組織',
         'cc_e_bad_name': '英数字、スペース、ピリオド、ハイフン、アンダースコアで 41 文字までです。',
         'cc_e_no_live_token': '現在の認証情報にアクセストークンがありません。',
         'cc_e_save_other_account': '保存していません。今サインインしているアカウントはこの保存済みログインのアカウントではなく、保存すると別のアカウントで上書きしてしまいます。',
@@ -1850,7 +1853,7 @@ CC_LANG = {
         'cc_ui_verdict_unknown': '判断できません',
         'cc_cli_uses': 'このアカウントには、ウィジェットは保存済みのログイン「{name}」を使います。',
         'cc_cli_saved_into': 'このアカウントには保存済みのログイン「{name}」があるため、そこに保存しました。',
-        'cc_cli_force': 'それでも切り替える場合は、同じコマンドに -Force を付けて実行してください。',
+        'cc_cli_force': 'それでも切り替える場合: claude-account.ps1 switch "{name}" -Force',
         'cc_cli_incoherent': '認証情報ファイルの組織と、トークンの持ち主のアカウントが一致しません。',
         'cc_cli_synced': '保存済みのログイン「{name}」を使用中のログインと同じ状態にしました。',
         'cc_cli_usage': '使い方: --cc list | save 名前 | switch 名前 [--force] | resolve 名前 | sync | doctor。--quiet で1行、--out FILE で出力先を指定します。',
@@ -3887,11 +3890,15 @@ def fetch_usage(cfg):
                      f'trying the other way')
             errors.setdefault(method, e)
     key_error = errors.get(AUTH_KEY)
-    if isinstance(key_error, PermissionError):
+    if isinstance(key_error, (PermissionError, NoActivePlan)):
         # An expired session key is the one thing the user can act on at once,
         # so it is said even when Claude Code has a reason of its own: behind
         # "signed in as another account" it went unnoticed, and the key was
         # the only way left to read this account (review of 2026-09-26).
+        # A lapsed plan the key read is said first too: it is the account's
+        # state, whatever Claude Code says, and it carries the session key
+        # claude.ai rotated on that answer, lost when another error was
+        # raised in its place (third iteration).
         raise key_error
     for method in methods:
         if method in errors:
@@ -4690,6 +4697,7 @@ class Widget:
         self._job = None
         self._countdown_job = None
         self._tooltip_hides = []     # close every hover tooltip when a gesture starts
+        self._shown_tips = set()     # tooltip windows on show (see _raise_covered_dialogs)
         self._has_usage = False       # a fetch has landed: the floor may act
         self._last_width = 0          # last width seen, to skip idle <Configure>
         self._fetch_busy = False      # a fetch is in flight; do not start another
@@ -4707,6 +4715,7 @@ class Widget:
         # describing the previous one and dropped (see _set_active_account).
         self._fetch_gen = 0
         self._soft_note = None  # a wait, not a fault: said in the bars' hover text
+        self._panel_down = None  # the error panel grew downward (see _fit_panel_height)
         self._dx = self._dy = 0
         self._expanded = False
         self._essential = False
@@ -6431,6 +6440,8 @@ class Widget:
         self.err_frame.pack_forget()
         if had_panel:
             self._fit_panel_height()
+        # Also when the strip skipped the fit: the next panel chooses afresh.
+        self._panel_down = None
         for sec in self._all_sections():
             sec.set_error(False)
         if self._err_action is not None:
@@ -6457,11 +6468,30 @@ class Widget:
         panel used to be packed into a window of fixed height and drawn below
         its bottom edge, the explanation and its button with it (review of
         2026-09-26). The collapsed strip has no room for the panel and keeps
-        its size: there the bars say it, and a click on one does it."""
+        its size: there the bars say it, and a click on one does it.
+
+        Upward only while there is room: at the top of its monitor the widget
+        grows downward instead, or its title bar, the one handle to drag it
+        by, went off the screen with the error (third iteration). The way it
+        grew when the panel appeared holds until the panel goes, so it
+        shrinks back the same way, and _save_geometry takes the panel off the
+        right edge."""
         if self._essential and not self._expanded:
             return
         try:
-            self._resize_bottom_anchored()
+            self.root.update_idletasks()
+            w, h = self.root.winfo_width(), self.root.winfo_height()
+            x, y = self.root.winfo_x(), self.root.winfo_y()
+            new_h = self.root.winfo_reqheight()
+            showing = bool(self.err_frame.winfo_manager())
+            down = self._panel_down
+            if showing and down is None:
+                down = (y + h - new_h) < self._widget_monitor_area()[1]
+                self._panel_down = down
+            new_y = y if down else y + h - new_h
+            self.root.geometry(f'{w}x{new_h}+{x}+{new_y}')
+            if not showing:
+                self._panel_down = None
         except tk.TclError:
             pass
 
@@ -6583,7 +6613,8 @@ class Widget:
             # up (review of 2026-09-26). The home is the window without it.
             panel = self._error_panel_height()
             if panel:
-                self.cfg['y'] += panel
+                if not self._panel_down:
+                    self.cfg['y'] += panel
                 self.cfg['height'] = max(1, self.cfg['height'] - panel)
             self.cfg['expanded'] = self._expanded
             self.cfg['essential'] = self._essential
@@ -9075,8 +9106,12 @@ class Widget:
                 except NoActivePlan as e:
                     # The account itself has nothing to read: trying again
                     # cannot help, and a key would add the same lapsed account.
-                    dlg.after(0, lambda msg=str(e): fail(
-                        msg + ' ' + t('plan_inactive_add'), 'final'))
+                    # "Add it again" only where it was being added: the renew
+                    # window works on an account that is in the list (review
+                    # of 2026-09-26, third iteration).
+                    after = ('plan_inactive_add' if is_setup or on_success is not None
+                             else 'plan_inactive_next')
+                    dlg.after(0, lambda msg=str(e): fail(msg + ' ' + t(after), 'final'))
                     return
                 except Exception as e:
                     # The login is proven by the answer above. A 429, or any
@@ -9183,7 +9218,10 @@ class Widget:
 
 
         build_connect(enabled=True)
-        entry.bind('<Return>', lambda e: save_key())
+        # Not in the login way: its key field is hidden there, and Enter put
+        # "paste the session key in the field above" in the place of the
+        # reason the login failed (review of 2026-09-26, third iteration).
+        entry.bind('<Return>', lambda e: None if mode['login'] else save_key())
         def clear_extra():
             for w_ in mode['extra']:
                 try:
@@ -9215,6 +9253,9 @@ class Widget:
                                     fg=FG, bg=BG, anchor='w', justify='left',
                                     wraplength=dw - 40)
             mode['head'].pack(fill='x', before=status_lbl)
+            # The hidden key field kept the keyboard: what was typed went into
+            # it, and came back under "Use a session key".
+            body.focus_set()
 
         def login_failed(kind='retry'):
             """What can be done next, by what went wrong.
@@ -9351,6 +9392,7 @@ class Widget:
         def hide(e=None):
             cancel()
             if state['win'] is not None:
+                self._shown_tips.discard(state['win'])
                 try:
                     state['win'].destroy()
                 except Exception:
@@ -9395,6 +9437,7 @@ class Widget:
                 y = below_y
             tw.geometry(f'+{int(x)}+{int(y)}')
             state['win'] = tw
+            self._shown_tips.add(tw)
 
         def enter(e):
             cancel()
@@ -9709,6 +9752,24 @@ class Widget:
             p.get('active') and p.get('certainty') == 'certain'
             for p in (cc_st or {}).get('profiles') or [])
         dead = bool(profile and not here and profile.get('verdict') == cc_accounts.BAD)
+        # A login nobody has named yet: the file carries no organization after
+        # a sign-in, and the server is asked as the page opens. Drawn from the
+        # disk alone, the page offered neither Link nor "Save this login" and
+        # pointed at a button that never came (review of 2026-09-26, third
+        # iteration). It is drawn again only if it is still the page open and
+        # the answer names the login: an answer that names nobody does not
+        # start another check.
+        unidentified = bool(live.get('read') and live.get('access_print') and not live_org)
+        if unidentified:
+            def identified():
+                try:
+                    if not dlg.winfo_exists():
+                        return
+                except tk.TclError:
+                    return
+                if ((getattr(self, '_cc_saved', None) or {}).get('live') or {}).get('org'):
+                    reopen()
+            self._cc_sync_login(after=identified)
 
         def card(title, chip, chip_fg, text, actions, is_source):
             box = tk.Frame(body, bg=BAR_BG)
@@ -9781,6 +9842,9 @@ class Widget:
                                        lambda: self._cc_switch_dialog(n, rebuild))))
             else:
                 text = t('acct_cc_unknown')
+        elif unidentified:
+            chip, chip_fg = t('acct_cc_none'), DIM
+            text = t('acct_cc_unknown')
         else:
             chip, chip_fg = t('acct_cc_none'), DIM
             # The login is saved by itself only for someone who uses the
@@ -9789,6 +9853,11 @@ class Widget:
             # 2026-09-26).
             text = (t('acct_cc_how') if linked or cc_accounts.profile_names()
                     else t('acct_cc_how_manual'))
+        if unidentified and not linked:
+            # As in 2.9.1, whenever Claude Code has a login here: Link asks
+            # the server itself, and refuses another account's login.
+            cc_actions.append((t('cc_link'), lambda: self._link_claude_code(
+                acc, reopen, status_lbl)))
         if linked:
             cc_actions.append((t('cc_unlink'), unlink))
         card(t('auth_claude_code'), chip, chip_fg, text, cc_actions,
@@ -10790,6 +10859,13 @@ class Widget:
             self._countdown_job = None
         if acc_id:
             self.refresh()
+            # The periodic refresh starts here too. It used to start only at
+            # launch with an account already there, or from the setup window:
+            # a first account added from Accounts > Add account was read once
+            # and never again, and no sign-in to Claude Code was noticed
+            # (review of 2026-09-26, third iteration).
+            if not getattr(self, '_job', None):
+                self._schedule()
         return True
 
     def _switch_account(self, acc_id, rebuild=None):
@@ -11155,14 +11231,11 @@ class Widget:
                 hwnd, -1, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010)
             self.root.attributes('-topmost', True)
             self._raise_covered_dialogs()
-            # Keep the menu above the widget when it's open.
-            m = self._menu_win
-            if m and m.winfo_exists():
-                menu_hwnd = ctypes.windll.user32.GetParent(m.winfo_id())
-                if not menu_hwnd:
-                    menu_hwnd = m.winfo_id()
-                ctypes.windll.user32.SetWindowPos(
-                    menu_hwnd, -1, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010)
+            # Keep the menu above the widget when it's open, and its flyout
+            # with it: a re-raised page covered the flyout (third iteration).
+            for m in (self._menu_win, self._flyout_win):
+                if m and m.winfo_exists():
+                    self._raise_window(m)
         except Exception:
             pass
 
@@ -11179,6 +11252,13 @@ class Widget:
         self._force_topmost()
         self._topmost_job = self.root.after(10, self._keep_topmost)
 
+    @staticmethod
+    def _raise_window(win):
+        """To the top of the topmost band, without moving, resizing or
+        activating it."""
+        hwnd = ctypes.windll.user32.GetParent(win.winfo_id()) or win.winfo_id()
+        ctypes.windll.user32.SetWindowPos(hwnd, -1, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010)
+
     def _raise_covered_dialogs(self):
         """Put back above the widget the windows it covers.
 
@@ -11187,10 +11267,19 @@ class Widget:
         a 1080p screen, the account page with its advanced options open lost
         "Save" and "Remove account" under a widget parked at the bottom
         (photographs of 2026-09-26). In the order they opened, so a
-        confirmation stays above the page that asked for it; only those the
-        widget actually overlaps, so nothing else changes order.
+        confirmation stays above the page that asked for it.
+
+        From the first window the widget covers onwards, every window opened
+        after it is raised too, whether it touches the widget or not: a
+        confirmation or a picture picker opened from a covered page is placed
+        clear of the widget, and raising the page alone put it back under the
+        page within 10 ms, the click on it apparently dead (third iteration).
+        Then the tooltips on show, the update banner and the menu's flyout,
+        which belong above all of them. Windows opened before the first
+        covered one keep their order.
         """
         alive = []
+        raising = False
         wx, wy = self.root.winfo_rootx(), self.root.winfo_rooty()
         ww, wh = self.root.winfo_width(), self.root.winfo_height()
         for dlg in self._open_dialogs:
@@ -11200,16 +11289,31 @@ class Widget:
                 alive.append(dlg)
                 if not dlg.winfo_ismapped():
                     continue
-                dx, dy = dlg.winfo_rootx(), dlg.winfo_rooty()
-                if (dx < wx + ww and wx < dx + dlg.winfo_width()
-                        and dy < wy + wh and wy < dy + dlg.winfo_height()):
-                    d_hwnd = (ctypes.windll.user32.GetParent(dlg.winfo_id())
-                              or dlg.winfo_id())
-                    ctypes.windll.user32.SetWindowPos(
-                        d_hwnd, -1, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010)
+                if not raising:
+                    dx, dy = dlg.winfo_rootx(), dlg.winfo_rooty()
+                    raising = (dx < wx + ww and wx < dx + dlg.winfo_width()
+                               and dy < wy + wh and wy < dy + dlg.winfo_height())
+                if raising:
+                    self._raise_window(dlg)
             except tk.TclError:
                 continue
         self._open_dialogs = alive
+        if not raising:
+            return
+        tips = set()
+        for tip in self._shown_tips:
+            try:
+                if tip.winfo_exists():
+                    tips.add(tip)
+            except tk.TclError:
+                continue
+        self._shown_tips = tips
+        for win in [*tips, self._update_banner, self._flyout_win]:
+            try:
+                if win is not None and win.winfo_exists() and win.winfo_ismapped():
+                    self._raise_window(win)
+            except tk.TclError:
+                continue
 
     def _signal_quit(self, signum, frame):
         wlog(f'SIGNAL received {signum} -> saving and exiting')
