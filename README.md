@@ -170,6 +170,8 @@ The account page, behind **Manage**, and the avatar picker behind the circle:
 - An account can hold **both credentials at once**. The login is preferred because it maintains itself, and if the token has expired the widget falls back to the session key without saying anything. You can also pin an account to one of the two
 - The token is tied to whoever signed in last. The widget checks that it belongs to the account it is about to display, so switching Claude Code accounts never shows one account's numbers under another account's name
 - Tokens last hours, not weeks. When one expires and there is no key to fall back on, the widget says to run `claude` once
+- **Switch Claude Code between accounts** from the account list or an account's page. The widget keeps a saved login for each account and puts it back when you switch; the switch applies at once, in every Claude Code session already open
+- Saved logins live in `%USERPROFILE%\.claude-accounts\`, readable only by your Windows user. Before it writes Claude Code's credentials file (on a switch, or to add the organization a fresh sign-in leaves out) the widget keeps a copy of it, and it never saves a login under an account's name without first making sure the login belongs to that account
 
 ### Authentication and setup
 - Companion **[Claude Session Key](https://chromewebstore.google.com/detail/claude-session-key/ppofmhjkjfinjpidlidepeonimpjmadj) extension** copies your session key with one click; it opens in **Chrome's side panel**, and as a popup on Brave and on any browser without one
@@ -188,9 +190,9 @@ The account page, behind **Manage**, and the avatar picker behind the circle:
 - Crash-resilient: structured logs in `%LOCALAPPDATA%\Claude Usage\widget.log`, separate `crash.log` capped at 256 KB, geometry auto-saved every refresh
 
 ### Privacy
-- The widget sends data **only** to `claude.ai/api/organizations/*/usage`, the exact endpoint Claude.ai itself uses
+- The widget talks **only** to Anthropic: `claude.ai/api/organizations/*/usage` with a session key, the exact endpoint Claude.ai itself uses, and `api.anthropic.com` with a Claude Code token
 - No analytics, no telemetry, no third-party services, no phoning home
-- Session key stored locally in `%LOCALAPPDATA%\Claude Usage\config.json`
+- Session key stored locally in `%LOCALAPPDATA%\Claude Usage\config.json`; saved Claude Code logins in `%USERPROFILE%\.claude-accounts\`. The details are in [PRIVACY.md](PRIVACY.md)
 - 100 % open source: every line of code is auditable
 
 ## Controls

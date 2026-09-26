@@ -673,6 +673,21 @@ def find_profile_for_org(org, saved=None):
                                     p.get('saved_at') or 0))
 
 
+def has_profile_for_org(org):
+    """Whether a saved login of this organization exists, and could be
+    switched to. Light, like usable_access_token: it is asked to choose which
+    advice a message gives, not to decide anything."""
+    if not org:
+        return False
+    for name in profile_names():
+        if not _usable_name(name):
+            continue
+        data, failure = read_profile(name)
+        if not failure and data.get('organizationUuid') == org:
+            return True
+    return False
+
+
 def usable_access_token(org, margin_s=120):
     """(access token, profile name) of this organization's saved login while
     its short token is still good, else (None, None).
@@ -1189,7 +1204,7 @@ def profile_name_for(label):
         return None
 
 
-def switch(name, *, knowingly=False, check=None, plan_check=None, name_for_org=None):
+def switch(name, *, knowingly=False, call=None, plan_check=None, name_for_org=None):
     """Make `name` the account Claude Code authenticates with.
 
     The order matters and every step of it was paid for:
@@ -1237,7 +1252,7 @@ def switch(name, *, knowingly=False, check=None, plan_check=None, name_for_org=N
                                      {'name': name, 'known': profile_names()},
                                      'cc_r_pick_existing')}
 
-    live = live_identity(active(), check)
+    live = live_identity(active(), call)
     saved = profiles(live)
     target_print = fingerprint((target.get('claudeAiOauth') or {}).get('refreshToken'))
     # The saved profile, if any, holding the very login that is live now.
@@ -1278,8 +1293,8 @@ def switch(name, *, knowingly=False, check=None, plan_check=None, name_for_org=N
         # holding these tokens proves the file wrong; otherwise the server is
         # asked about the token, when it can be.
         foreign = holder is not None and holder.get('org') != live['org']
-        if not foreign and live.get('org_source') == 'live' and check is not None:
-            live = live_identity(live, check, confirm=True)
+        if not foreign and live.get('org_source') == 'live' and call is not None:
+            live = live_identity(live, call, confirm=True)
             if live.get('org') != target.get('organizationUuid'):
                 foreign = True
                 saved = profiles(live)
@@ -1320,8 +1335,8 @@ def switch(name, *, knowingly=False, check=None, plan_check=None, name_for_org=N
     # need the network; the renewal in the profile is what it uses, and that
     # has already been judged above from its own expiry date.
     checked = None
-    if check is not None:
-        checked = check_alive(name, check)
+    if call is not None:
+        checked = check_alive(name, call)
         if checked['judgement']['kind'] == BAD:
             return {'done': False, 'asks': False, 'judgement': checked['judgement'],
                     'checked': checked}
@@ -1349,11 +1364,11 @@ def switch(name, *, knowingly=False, check=None, plan_check=None, name_for_org=N
                or pre.get('organizationUuid'))
     out_prof = in_hand or find_profile_for_org(out_org, saved)
     if (out_proven is None and in_hand is None and out_prof is not None
-            and out_prof.get('refresh_print') != pre_print and check is not None
+            and out_prof.get('refresh_print') != pre_print and call is not None
             and not when(pre_oauth.get('expiresAt'))[1]):
         # Only the file's own key says whose this login is, and it is about to
         # replace a snapshot holding other tokens: that is worth one read.
-        srv_org, srv_email = ask_server_identity(pre_oauth.get('accessToken'), check)
+        srv_org, srv_email = ask_server_identity(pre_oauth.get('accessToken'), call)
         if srv_org:
             out_proven = {'org': srv_org, 'email': srv_email, 'note': 'server'}
             if srv_org != out_org:
