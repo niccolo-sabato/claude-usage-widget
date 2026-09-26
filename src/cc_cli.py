@@ -299,10 +299,11 @@ def cmd_sync(w, out, quiet):
     if elected is None:
         out.append('not-synced="" why="unlisted"' if quiet else w.t('cc_cli_unlisted'))
         return EXIT_STOPPED
-    # Its saved login is newer than the one in use (a copy put back): the
-    # widget never trades a newer saved login for an older one.
-    live_rt, _, _ = cc.when(now.get('refresh_expires'))
-    if live_rt and elected.get('refresh_expires') and live_rt < elected['refresh_expires']:
+    # The login in use is one its saved login has already moved past (a copy
+    # put back live): the widget never replaces a saved login with an earlier
+    # state of itself. By that history, not by the renewal's date, which is
+    # the sign-in's (cc_accounts.chain).
+    if now.get('refresh_print') and now['refresh_print'] in cc.history_prints(elected['name']):
         out.append('not-synced="%s" why="older-live"' % elected['name'] if quiet
                    else w.t('cc_cli_not_synced').format(name=elected['name']))
         return EXIT_REFUSED

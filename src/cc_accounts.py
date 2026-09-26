@@ -316,7 +316,12 @@ def health(prof):
             out.append(verdict(WARN, 'cc_j_refresh_soon', {'when': rt},
                                'cc_r_switch_and_save'))
     elif at_expired:
-        out.append(verdict(UNKNOWN, 'cc_j_no_refresh_expiry_access_dead', {'when': at},
+        # A note, not a question. It used to ask "switch anyway?", which
+        # nobody can answer: the date is simply not in the file (a login
+        # saved by an older tool), and the renewal token beside it is what
+        # the switch uses. The user met it on 2026-09-27 and called it
+        # senseless; it was.
+        out.append(verdict(WARN, 'cc_j_no_refresh_expiry_access_dead', {'when': at},
                            'cc_r_switch_and_save'))
     else:
         out.append(verdict(WARN, 'cc_j_no_refresh_expiry_access_alive', {'when': at},
@@ -325,15 +330,37 @@ def health(prof):
 
 
 # ── the historic copies ────────────────────────────────────────────────────
-# path -> ((mtime, size), organization, refresh fingerprint): what backups()
-# has already read. Fingerprints only, never a token.
+# path -> ((mtime, size), organization, refresh fingerprint, chain): what
+# backups() has already read. Fingerprints only, never a token.
 _BACKUP_SEEN = {}
 # The name a switch gives the copy of an incoherent live file (see switch()).
 INCOHERENT_COPY = 'credentials-incoherent'
 
 
+def chain(oauth):
+    """Which sign-in a login belongs to: its refreshTokenExpiresAt, or None.
+
+    🔴 That date is fixed at the sign-in and stays the same through every
+    renewal (measured on 2026-09-27: four renewal tokens of Work, 21 to 26
+    September, one date), and one account can have two sign-ins alive at
+    once. So it tells one chain of renewals from another, and it says
+    NOTHING about which of two tokens is newer: read that way, a switch was
+    refused because the login in use came from the earlier of two sign-ins.
+    """
+    try:
+        return int((oauth or {}).get('refreshTokenExpiresAt')) or None
+    except (TypeError, ValueError):
+        return None
+
+
 def backups(held=None):
-    """{organization: newest backup seen for it}.
+    """{(organization, chain): newest backup seen for it}.
+
+    By chain as well (see chain()): a copy speaks only for the sign-in it
+    comes from. A copy of another sign-in of the same account, however new,
+    says nothing about the tokens of this one, and read as if it did it
+    declared a working saved login outdated (2026-09-27). A copy whose
+    date is not in the file names no chain and is not read.
 
     The time comes from the file's own modification time, never from its name:
     the copies carry two prefixes (`credentials.` and `credentials-orgrecovery.`)
@@ -374,19 +401,21 @@ def backups(held=None):
             try:
                 with open(path, encoding='utf-8') as f:
                     data = json.load(f)
-                known = (stamp, data.get('organizationUuid'), fingerprint(
-                    (data.get('claudeAiOauth') or {}).get('refreshToken')))
+                oauth = data.get('claudeAiOauth') or {}
+                known = (stamp, data.get('organizationUuid'),
+                         fingerprint(oauth.get('refreshToken')), chain(oauth))
             except (OSError, ValueError, AttributeError):
-                known = (stamp, None, '')
+                known = (stamp, None, '', None)
             _BACKUP_SEEN[path] = known
-        _stamp, org, print_ = known
-        if not org:
+        _stamp, org, print_, chain_ = known
+        if not org or chain_ is None:
             continue
         if held and print_ and held.get(print_) not in (None, org):
             continue
         seen = {'file': name, 'refresh_print': print_, 'at': st.st_mtime}
-        if org not in out or seen['at'] > out[org]['at']:
-            out[org] = seen
+        key = (org, chain_)
+        if key not in out or seen['at'] > out[key]['at']:
+            out[key] = seen
     return out
 
 
@@ -424,14 +453,18 @@ def _outdated(data, saved_at, shots):
     """What the historic copies say about a saved profile: (aligned, judgements).
 
     A copy says the profile is behind only when it is NEWER than the profile
-    and carries another renewal token for the same organization (rule 4). The
-    account has then renewed since the snapshot, and the renewal in it was
-    retired when it rotated: switching to it would put a dead token live, so
-    the remedy is to sign in with that account, never to switch to it.
+    and carries another renewal token of the same account AND the same
+    sign-in (rule 4, and chain()). The sign-in has then renewed since the
+    snapshot, and the renewal in it was retired when it rotated: switching
+    to it would put a dead token live, so the remedy is to sign in with that
+    account, never to switch to it. A copy of another sign-in proves nothing
+    of the kind, and a profile whose date is not known is not judged.
     """
     org = data.get('organizationUuid')
-    print_ = fingerprint((data.get('claudeAiOauth') or {}).get('refreshToken'))
-    shot = shots.get(org)
+    oauth = data.get('claudeAiOauth') or {}
+    print_ = fingerprint(oauth.get('refreshToken'))
+    chain_ = chain(oauth)
+    shot = shots.get((org, chain_)) if chain_ is not None else None
     if not (shot and print_):
         return None, []
     if shot['refresh_print'] == print_:
@@ -686,8 +719,11 @@ def find_profile_for_org(org, saved=None):
     """The ONE saved profile of an organization, chosen as profiles() elects.
 
     The profile Claude Code is using, when it is among them; otherwise one not
-    judged unusable, the longest renewal first, then the newest snapshot. Never
-    a name valid_name refuses, since nothing could switch to it.
+    judged unusable, the newest snapshot first (the latest sight of that
+    account's login), then the longest renewal. Never a name valid_name
+    refuses, since nothing could switch to it. The newest snapshot, not the
+    longest renewal: the renewal's date belongs to the sign-in (chain()),
+    and the longest one is only the latest sign-in, not the token seen last.
 
     🔴 It used to be the first profile of the organization in name order. With
     two snapshots of one account (a parked twin, or the `_auto-` copy another
@@ -707,8 +743,8 @@ def find_profile_for_org(org, saved=None):
         if p.get('active'):
             return p
     return max(mine, key=lambda p: (p.get('verdict') != BAD,
-                                    p.get('refresh_expires') or datetime.min,
-                                    p.get('saved_at') or 0))
+                                    p.get('saved_at') or 0,
+                                    p.get('refresh_expires') or datetime.min))
 
 
 def has_profile_for_org(org):
@@ -996,6 +1032,37 @@ def backup_profile(name):
     return dst
 
 
+def history_prints(name):
+    """The renewal fingerprints a saved login held BEFORE its current one:
+    the states it has moved past, from its own copies (backup_profile keeps
+    the newest few). Fingerprints only.
+
+    This, and not the renewal's date, is what "older" means for a login:
+    one this saved login has already been replaced from, as when a copy
+    was put back live. The date belongs to the sign-in (chain()).
+    """
+    out = set()
+    folder = backups_dir()
+    try:
+        names = os.listdir(folder)
+    except OSError:
+        return out
+    for n in names:
+        m = _PROFILE_BACKUP.match(n)
+        if not (m and m.group(1) == name):
+            continue
+        try:
+            with open(os.path.join(folder, n), encoding='utf-8') as f:
+                data = json.load(f)
+        except (OSError, ValueError):
+            continue
+        p = fingerprint(((data if isinstance(data, dict) else {})
+                         .get('claudeAiOauth') or {}).get('refreshToken'))
+        if p:
+            out.add(p)
+    return out
+
+
 def valid_name(name):
     """A profile name that cannot break out of its folder, or ValueError."""
     clean = ' '.join(str(name or '').split())
@@ -1132,12 +1199,15 @@ def save_profile(name, live_data=None, call=None, proven=None, expect_org=None):
         previous_org = (previous or {}).get('organizationUuid')
         if previous_org and previous_org != org:
             raise ValueError('cc_e_save_other_account')
-        # Never backwards, as the sync: a live file older than the saved login
-        # (a copy put back, or another tool's switch) must not replace it.
-        prev_rt, _, _ = when(((previous or {}).get('claudeAiOauth') or {})
-                             .get('refreshTokenExpiresAt'))
-        live_rt, _, _ = when(oauth.get('refreshTokenExpiresAt'))
-        if previous_org == org and prev_rt and live_rt and live_rt < prev_rt:
+        # Never backwards, as the sync: a login this saved login has already
+        # moved past (one of its own earlier states, as when a copy was put
+        # back live) must not replace it. By its history, never by the
+        # renewal's date: that date is the sign-in's, and an earlier one only
+        # meant the other of two sign-ins (see chain(), 2026-09-27).
+        prev_print = fingerprint(((previous or {}).get('claudeAiOauth') or {})
+                                 .get('refreshToken'))
+        if (previous_org == org and mine and mine != prev_print
+                and mine in history_prints(name)):
             raise ValueError('cc_e_save_older')
 
         if not file_org:
@@ -1245,12 +1315,11 @@ def sync_live_into_profile(live=None, call=None):
     if target.get('refresh_print') == live['refresh_print']:
         return None                      # already in step, nothing to write
 
-    # Never trade a newer snapshot for an older one. The live file is what
-    # Claude Code is using now, so normally it is the newer of the two, but a
-    # restored backup or a clock that moved would make this the wrong way
-    # round, and a profile is not improved by going backwards.
-    live_rt, _, _ = when(live.get('refresh_expires'))
-    if live_rt and target.get('refresh_expires') and live_rt < target['refresh_expires']:
+    # Never backwards: a login the saved one has already moved past, as when
+    # a copy was put back live (see save_profile). Not by the renewal's
+    # date, which is the sign-in's: the login of the earlier of two
+    # sign-ins was never brought in, and the saved login fell behind it.
+    if live['refresh_print'] in history_prints(target['name']):
         return None
 
     try:
@@ -1511,7 +1580,17 @@ def switch(name, *, knowingly=False, call=None, plan_check=None, name_for_org=No
             return moving
         try:
             save_profile(saved_out, current, proven=out_proven)
-        except (ValueError, OSError) as e:
+        except ValueError as e:
+            # A saved login that already holds a later state of this account
+            # needs nothing from the one being left: the switch goes on. It
+            # used to stop here, on a rule that took an earlier sign-in for
+            # an older token, and "Switch" became useless (the user,
+            # 2026-09-27). Any other refusal still stops it.
+            if str(e) != 'cc_e_save_older':
+                return {'done': False, 'asks': False,
+                        'judgement': verdict(BAD, 'cc_j_outgoing_not_saved',
+                                             {'why': str(e)}, 'cc_r_try_again')}
+        except OSError as e:
             return {'done': False, 'asks': False,
                     'judgement': verdict(BAD, 'cc_j_outgoing_not_saved',
                                          {'why': str(e)}, 'cc_r_try_again')}
