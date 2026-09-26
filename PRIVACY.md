@@ -8,7 +8,7 @@ Last updated: 2026-09-26
 
 **We do not collect, store, transmit, sell, or share any user data.**
 
-Everything runs locally on the user's machine. No telemetry. No analytics. No external servers other than Claude's own, which the user is already signed in to.
+Everything runs locally on the user's machine. No telemetry. No analytics. No external servers other than Claude's own, which the user is already signed in to, and GitHub, which the widget asks for updates without sending anything about the user.
 
 ## What the Chrome extension does
 
@@ -35,7 +35,7 @@ The "Claude Usage Widget" desktop application:
 - Keeps a copy of Claude Code's login for each account it can switch Claude Code to, as described below.
 - Writes diagnostic logs locally to `%LOCALAPPDATA%\Claude Usage\widget.log`. No credential is ever written to them, and text arriving from outside the program (the output of `curl`, for instance) has session keys, tokens, organisation ids, e-mail addresses and the Windows account name stripped out before it is stored.
 
-No data leaves the user's computer except those authenticated requests, both to services the user's own Claude account is already signed in to.
+No data leaves the user's computer except those authenticated requests, both to services the user's own Claude account is already signed in to. The only other request is the update check described under Third parties, and it carries nothing about the user.
 
 ## The Claude Code login
 
@@ -45,15 +45,17 @@ An account can be read through the login Claude Code keeps on the same machine, 
 - The access token is sent only to `api.anthropic.com`, which issued it: to read the usage, and to ask which account the login belongs to.
 - The refresh token is never sent anywhere. The widget never renews a login itself: signing in and renewing stay Claude Code's business.
 - The e-mail address and organisation that come back are stored in the widget's config, so it can check that the token still belongs to the account it is about to display.
+- It also reads Claude Code's identity cache, `%USERPROFILE%\.claude.json`, for the e-mail address and organisation of the account signed in. That e-mail can be stored in a saved login as its label; the organisation in this file is never taken as proof of whose a login is.
 
 ### Switching Claude Code between accounts
 
 Claude Code keeps one login per computer. To move it from one account to another, the widget keeps a copy of each account's login, called a saved login:
 
 - Saved logins are stored in `%USERPROFILE%\.claude-accounts\`, one folder per account, and only the Windows user who owns them can read them. They hold what Claude Code's own file holds: the access token, the refresh token and the plan.
-- The widget saves an account's login while Claude Code is signed in as that account, and brings it up to date when Claude Code renews it. Before saving a login under an account's name, it makes sure the login belongs to that account; a login it cannot identify is left alone.
+- Once you use the switch (Claude Code linked to one of your accounts, or a first login saved from an account page), the widget saves an account's login while Claude Code is signed in as that account, and brings it up to date when Claude Code renews it. Before saving a login under an account's name, it makes sure the login belongs to that account, from the server's answer or from a saved login holding the same token; a login it cannot identify is left alone.
 - While Claude Code is signed in as another account, the widget can read an account's usage with the access token of its saved login, for as long as that token is valid. It is sent only to `api.anthropic.com`.
 - The widget writes `%USERPROFILE%\.claude\.credentials.json` in two cases only: when you switch accounts, where it replaces the login part of the file and keeps everything else as it is; and after a sign-in, where it adds the organization the login belongs to, which Claude Code leaves out, once it has proved which account the login is. Before writing, it keeps a copy of the file in `%USERPROFILE%\.claude-accounts\_backups\`, and it keeps a copy of a saved login before replacing it.
+- The same saving and switching can be run from the command line (`"Claude Usage.exe" --cc ...`). It follows the same rules and writes the same files; it reads the widget's config for the language and the names of the accounts, and never writes it.
 - Deleting the `.claude-accounts` folder removes every saved login. Claude Code's own login is not touched.
 
 ## Data collected by us
@@ -62,7 +64,7 @@ Claude Code keeps one login per computer. To move it from one account to another
 
 ## Third parties
 
-None. The widget talks to `claude.ai` and to `api.anthropic.com`, and to nothing else. Both are Anthropic's own endpoints, reached with the user's own credentials.
+None that receives user data. The widget talks to `claude.ai` and `api.anthropic.com`, Anthropic's own endpoints, with the user's own credentials. It also asks GitHub (`api.github.com`) about once a day whether a new version exists, and downloads it from GitHub when the user chooses to update: no credential and nothing about the user is sent, and the check can be turned off with `"update_check_enabled": false` in the config file.
 
 ## Where credentials live
 

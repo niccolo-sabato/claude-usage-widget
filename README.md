@@ -172,6 +172,7 @@ The account page, behind **Manage**, and the avatar picker behind the circle:
 - Tokens last hours, not weeks. When one expires and there is no key to fall back on, the widget says to run `claude` once
 - **Switch Claude Code between accounts** from the account list or an account's page. The widget keeps a saved login for each account and puts it back when you switch; the switch applies at once, in every Claude Code session already open
 - Saved logins live in `%USERPROFILE%\.claude-accounts\`, readable only by your Windows user. Before it writes Claude Code's credentials file (on a switch, or to add the organization a fresh sign-in leaves out) the widget keeps a copy of it, and it never saves a login under an account's name without first making sure the login belongs to that account
+- **From a script**, on the same rules: `"Claude Usage.exe" --cc list | save NAME | switch NAME [--force] | resolve NAME | sync | doctor`. `NAME` is a saved login or the name of an account in the widget; `--quiet` answers in one line, `--out FILE` writes the answer to a file (the widget has no console). Exit codes: 0 done, 2 refused with nothing written, 3 stopped before writing, 4 written but not read back as expected
 
 ### Authentication and setup
 - Companion **[Claude Session Key](https://chromewebstore.google.com/detail/claude-session-key/ppofmhjkjfinjpidlidepeonimpjmadj) extension** copies your session key with one click; it opens in **Chrome's side panel**, and as a popup on Brave and on any browser without one
@@ -190,7 +191,7 @@ The account page, behind **Manage**, and the avatar picker behind the circle:
 - Crash-resilient: structured logs in `%LOCALAPPDATA%\Claude Usage\widget.log`, separate `crash.log` capped at 256 KB, geometry auto-saved every refresh
 
 ### Privacy
-- The widget talks **only** to Anthropic: `claude.ai/api/organizations/*/usage` with a session key, the exact endpoint Claude.ai itself uses, and `api.anthropic.com` with a Claude Code token
+- Your data goes **only** to Anthropic: `claude.ai/api/organizations/*/usage` with a session key, the exact endpoint Claude.ai itself uses, and `api.anthropic.com` with a Claude Code token. The only other request is the update check to GitHub, which carries no credential and nothing about you (`"update_check_enabled": false` turns it off)
 - No analytics, no telemetry, no third-party services, no phoning home
 - Session key stored locally in `%LOCALAPPDATA%\Claude Usage\config.json`; saved Claude Code logins in `%USERPROFILE%\.claude-accounts\`. The details are in [PRIVACY.md](PRIVACY.md)
 - 100 % open source: every line of code is auditable
@@ -249,6 +250,7 @@ The widget manages its own config at `%LOCALAPPDATA%\Claude Usage\config.json`. 
   "essential_bars": ["session"],         // bars to show, in both modes
   "bar_dynamic": false,                  // colour bars by usage level instead of per bar
   "bar_colors": {},                      // per-bar colour overrides from the picker
+  "update_check_enabled": true,          // false: never ask GitHub for updates
   "always_check_updates": false,         // skip the 24h update-check throttle
   "debug_tk_scaling": null               // simulate higher DPI for layout testing
 }
