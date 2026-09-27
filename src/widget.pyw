@@ -5017,6 +5017,7 @@ class Widget:
         self._essential = False
         self._reshaping = False     # the expand dot or the mode switch at work
         self._rs_x = self._rs_y = self._rs_w = self._rs_h = 0
+        self._rs_off = False        # the resize dot's gesture turned into a mode switch
         self._menu_win = None
         self._menu_click_job = None   # outside-click watcher while a menu is open
         self._menu_btn_down = False
@@ -5375,7 +5376,7 @@ class Widget:
         self.btn_resize.bind('<Button-1>', self._resize_start)
         self.btn_resize.bind('<B1-Motion>', self._resize_move)
         self.btn_resize.bind('<ButtonRelease-1>', self._save_geometry_resize)
-        self.btn_resize.bind('<Double-Button-1>', lambda e: self._toggle_essential())
+        self.btn_resize.bind('<Double-Button-1>', self._resize_double)
         self.btn_resize.bind('<Enter>', lambda e: self.btn_resize.config(fg='#E06030'))
         self.btn_resize.bind('<Leave>', lambda e: self.btn_resize.config(fg=OCHRE))
         # Nothing on screen says this dot resizes the widget, and a user asked
@@ -5451,6 +5452,9 @@ class Widget:
 
         def done():
             self._reshaping = False
+            # The update banner follows the widget: in the frame the widget
+            # comes out in (_on_banner_follow waits for it).
+            self._on_banner_follow()
 
         try:
             change()
@@ -6103,6 +6107,7 @@ class Widget:
 
     def _resize_start(self, e):
         self._hide_tooltips()
+        self._rs_off = False
         self._rs_x = e.x_root
         self._rs_y = e.y_root
         self._rs_w = self.root.winfo_width()
@@ -6117,10 +6122,22 @@ class Widget:
         # event is cheap and the window edge tracks the cursor without lagging.
         # Honors the dynamic minimum from _update_minsize so the content never
         # clips when dragging narrow.
+        if self._rs_off:
+            return
         min_w = self.root.wm_minsize()[0] or MIN_W
         w = max(min_w, self._rs_w + (e.x_root - self._rs_x))
         x, y = self.root.winfo_x(), self.root.winfo_y()
         self.root.geometry(f'{w}x{self._rs_h}+{x}+{y}')
+
+    def _resize_double(self, e):
+        """A double click on the resize dot: the mode switch. Its second
+        press is still the gesture the first one began, and a move before
+        the release gave the new mode the old one's height from that first
+        press (_resize_move), saved on the release. The animation used to
+        write over it; the widget now changes in one step, and nothing did
+        (review of 2026-09-28). The rest of this gesture resizes nothing."""
+        self._rs_off = True
+        self._toggle_essential()
 
     # ── Data ─────────────────────────────────────────
 
@@ -8994,6 +9011,12 @@ class Widget:
         return (bw, bh, wx, wy)
 
     def _on_banner_follow(self):
+        # Not while the widget changes behind its picture (_reshape): the
+        # banner went to the widget's new place 50 to 110 ms before the widget
+        # showed there (review of 2026-09-28). It follows when the widget
+        # comes out.
+        if self._reshaping:
+            return
         bw, bh = getattr(self, '_banner_size', (0, 0))
         if bw and bh:
             self._reposition_banner(bw, bh)
