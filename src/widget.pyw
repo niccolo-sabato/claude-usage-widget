@@ -2965,6 +2965,256 @@ def _place_on_screen(x, y, w, h, min_visible=20):
 
 
 # ═══════════════════════════════════════════════════════
+# Showing a window whole
+# ═══════════════════════════════════════════════════════
+# 🔴 Measured on 2026-09-27, after the user found the menu and the account
+# windows opening "broken, built in bands, with black rows through them": a
+# Tk window parked off every screen is not painted at all (captured with
+# PrintWindow: 48000 black pixels out of 48000). Every menu and dialog was
+# built out there so that the building would not show, then moved onto the
+# screen still empty and painted there piece by piece, in front of the user,
+# and the dialogs were then measured and moved two or three times more, each
+# move shifting everything in them. Now a new window is cloaked by DWM from
+# its first map (laid out, painted and composed, but not shown), placed and
+# painted where it belongs, and uncloaked in one frame once Tk has finished
+# with it (Widget._present). A window on show that has to change is covered
+# by a still picture of itself while the real one changes out of sight
+# (Widget._hold). The same window cloaked at its real place was found whole
+# after one turn of the event loop.
+#
+# Private handles on the system libraries, so that the prototypes set here do
+# not change the ones the rest of the file relies on through ctypes.windll.
+
+_PARK = -20000              # where a new window is first mapped: off every screen
+_DWMWA_CLOAK = 13
+_DWMWA_WINDOW_CORNER_PREFERENCE = 33
+_SRCCOPY = 0x00CC0020
+_GW_HWNDPREV = 3
+_HWND_TOPMOST = -1
+_SWP_NOSIZE, _SWP_NOMOVE, _SWP_NOACTIVATE, _SWP_SHOWWINDOW = 0x1, 0x2, 0x10, 0x40
+_STM_SETIMAGE = 0x0172
+_STILL_STYLE = (0x80000000       # a popup
+                | 0x0000000E     # SS_BITMAP: the system paints the picture
+                | 0x00000100)    # SS_NOTIFY: a click stops on it, never below it
+_STILL_EX = (0x00000080          # tool window: no taskbar button
+             | 0x00000008        # topmost, like every window of the widget
+             | 0x08000000)       # never activated, never takes the focus
+
+
+class _BITMAPINFOHEADER(ctypes.Structure):
+    _fields_ = [('biSize', ctypes.c_uint32), ('biWidth', ctypes.c_int32),
+                ('biHeight', ctypes.c_int32), ('biPlanes', ctypes.c_uint16),
+                ('biBitCount', ctypes.c_uint16), ('biCompression', ctypes.c_uint32),
+                ('biSizeImage', ctypes.c_uint32), ('biXPelsPerMeter', ctypes.c_int32),
+                ('biYPelsPerMeter', ctypes.c_int32), ('biClrUsed', ctypes.c_uint32),
+                ('biClrImportant', ctypes.c_uint32)]
+
+
+def _show_api():
+    """The Win32 and DWM calls below, with their prototypes, or None when they
+    cannot be had: every window then shows as it is placed, as before."""
+    try:
+        from ctypes import wintypes as wt
+        u32 = ctypes.WinDLL('user32', use_last_error=True)
+        g32 = ctypes.WinDLL('gdi32')
+        k32 = ctypes.WinDLL('kernel32')
+        dwm = ctypes.WinDLL('dwmapi')
+        H = ctypes.c_void_p
+        protos = (
+            (u32.GetParent, H, [H]),
+            (u32.GetWindow, H, [H, ctypes.c_uint]),
+            (u32.GetWindowRect, wt.BOOL, [H, ctypes.POINTER(wt.RECT)]),
+            (u32.GetUpdateRect, wt.BOOL, [H, ctypes.c_void_p, wt.BOOL]),
+            (u32.GetWindowDC, H, [H]),
+            (u32.ReleaseDC, ctypes.c_int, [H, H]),
+            (u32.MonitorFromRect, H, [ctypes.POINTER(wt.RECT), wt.DWORD]),
+            (u32.CreateWindowExW, H, [wt.DWORD, ctypes.c_wchar_p, ctypes.c_wchar_p,
+                                      wt.DWORD, ctypes.c_int, ctypes.c_int,
+                                      ctypes.c_int, ctypes.c_int, H, H, H, H]),
+            (u32.SendMessageW, H, [H, ctypes.c_uint, H, H]),
+            (u32.UpdateWindow, wt.BOOL, [H]),
+            (u32.RedrawWindow, wt.BOOL, [H, ctypes.c_void_p, H, ctypes.c_uint]),
+            (u32.DestroyWindow, wt.BOOL, [H]),
+            (u32.SetWindowPos, wt.BOOL, [H, H, ctypes.c_int, ctypes.c_int,
+                                         ctypes.c_int, ctypes.c_int, ctypes.c_uint]),
+            (g32.CreateCompatibleDC, H, [H]),
+            (g32.CreateDIBSection, H, [H, ctypes.POINTER(_BITMAPINFOHEADER), ctypes.c_uint,
+                                       ctypes.POINTER(ctypes.c_void_p), H, wt.DWORD]),
+            (g32.SelectObject, H, [H, H]),
+            (g32.BitBlt, wt.BOOL, [H, ctypes.c_int, ctypes.c_int, ctypes.c_int,
+                                   ctypes.c_int, H, ctypes.c_int, ctypes.c_int,
+                                   wt.DWORD]),
+            (g32.DeleteObject, wt.BOOL, [H]),
+            (g32.DeleteDC, wt.BOOL, [H]),
+            (g32.GdiFlush, wt.BOOL, []),
+            (k32.GetModuleHandleW, H, [ctypes.c_wchar_p]),
+            (dwm.DwmSetWindowAttribute, ctypes.c_long,
+             [H, wt.DWORD, ctypes.c_void_p, wt.DWORD]),
+        )
+        for fn, res, args in protos:
+            fn.restype, fn.argtypes = res, args
+        return {'u32': u32, 'g32': g32, 'k32': k32, 'dwm': dwm, 'wt': wt}
+    except Exception:
+        return None
+
+
+_SHOW = _show_api()
+
+
+def _frame_of(win):
+    """The window Windows knows for a Tk toplevel: Tk hands back a child of it."""
+    child = win.winfo_id()
+    if _SHOW is None:
+        return child
+    return _SHOW['u32'].GetParent(child) or child
+
+
+def _set_cloak(hwnd, on):
+    """Take a window off the screen (on) or put it back, through DWM, without
+    unmapping it: meanwhile it goes on being laid out and painted. True when
+    DWM did it."""
+    if _SHOW is None or not hwnd:
+        return False
+    try:
+        v = ctypes.c_int(1 if on else 0)
+        return _SHOW['dwm'].DwmSetWindowAttribute(
+            hwnd, _DWMWA_CLOAK, ctypes.byref(v), ctypes.sizeof(v)) == 0
+    except Exception:
+        return False
+
+
+def _unpainted(win):
+    """True while some part of the toplevel still waits for the paint message
+    Windows sends before Tk draws it. Toplevels it hosts (a tooltip) are not
+    part of it."""
+    if _SHOW is None:
+        return False
+    try:
+        hwnds = [_frame_of(win)]
+        todo = [win]
+        while todo:
+            w = todo.pop()
+            hwnds.append(w.winfo_id())
+            todo.extend(c for c in w.winfo_children() if not isinstance(c, tk.Toplevel))
+    except tk.TclError:
+        return False
+    return any(_SHOW['u32'].GetUpdateRect(h, None, False) for h in hwnds)
+
+
+def _paint_now(win):
+    """Deliver at once every paint message the toplevel is waiting for.
+
+    Windows hands them out one per turn of the event loop, and a menu is some
+    fifty windows: measured, the menu waited close to 200 ms for its last
+    one. Tk turns each into an Expose event, drawn at the next idle."""
+    if _SHOW is not None:
+        try:
+            # RDW_UPDATENOW | RDW_ALLCHILDREN: paints what is invalid, nothing more.
+            _SHOW['u32'].RedrawWindow(_frame_of(win), None, None, 0x0100 | 0x0080)
+        except (tk.TclError, OSError):
+            pass
+
+
+def _gdi_flush():
+    if _SHOW is not None:
+        try:
+            _SHOW['g32'].GdiFlush()
+        except Exception:
+            pass
+
+
+class _Still:
+    """A still picture of a window on show, in its place.
+
+    The window's own pixels, read from its surface, shown by a plain system
+    STATIC popup set directly above it in the z-order and given the same
+    corners. Taking the real window away behind it changes no pixel on
+    screen. From its surface and not from the screen: a screen grab of the
+    account list took in the account page lying over it, and would have left
+    the page's ghost behind when the page was redrawn smaller. Built cloaked,
+    painted at once (UpdateWindow), and uncloaked whole. It is never
+    activated and answers nothing: a click on it is lost, as a click on a
+    window being rebuilt always was.
+    """
+
+    def __init__(self, hwnd, rounded=True):
+        api = _SHOW
+        if api is None:
+            raise OSError('no window API')
+        u32, g32, wt = api['u32'], api['g32'], api['wt']
+        self.hwnd = self._bmp = None
+        r = wt.RECT()
+        if not u32.GetWindowRect(hwnd, ctypes.byref(r)):
+            raise OSError('the window has no rectangle')
+        if not u32.MonitorFromRect(ctypes.byref(r), 0):   # MONITOR_DEFAULTTONULL
+            raise OSError('the window is on no screen: nothing to keep still')
+        x, y, w, h = r.left, r.top, r.right - r.left, r.bottom - r.top
+        if w <= 0 or h <= 0:
+            raise OSError('the window has no size')
+        # 24 bits: no alpha channel for the system to blend the picture with.
+        bi = _BITMAPINFOHEADER(ctypes.sizeof(_BITMAPINFOHEADER), w, -h, 1, 24, 0, 0, 0, 0, 0, 0)
+        bits = ctypes.c_void_p()
+        src = u32.GetWindowDC(hwnd)
+        mem = g32.CreateCompatibleDC(src)
+        self._bmp = g32.CreateDIBSection(mem, ctypes.byref(bi), 0, ctypes.byref(bits), None, 0)
+        try:
+            if not self._bmp:
+                raise OSError('no memory for the picture')
+            old = g32.SelectObject(mem, self._bmp)
+            ok = g32.BitBlt(mem, 0, 0, w, h, src, 0, 0, _SRCCOPY)
+            g32.SelectObject(mem, old)
+            if not ok:
+                raise OSError('the window could not be read')
+            self.hwnd = u32.CreateWindowExW(_STILL_EX, 'Static', None, _STILL_STYLE,
+                                            x, y, w, h, None, None,
+                                            api['k32'].GetModuleHandleW(None), None)
+            if not self.hwnd:
+                raise OSError('the still window could not be created')
+            if not _set_cloak(self.hwnd, True):
+                raise OSError('the still window could not be cloaked')
+            if rounded:
+                pref = ctypes.c_int(2)                     # DWMWCP_ROUND, as dwm_round
+                api['dwm'].DwmSetWindowAttribute(self.hwnd, _DWMWA_WINDOW_CORNER_PREFERENCE,
+                                                 ctypes.byref(pref), ctypes.sizeof(pref))
+            u32.SendMessageW(self.hwnd, _STM_SETIMAGE, None, self._bmp)   # IMAGE_BITMAP
+            # Directly above the window it stands for: below whatever is above it.
+            above = u32.GetWindow(hwnd, _GW_HWNDPREV)
+            u32.SetWindowPos(self.hwnd, above or ctypes.c_void_p(_HWND_TOPMOST), 0, 0, 0, 0,
+                             _SWP_NOSIZE | _SWP_NOMOVE | _SWP_NOACTIVATE | _SWP_SHOWWINDOW)
+            u32.UpdateWindow(self.hwnd)
+            _gdi_flush()
+            _set_cloak(self.hwnd, False)
+        except Exception:
+            self.close()
+            raise
+        finally:
+            g32.DeleteDC(mem)
+            u32.ReleaseDC(hwnd, src)
+
+    def lift(self):
+        """Back to the top of the topmost band, just after its window was."""
+        if self.hwnd:
+            _SHOW['u32'].SetWindowPos(self.hwnd, ctypes.c_void_p(_HWND_TOPMOST), 0, 0, 0, 0,
+                                      _SWP_NOSIZE | _SWP_NOMOVE | _SWP_NOACTIVATE)
+
+    def close(self):
+        hwnd, bmp, self.hwnd, self._bmp = self.hwnd, self._bmp, None, None
+        u32, g32 = _SHOW['u32'], _SHOW['g32']
+        if hwnd:
+            try:
+                # The control may have kept a copy of its own: it is handed back
+                # here, and freed with ours.
+                held = u32.SendMessageW(hwnd, _STM_SETIMAGE, None, None)
+                if held and held != bmp:
+                    g32.DeleteObject(held)
+                u32.DestroyWindow(hwnd)
+            except Exception:
+                pass
+        if bmp:
+            g32.DeleteObject(bmp)
+
+
+# ═══════════════════════════════════════════════════════
 # API
 # ═══════════════════════════════════════════════════════
 
@@ -6966,6 +7216,196 @@ class Widget:
         except tk.TclError:
             pass
 
+    # ── Showing windows whole (see "Showing a window whole" at the top) ──
+
+    def _prepare(self, win, rounded=True):
+        """Map a new toplevel off every screen and cloak it, its corners
+        already rounded: from here on it is built, placed and painted where
+        it belongs with nothing of it showing, until _present. Call it once
+        overrideredirect is set. A window DWM will not cloak shows as it is
+        placed, as every window used to."""
+        win._revealed = False       # the user has seen it at least once
+        win._rounded = rounded
+        win._cloaked = False
+        try:
+            win.geometry(f'+{_PARK}+{_PARK}')
+            win.update_idletasks()      # mapped out there: its frame exists now
+            if rounded:
+                dwm_round(win)
+            win._cloaked = _set_cloak(_frame_of(win), True)
+        except tk.TclError:
+            return
+        if not win._cloaked and not getattr(Widget, '_cloak_warned', False):
+            Widget._cloak_warned = True
+            wlog('SHOW   windows cannot be cloaked here: they show as they are placed')
+
+    def _present(self, win, place, then=None, gone=None):
+        """Show a prepared window, or one held still, once it is whole.
+
+        `place` puts the window where it belongs and returns its geometry. It
+        is called again until it no longer changes what it did last time,
+        whoever called it then: a <Configure> handler can still change what
+        the window needs (a row cutting its text to its column), and the
+        height has to be the last one. After each placement the paint
+        messages it caused are delivered at once (_paint_now), so that Tk
+        draws the window once for the move and the paint together rather
+        than once for each: measured, the account page was drawn three times
+        on the way out. When nothing moves and nothing waits to be painted,
+        the window is uncloaked in one go. `then` runs right after it shows;
+        `gone` if it is destroyed before. A window still settling after half
+        a second is shown as it is, and the log says so.
+
+        The steps run on the main window's clock, not the popup's: a popup
+        destroyed with a step pending would leave Tk a callback to nowhere.
+        """
+        raw = getattr(place, '_raw', place)
+
+        def placed():
+            geo = raw()
+            win._geo = geo
+            return geo
+
+        placed._raw = raw
+        win._place = placed
+        run = getattr(win, '_presenting', None)
+        if run is not None:
+            # A run is under way: it takes this change in, and its callbacks.
+            if then:
+                run['then'].append(then)
+            if gone:
+                run['gone'].append(gone)
+            return
+        run = {'then': [then] if then else [], 'gone': [gone] if gone else [],
+               'rounds': 0, 'until': time.monotonic() + 0.5}
+        win._presenting = run
+
+        def alive():
+            try:
+                return bool(win.winfo_exists())
+            except tk.TclError:
+                return False
+
+        def late():
+            return time.monotonic() > run['until']
+
+        def finish(callbacks):
+            win._presenting = None
+            for fn in callbacks:
+                try:
+                    fn()
+                except Exception as e:
+                    wlog(f'SHOW   after showing a window: {type(e).__name__}: '
+                         f'{_redact(str(e))}')
+
+        def settle():
+            if not alive():
+                return finish(run['gone'])
+            try:
+                before = getattr(win, '_geo', None)
+                geo = win._place()
+                win.update_idletasks()
+            except tk.TclError:
+                return finish(run['gone'])
+            _paint_now(win)
+            if geo != before and run['rounds'] < 8 and not late():
+                run['rounds'] += 1
+                self.root.after(0, settle)
+                return
+            # Idle: the queue is empty by then, so the Expose events the paint
+            # messages became have been handled, and show() draws what they
+            # asked for before anything is uncloaked.
+            self.root.after_idle(show)
+
+        def show():
+            if not alive():
+                return finish(run['gone'])
+            try:
+                win.update_idletasks()
+                before = getattr(win, '_geo', None)
+                geo = win._place()
+                win.update_idletasks()
+            except tk.TclError:
+                return finish(run['gone'])
+            if not late():
+                if geo != before:
+                    self.root.after(0, settle)
+                    return
+                if _unpainted(win):
+                    _paint_now(win)
+                    self.root.after_idle(show)
+                    return
+            else:
+                wlog('SHOW   a window was still settling after 500 ms: shown as it was')
+            win._revealed = True
+            if getattr(win, '_cloaked', False):
+                try:
+                    if getattr(win, '_rounded', True):
+                        # Again, cheap: Windows has been seen to drop it on a move.
+                        dwm_round(win)
+                    _gdi_flush()
+                    _set_cloak(_frame_of(win), False)
+                except tk.TclError:
+                    pass
+                win._cloaked = False
+            finish(run['then'])
+
+        self.root.after(0, settle)
+
+    def _hold(self, win):
+        """Keep what the user sees of a window on show still while it changes.
+
+        A still picture of it (_Still) takes its place and the real one is
+        cloaked behind it; _present brings it back, and takes the picture
+        away, once it is whole again. Call it BEFORE the change: what Tk has
+        painted, the user has seen. Nothing to do for a window not on show
+        yet, or one already held; without a picture (the window is on no
+        screen, or Windows refused) the change shows as it always did."""
+        if (not getattr(win, '_revealed', False) or getattr(win, '_still', None) is not None
+                or getattr(win, '_presenting', None) is not None):
+            return
+        try:
+            hwnd = _frame_of(win)
+            still = _Still(hwnd, getattr(win, '_rounded', True))
+        except Exception:
+            return
+        if not _set_cloak(hwnd, True):
+            still.close()
+            return
+        win._cloaked = True
+        win._still = still
+        if not getattr(win, '_still_watch', False):
+            # Closed while held (Save, Cancel, a window of its kind taking its
+            # place): the picture goes with it at once, not at the next step.
+            win._still_watch = True
+            win.bind('<Destroy>',
+                     lambda e: self._drop_still(win) if e.widget is win else None,
+                     add='+')
+        self.root.after_idle(lambda: self._present(
+            win, win._place, then=lambda: self._drop_still(win),
+            gone=lambda: self._drop_still(win)))
+
+    @staticmethod
+    def _drop_still(win):
+        still = getattr(win, '_still', None)
+        win._still = None
+        if still is not None:
+            still.close()
+
+    def _take_still(self, win):
+        """A still picture of a window on show, handed to whoever will stand
+        in its place: its own, if it is held, or a new one. None when there
+        is nothing on show to picture."""
+        own = getattr(win, '_still', None)
+        if own is not None:
+            win._still = None
+            return own
+        if not getattr(win, '_revealed', False) or getattr(win, '_cloaked', False):
+            return None
+        try:
+            return _Still(_frame_of(win), getattr(win, '_rounded', True))
+        except Exception:
+            return None
+
     def _build_dialog_frame(self, title, dw, dh, key=None):
         """Create a Toplevel with the standard chrome. Returns (dlg, body).
 
@@ -6973,15 +7413,18 @@ class Widget:
         kind is still up closes the old one first: the same menu entry clicked
         twice used to stack two Accounts windows, and nothing is gained by
         having two of anything here. The new one is built from scratch rather
-        than the old one raised, so it shows the current state.
+        than the old one raised, so it shows the current state. The old one
+        still goes at once, as it always did, but a still picture of it stays
+        on screen until the new one shows, and the new one opens where the old
+        one was: a page drawn again after a gesture no longer blinks out and
+        back.
 
         Same title bar, padding, rounded corners and screen-clamped placement
-        for every dialog. `dh` is a minimum: once the caller has populated
-        `body`, the dialog is re-measured and grown to the height the layout
-        actually needs. Two passes are required because image-backed pill
-        buttons report their size only after the first render, so a single
-        measurement under-sizes the dialog and crops its bottom controls at
-        higher Windows DPI scaling.
+        for every dialog. `dh` is a minimum: the dialog is cloaked from its
+        first map (_prepare), and once the caller has populated `body` it is
+        measured and placed until its height stops changing, then shown whole
+        (_present). Measured once, it came out short: rows that cut their text
+        to their column, among others, settle only after the first layout.
 
         Layout contract for callers: pack the bottom controls (the button row,
         and anything else that must never disappear) BEFORE the content that
@@ -6989,12 +7432,25 @@ class Widget:
         dialog is shorter than its content, the widgets packed last are the
         ones squeezed out.
         """
+        stand_in, anchor = None, None
         if key is not None:
             old = self._dialogs.get(key)
-            if old is not None:
+            try:
+                live = old is not None and bool(old.winfo_exists())
+            except tk.TclError:
+                live = False
+            if live:
+                if getattr(old, '_revealed', False):
+                    stand_in = self._take_still(old)
+                    anchor = (old.winfo_x(), old.winfo_y(),
+                              old.winfo_y() + old.winfo_height())
+                else:
+                    # Still being built out of sight: whatever stood in for the
+                    # window before it stands in for this one.
+                    stand_in, old._stand_in = getattr(old, '_stand_in', None), None
+                    anchor = getattr(old, '_anchor', None)
                 try:
-                    if old.winfo_exists():
-                        old.destroy()
+                    old.destroy()
                 except tk.TclError:
                     pass
         dlg = tk.Toplevel(self.root)
@@ -7006,16 +7462,12 @@ class Widget:
         dlg.overrideredirect(True)
         dlg.attributes('-topmost', True)
         dlg.resizable(False, False)
-
-        # Park off-screen until the body is populated and we know the
-        # real height. Avoids a flash at the default Tk spawn position.
-        dlg.geometry(f'{dw}x{dh}+10000+10000')
-        # Apply rounded corners early on the off-screen window so the
-        # DWM attribute is in place before the dialog is first painted at
-        # its visible position. Re-applied below after the final move to
-        # be safe - Windows occasionally drops the corner preference if
-        # the window is moved before being mapped.
-        dlg.after(50, lambda: dwm_round(dlg))
+        dlg.geometry(f'{dw}x{dh}')
+        self._prepare(dlg)
+        dlg._stand_in = stand_in
+        dlg._anchor = anchor
+        dlg._place_args = (dw, dh)
+        dlg._place = lambda: self._place_dialog(dlg, *dlg._place_args)
 
         self._build_titlebar(dlg, title)
 
@@ -7024,39 +7476,70 @@ class Widget:
                   padx=DLG_PAD_X, pady=(DLG_PAD_TOP, DLG_PAD_BTM))
         dlg.bind('<Escape>', lambda e: self._close_dialog(dlg))
 
-        def _finalize():
-            # Measure and place (see docstring); dh is the floor. Runs for
-            # every dialog, so callers need no _place_dialog call of their own.
-            try:
-                self._place_dialog(dlg, dw, dh_floor=dh)
-                # Re-apply DWM rounding after the final position settles.
-                dlg.after(60, lambda: dwm_round(dlg))
-            except Exception:
-                pass
-        dlg.after_idle(_finalize)
+        def drop_stand_in():
+            still, dlg._stand_in = getattr(dlg, '_stand_in', None), None
+            if still is not None:
+                still.close()
+
+        # Once the caller has built it. The picture of the window it replaces
+        # goes the moment it shows, or when it is closed before.
+        self.root.after_idle(lambda: self._present(
+            dlg, dlg._place, then=drop_stand_in, gone=drop_stand_in))
         return dlg, body
 
     def _place_dialog(self, dlg, dw, dh_floor=0):
-        """Resize a dialog to fit its content and re-anchor it to the widget.
+        """Give a dialog the height its content asks for, and its place.
 
-        Runs now and again after idle: image-backed widgets (pill buttons,
-        avatar discs) report their height only after the first render, so a
-        single early measurement under-sizes the dialog and clips the bottom
-        controls. The position is recomputed from the new height so a dialog
-        above the widget grows upward, its bottom edge clear of the widget.
+        Until it first shows, the place comes from that height, as it always
+        did: above the widget and clear of it, below when there is no room.
+        It is worked out for the height plus the room the dialog keeps for a
+        part that can open later (dlg._reserve: the account page's advanced
+        options), so that opening that part unfolds downward. A dialog opened
+        in the place of one of its kind opens where that one was (dlg._anchor).
 
-        dh_floor sets a minimum height (used by dialogs that look better with
-        some breathing room than shrink-wrapped); the content requirement
-        still wins when larger, and the widget's monitor caps both."""
-        def _apply():
-            dlg.update_idletasks()
+        🔴 Once it has shown, its top edge stays where the user saw it or
+        dragged it: the dialog grows and shrinks downward, and moves up only
+        as far as it must to stay on its screen, and clear of the widget when
+        it sat clear of it. It used to be placed afresh above the widget on
+        every change, so every change moved its top edge and everything in
+        it. A dialog on show is held still while it changes (_hold).
+
+        dh_floor sets a minimum height (for dialogs that look better with some
+        breathing room than shrink-wrapped); the content still wins when
+        larger, and the screen caps both. Returns the geometry applied."""
+        shown = getattr(dlg, '_revealed', False)
+        if shown:
+            self._hold(dlg)
+        dlg._place_args = (dw, dh_floor)
+        dlg.update_idletasks()
+        anchor = getattr(dlg, '_anchor', None)
+        if shown or anchor:
+            if shown:
+                x, top = dlg.winfo_x(), dlg.winfo_y()
+                seen_bottom = top + dlg.winfo_height()
+            else:
+                x, top, seen_bottom = anchor
+            info = _monitor_of(x, top, dw, max(1, seen_bottom - top),
+                               _MONITOR_DEFAULTTONEAREST)
+            ml, mt, mr, mb = info[1] if info else self._widget_monitor_area()
+            need = min(max(dh_floor, dlg.winfo_reqheight()), (mb - mt) - 2 * SCREEN_MARGIN)
+            lowest = mb - TASKBAR_GAP
+            rx, ry, rw = self.root.winfo_x(), self.root.winfo_y(), self.root.winfo_width()
+            if x < rx + rw and rx < x + dw and seen_bottom <= ry:
+                # It sat above the widget, clear of it: it stays clear.
+                lowest = min(lowest, ry - SCREEN_MARGIN)
+            top = max(mt + SCREEN_MARGIN, min(top, lowest - need))
+            x = max(ml + SCREEN_MARGIN, min(x, mr - dw - SCREEN_MARGIN))
+        else:
             ml, mt, mr, mb = self._widget_monitor_area()
-            need = min(max(dh_floor, dlg.winfo_reqheight()),
-                       (mb - mt) - 2 * SCREEN_MARGIN)
-            x, y = self._place_popup(dw, need)
-            dlg.geometry(f'{dw}x{need}+{x}+{y}')
-        _apply()
-        dlg.after_idle(_apply)
+            room = (mb - mt) - 2 * SCREEN_MARGIN
+            need = min(max(dh_floor, dlg.winfo_reqheight()), room)
+            x, top = self._place_popup(dw, min(room, need + getattr(dlg, '_reserve', 0)))
+        dlg.geometry(f'{dw}x{need}+{x}+{top}')
+        # What _present compares the next placement with, whoever asked
+        # for this one.
+        dlg._geo = (dw, need, x, top)
+        return dlg._geo
 
     # ── W11 Styled Menu ─────────────────────────────
 
@@ -7097,9 +7580,10 @@ class Widget:
         m.overrideredirect(True)
         m.attributes('-topmost', True)
         m.configure(bg=MENU_BG)
-        # Move the Toplevel off-screen before populating so it doesn't flash
-        # at the default (0, 0) corner while we compute its final position.
-        m.geometry('+10000+10000')
+        # Cloaked from its first map (_prepare) and shown whole (_present).
+        # Built off-screen, as it was, it came onto the screen before Windows
+        # had painted any of it, and was painted there under the user's eyes.
+        self._prepare(m)
         wlog('MENU   toplevel created')
 
         mode_label = t('menu_mode_normal') if self._essential else t('menu_mode_essential')
@@ -7133,16 +7617,17 @@ class Widget:
         tk.Label(m, text=f'v{APP_VERSION}', font=FT_DLG_HINT, fg=DIM, bg=MENU_BG,
                  anchor='w', padx=14, pady=4).pack(fill='x')
 
-        m.update_idletasks()
-        mw = max(m.winfo_reqwidth(), 220)
-        mh = m.winfo_reqheight() + 4  # small bottom breathing room
-        bx, by = self._place_submenu(mw, mh)
+        def place():
+            m.update_idletasks()
+            mw = max(m.winfo_reqwidth(), 220)
+            mh = m.winfo_reqheight() + 4  # small bottom breathing room
+            bx, by = self._place_submenu(mw, mh)
+            m.geometry(f'{mw}x{mh}+{bx}+{by}')
+            return (mw, mh, bx, by)
+
+        mw, mh, bx, by = place()
         wlog(f'MENU   size={mw}x{mh} pos=({bx},{by})')
-        # Single geometry call - both size and position applied atomically so
-        # the window never renders with a stale size at its off-screen slot.
-        m.geometry(f'{mw}x{mh}+{bx}+{by}')
-        m.after(10, lambda: dwm_round(m))
-        m.after(20, lambda: self._lift_menu(m))
+        self._present(m, place, then=lambda: self._lift_menu(m))
         m.bind('<Escape>', lambda e: self._close_menu())
         self._bind_menu_autoclose(m)
         m.focus_set()
@@ -7249,15 +7734,22 @@ class Widget:
         m.overrideredirect(True)
         m.attributes('-topmost', True)
         m.configure(bg=MENU_BG)
-        m.geometry('+10000+10000')
+        # Cloaked from its first map and shown whole, as the menu (_prepare).
+        self._prepare(m)
         self._populate_flyout(cat, m)
-        m.update_idletasks()
-        mw = max(m.winfo_reqwidth(), 200)
-        mh = m.winfo_reqheight() + 6
-        fx, fy = self._place_flyout(mw, mh, anchor)
-        m.geometry(f'{mw}x{mh}+{fx}+{fy}')
-        m.after(10, lambda: dwm_round(m))
-        m.after(20, lambda: self._lift_menu(m))
+
+        def place():
+            # Level with the row it belongs to, whatever it holds now: a
+            # rebuild keeps its top edge.
+            m.update_idletasks()
+            mw = max(m.winfo_reqwidth(), 200)
+            mh = m.winfo_reqheight() + 6
+            fx, fy = self._place_flyout(mw, mh, anchor)
+            m.geometry(f'{mw}x{mh}+{fx}+{fy}')
+            return (mw, mh, fx, fy)
+
+        place()
+        self._present(m, place, then=lambda: self._lift_menu(m))
         # Autoclose on the flyout too: a widget click must dismiss the menu even
         # when focus currently sits in the flyout (e.g. after a bar toggle).
         self._bind_focus_autoclose(m)
@@ -7270,19 +7762,19 @@ class Widget:
         self._flyout_cat = None
 
     def _rebuild_flyout(self):
-        """Repopulate the open flyout in place after a stateful toggle."""
+        """Repopulate the open flyout in place after a stateful toggle.
+
+        Held still meanwhile (_hold): destroyed and filled again in view, its
+        rows used to come back one by one."""
         m = self._flyout_win
         cat = self._flyout_cat
         if not m or not m.winfo_exists() or not cat:
             return
+        self._hold(m)
         for c in m.winfo_children():
             c.destroy()
         self._populate_flyout(cat, m)
-        m.update_idletasks()
-        mw = max(m.winfo_reqwidth(), 200)
-        mh = m.winfo_reqheight() + 6
-        fx, fy = self._place_flyout(mw, mh, self._flyout_anchor)
-        m.geometry(f'{mw}x{mh}+{fx}+{fy}')
+        getattr(m, '_place', lambda: None)()
         self._lift_menu(m)
 
     def _flyout_set(self, fn):
@@ -7692,9 +8184,13 @@ class Widget:
             return dict(acc, color=draft['color'], avatar=av)
 
         def draw_preview():
-            for w in preview_host.winfo_children():
-                w.destroy()
-            self._account_bubble(preview_host, preview_acc(), size=64).pack()
+            # Drawn again on the same canvas (_paint_bubble): made anew, the
+            # preview blinked with every letter typed.
+            shown = preview_host.winfo_children()
+            if shown:
+                self._paint_bubble(shown[0], preview_acc(), 64)
+            else:
+                self._account_bubble(preview_host, preview_acc(), size=64).pack()
 
         # ── initials, a text of your own, or a glyph ──
         kinds = tk.Frame(body, bg=BG)
@@ -7703,6 +8199,7 @@ class Widget:
         area.pack(fill='x')
 
         def set_kind(kind):
+            self._hold(dlg)
             draft['avatar']['kind'] = kind
             render_kinds()
             render_area()
@@ -7720,6 +8217,7 @@ class Widget:
             ], dw - self.dp(44))
 
         def pick_icon(glyph):
+            self._hold(dlg)
             draft['avatar']['icon'] = glyph
             render_area()
             draw_preview()
@@ -7792,11 +8290,13 @@ class Widget:
                                  label, current, on_set)).pack(side='left')
 
         def set_bg(hexv):
+            self._hold(dlg)
             draft['color'] = hexv
             render_colors()
             draw_preview()
 
         def set_fg(hexv):
+            self._hold(dlg)
             draft['avatar']['fg'] = hexv
             render_colors()
             draw_preview()
@@ -8035,6 +8535,7 @@ class Widget:
         def pick(value):
             self._set_split(value, close=False)
             if seg_host.winfo_exists():
+                self._hold(dlg)
                 render()
 
         render()
@@ -8316,7 +8817,7 @@ class Widget:
         bar.overrideredirect(True)
         bar.attributes('-topmost', True)
         bar.configure(bg=ORANGE)
-        bar.geometry('+10000+10000')  # off-screen until final placement
+        self._prepare(bar)      # cloaked until it is whole (_present)
 
         # Tight wrap - just enough padding to keep text off the rounded edges.
         wrap = tk.Frame(bar, bg=ORANGE, padx=10, pady=8)
@@ -8360,7 +8861,7 @@ class Widget:
         bh = bar.winfo_reqheight()
         self._banner_size = (bw, bh)
         self._reposition_banner(bw, bh)
-        bar.after(50, lambda: dwm_round(bar))
+        self._present(bar, lambda: self._reposition_banner(bw, bh))
         bar.bind('<Escape>', lambda e: self._dismiss_update_banner())
 
         self._banner_follow_id = self.root.bind(
@@ -8382,6 +8883,7 @@ class Widget:
         wx = max(vx + SCREEN_MARGIN, min(wx, vx + vw - bw - SCREEN_MARGIN))
         wy = max(vy + SCREEN_MARGIN, min(wy, vy + vh - bh - TASKBAR_GAP))
         bar.geometry(f'{bw}x{bh}+{wx}+{wy}')
+        return (bw, bh, wx, wy)
 
     def _on_banner_follow(self):
         bw, bh = getattr(self, '_banner_size', (0, 0))
@@ -8416,14 +8918,19 @@ class Widget:
         dlg.overrideredirect(True)
         dlg.attributes('-topmost', True)
         dlg.configure(bg=MENU_BG)
-        dlg.geometry('+10000+10000')  # off-screen until positioned
         tk.Label(dlg, text=message, font=FT_DLG_BODY, fg=FG, bg=MENU_BG,
                  padx=16, pady=10, wraplength=self.dp(340), justify='left').pack()
-        dlg.update_idletasks()
-        dw, dh = dlg.winfo_reqwidth(), dlg.winfo_reqheight()
-        wx, wy = self._place_popup(dw, dh, prefer='below')
-        dlg.geometry(f'{dw}x{dh}+{wx}+{wy}')
-        dlg.after(50, lambda: dwm_round(dlg))
+        self._prepare(dlg)      # cloaked until it is whole (_present)
+
+        def place():
+            dlg.update_idletasks()
+            dw, dh = dlg.winfo_reqwidth(), dlg.winfo_reqheight()
+            wx, wy = self._place_popup(dw, dh, prefer='below')
+            dlg.geometry(f'{dw}x{dh}+{wx}+{wy}')
+            return (dw, dh, wx, wy)
+
+        place()
+        self._present(dlg, place)
         dlg.after(3500, dlg.destroy)
 
     def _show_update_dialog(self, info):
@@ -8513,6 +9020,7 @@ class Widget:
                 webbrowser.open(info['html_url'])
                 dlg.destroy()
                 return
+            self._hold(dlg)
             build_install_btn(enabled=False)
             # Re-insert right after btn_frame in the packing order so the
             # bottom stack stays: buttons, progress above them, status above.
@@ -8543,6 +9051,7 @@ class Widget:
             threading.Thread(target=worker, daemon=True).start()
 
         def build_install_btn(enabled=True):
+            self._hold(dlg)
             if install_state['btn'] is not None:
                 install_state['btn'].destroy()
             b = self._primary_pill(btn_frame, t('update_dlg_install'),
@@ -8700,6 +9209,7 @@ class Widget:
             disabling one means recreating it. While the checks run there is
             nothing to copy and nothing to re-run, and a pill that looks
             clickable but ignores clicks is worse than no pill at all."""
+            self._hold(dlg)
             ready = not state['running']
             for key in actions:
                 if actions[key] is not None:
@@ -8715,6 +9225,7 @@ class Widget:
                 actions['rerun'].pack(side='right', padx=(0, 8))
 
         def finish(steps):
+            self._hold(dlg)
             state['steps'] = steps
             state['running'] = False
             # Back to the top: the list follows along while the checks run, but
@@ -8751,6 +9262,7 @@ class Widget:
         def run():
             if state['running']:
                 return
+            self._hold(dlg)
             state['running'] = True
             state['steps'] = []
             txt.config(state='normal')
@@ -8856,6 +9368,10 @@ class Widget:
         if start_cc:
             dh = self._dlg_size(460, 190)[1]
         dlg, body = self._build_dialog_frame(title, dw, dh, key='session_key')
+        if start_cc:
+            # Room for the whole key form, should the login fail and the
+            # form be asked for: it unfolds downward (_place_dialog).
+            dlg._reserve = max(0, dh_full - dh)
 
         # Bottom controls first (see the layout contract in _build_dialog_frame).
         btn_frame = tk.Frame(body, bg=BG)
@@ -8944,6 +9460,7 @@ class Widget:
                 cancel_pill.pack(side='right', padx=(0, 8))
 
         def build_connect(enabled=True):
+            self._hold(dlg)   # the pill is an image: changed, it is built again
             if connect_state['btn'] is not None:
                 connect_state['btn'].destroy()
             b = self._primary_pill(btn_frame, t('dlg_connect'),
@@ -8955,6 +9472,7 @@ class Widget:
         cancel_pill.pack(side='right', padx=(0, 8))
 
         def save_key():
+            self._hold(dlg)
             key = entry.get().strip().strip('"').strip("'")
             if not key:
                 status_lbl.config(text=t('dlg_paste_empty'), fg=RED)
@@ -8986,6 +9504,7 @@ class Widget:
                         info['plan'] = plan_label(tier)
                         commit(info, nm)
                     def pick_cancel():
+                        self._hold(dlg)
                         build_connect(enabled=True)
                         status_lbl.config(text='')
                     self._org_picker_dialog(info['org_choices'], chosen,
@@ -9036,6 +9555,7 @@ class Widget:
                 if is_setup:
                     self._schedule()
             def on_err(msg):
+                self._hold(dlg)
                 status_lbl.config(text=f"{t('dlg_error_prefix')}: {msg}", fg=RED)
                 build_connect(enabled=True)
             threading.Thread(target=detect, daemon=True).start()
@@ -9045,6 +9565,7 @@ class Widget:
                 # A check is already running: a second click started a second
                 # one, and each of them added the account (review of 2026-09-26).
                 return
+            self._hold(dlg)
             mode['busy'] = True
             if mode['login']:
                 clear_extra()
@@ -9062,6 +9583,7 @@ class Widget:
                 if not dlg.winfo_exists():
                     wlog('CC     the login check ended after its window was closed')
                     return
+                self._hold(dlg)
                 status_lbl.config(text=f"{t('dlg_error_prefix')}: {msg}", fg=RED)
                 if mode['login']:
                     login_failed(kind)
@@ -9251,6 +9773,7 @@ class Widget:
             failed left them facing a field they had not asked for, with an
             error about something else above it.
             """
+            self._hold(dlg)
             for w_ in body.winfo_children():
                 if w_ in (status_lbl, btn_frame) or w_.winfo_manager() != 'pack':
                     continue
@@ -9278,6 +9801,7 @@ class Widget:
             says the account was not added, and the window grows to show the
             whole reason.
             """
+            self._hold(dlg)
             clear_extra()
             if mode['head'] is not None:
                 mode['head'].config(text=t('cc_link_failed'))
@@ -9298,6 +9822,7 @@ class Widget:
             self._place_dialog(dlg, dw, dh_floor=dh)
 
         def leave_login_mode():
+            self._hold(dlg)
             clear_extra()
             mode['login'] = False
             if mode['head'] is not None:
@@ -9373,7 +9898,7 @@ class Widget:
         def on_close(e):
             if e.widget is dlg and cancelled['v'] and on_cancel:
                 on_cancel()
-        dlg.bind('<Destroy>', on_close)
+        dlg.bind('<Destroy>', on_close, add='+')
 
         self._place_dialog(dlg, dw, dh_floor=dh)
 
@@ -9424,6 +9949,9 @@ class Widget:
             tk.Label(tw, text=label, font=FT_DLG_HINT, fg=FG, bg=MENU_BG,
                      wraplength=self.dp(320), padx=8, pady=4,
                      justify='left').pack()
+            # Cloaked from its first map and shown whole (_prepare): it used to
+            # be mapped before its place was set, and moved there afterwards.
+            self._prepare(tw, rounded=False)
             tw.update_idletasks()
             tipw, tiph = tw.winfo_reqwidth(), tw.winfo_reqheight()
             x = widget.winfo_rootx() + widget.winfo_width() // 2 - tipw // 2
@@ -9445,9 +9973,16 @@ class Widget:
             x = max(ml + 4, min(x, mr - tipw - 4))
             if y < mt + 4:      # no room above: drop below instead
                 y = below_y
-            tw.geometry(f'+{int(x)}+{int(y)}')
+            spot = f'+{int(x)}+{int(y)}'
+
+            def place():
+                tw.geometry(spot)
+                return spot
+
+            place()
             state['win'] = tw
             self._shown_tips.add(tw)
+            self._present(tw, place)
 
         def enter(e):
             cancel()
@@ -9468,6 +10003,16 @@ class Widget:
         base = parent.cget('bg')
         cv = tk.Canvas(parent, width=size, height=size, bg=base,
                        highlightthickness=0, bd=0, cursor='hand2')
+        self._paint_bubble(cv, acc, size)
+        return cv
+
+    def _paint_bubble(self, cv, acc, size):
+        """Draw an account's picture on its canvas, again if it is there.
+
+        A canvas drawn again changes in one repaint. Destroyed and made anew
+        for every letter typed in the name, the picture blinked out and back:
+        the old one went at once, the new one came at the next paint."""
+        cv.delete('all')
         # Anti-aliased disc (Canvas ovals are jagged): render smooth via the
         # shared 4x-downscaled circle image, then overlay the initials.
         img = _dot_image(size, account_color(acc))
@@ -9485,7 +10030,6 @@ class Widget:
             cv.create_text(size / 2, size / 2 + 1, text=mark, fill=fg,
                            font=(FT_DLG_BTN_B.cget('family'),
                                  max(7, int(size * scale)), 'bold'))
-        return cv
 
     def _link_claude_code(self, acc, on_done, status=None):
         """Attach the Claude Code login on this machine to `acc`.
@@ -9586,8 +10130,16 @@ class Widget:
             if fn:
                 fn()
 
-        def reopen():
-            close_and(lambda: self._account_details_dialog(acc, rebuild))
+        def reopen(**kw):
+            # Drawn again where it is and as it was: the new page takes this
+            # one's place through its key, a picture of this one standing
+            # until it shows (_build_dialog_frame). Closed first, the page left
+            # the screen empty for as long as the new one took to build; and it
+            # came back with the advanced options folded, under the finger of
+            # someone who had just used one of them.
+            kw.setdefault('advanced', st['advanced'])
+            rebuild()
+            self._account_details_dialog(acc, rebuild, **kw)
 
         # Bottom controls first: the layout contract in _build_dialog_frame.
         bottom = tk.Frame(body, bg=BG)
@@ -9629,23 +10181,28 @@ class Widget:
                 draw_bubble()
             self._avatar_dialog(acc, st, on_done)
 
+        bubble = {'cv': None}
+
         def draw_bubble():
             # The picker can outlive the page (a page closed or drawn again
             # while it was open): nothing left to draw on.
             if not bub_host.winfo_exists():
                 return
-            for w_ in bub_host.winfo_children():
-                w_.destroy()
             try:
                 typed = name_entry.get().strip()
             except NameError:
                 typed = ''
             # The name being typed feeds the initials, so the picture is a
             # preview of a change that has not been saved yet.
-            b = self._account_bubble(bub_host, dict(acc, color=st['color'],
-                                                    avatar=st['avatar'],
-                                                    name=typed or acc.get('name')),
-                                     size=size)
+            shown = dict(acc, color=st['color'], avatar=st['avatar'],
+                         name=typed or acc.get('name'))
+            if bubble['cv'] is not None and bubble['cv'].winfo_exists():
+                # Drawn again on its own canvas (_paint_bubble): made anew, the
+                # picture blinked with every letter typed in the name.
+                self._paint_bubble(bubble['cv'], shown, size)
+                return
+            b = self._account_bubble(bub_host, shown, size=size)
+            bubble['cv'] = b
             b.place(x=half, y=half)
             b.bind('<Button-1>', pick_avatar)
             # The pencil says the picture can be changed: a disc of its own,
@@ -9731,9 +10288,15 @@ class Widget:
         _orig_status_config = status_lbl.config
 
         def status_config(**kw):
+            if kw.get('text'):
+                # Held still while the message goes in (_hold), and measured
+                # again for it every time: a longer message than the last one
+                # used to run under the cards below it.
+                self._hold(dlg)
             _orig_status_config(**kw)
-            if kw.get('text') and not status_lbl.winfo_ismapped():
-                status_lbl.pack(fill='x', pady=(4, 6), after=info)
+            if kw.get('text'):
+                if not status_lbl.winfo_manager():
+                    status_lbl.pack(fill='x', pady=(4, 6), after=info)
                 self._place_dialog(dlg, dw, dh_floor=dh)
 
         status_lbl.config = status_config
@@ -9799,8 +10362,7 @@ class Widget:
                 except tk.TclError:
                     return
                 if not busy:
-                    close_and(lambda: self._account_details_dialog(
-                        acc, rebuild, advanced=st['advanced']))
+                    reopen(advanced=st['advanced'])
             self._cc_sync_login(after=identified)
 
         def card(title, chip, chip_fg, text, actions, is_source):
@@ -9965,6 +10527,7 @@ class Widget:
                                  ).pack(side='left')
 
         def toggle_advanced(_e=None):
+            self._hold(dlg)
             st['advanced'] = not st['advanced']
             adv_head.config(text=('▾ ' if st['advanced'] else '▸ ')
                             + t('acct_advanced'))
@@ -9987,6 +10550,18 @@ class Widget:
         self._cc_flash = None
         if flash and (len(flash) < 3 or flash[2] == acc.get('id')):
             status_lbl.config(text=flash[0], fg=flash[1])
+
+        if not st['advanced']:
+            # The room the advanced options take is kept below the page while
+            # they are folded (_place_dialog): opening them unfolds the page
+            # downward, and the line just clicked stays under the mouse. The
+            # page is still out of sight here, so trying them on shows nothing.
+            adv.pack(fill='x', after=adv_head)
+            dlg.update_idletasks()
+            open_h = dlg.winfo_reqheight()
+            adv.pack_forget()
+            dlg.update_idletasks()
+            dlg._reserve = max(0, open_h - dlg.winfo_reqheight())
 
         self._place_dialog(dlg, dw, dh_floor=dh)
 
@@ -10306,6 +10881,9 @@ class Widget:
         def show(title, title_fg, note='', more=''):
             if not dlg.winfo_exists():
                 return
+            # Held still (_hold) until this and the buttons that follow it
+            # are in place.
+            self._hold(dlg)
             head.config(text=title, fg=title_fg)
             detail.config(text=note)
             if more:
@@ -10331,6 +10909,7 @@ class Widget:
                 pass
 
         def render_buttons(primary_label=None, primary_cmd=None, closing=False):
+            self._hold(dlg)
             for w in buttons.winfo_children():
                 w.destroy()
             if st['busy']:
@@ -10757,6 +11336,9 @@ class Widget:
             # save: by then this list is gone.
             if not list_frame.winfo_exists():
                 return
+            # Held still while its rows are destroyed and built again (_hold):
+            # in view, they came back one by one.
+            self._hold(dlg)
             # One read of the profiles for the whole list, not one per row: two
             # rows built from two reads could describe two different instants.
             self._cc_saved = self._cc_state()
@@ -11289,9 +11871,14 @@ class Widget:
     @staticmethod
     def _raise_window(win):
         """To the top of the topmost band, without moving, resizing or
-        activating it."""
+        activating it. A still picture standing in for it (_hold, and the one
+        of the window it replaces) goes back above it: raised alone, the
+        hidden window went over its own picture and the widget over both."""
         hwnd = ctypes.windll.user32.GetParent(win.winfo_id()) or win.winfo_id()
         ctypes.windll.user32.SetWindowPos(hwnd, -1, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010)
+        for still in (getattr(win, '_stand_in', None), getattr(win, '_still', None)):
+            if still is not None:
+                still.lift()
 
     def _raise_covered_dialogs(self):
         """Put back above the widget the windows it covers.
