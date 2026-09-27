@@ -2980,7 +2980,8 @@ def _place_on_screen(x, y, w, h, min_visible=20):
 # with it (Widget._present). A window on show that has to change is covered
 # by a still picture of itself while the real one changes out of sight
 # (Widget._hold). The same window cloaked at its real place was found whole
-# after one turn of the event loop.
+# after one turn of the event loop. The widget's own window changes the same
+# way when the expand dot or the mode switch reshapes it (Widget._reshape).
 #
 # Private handles on the system libraries, so that the prototypes set here do
 # not change the ones the rest of the file relies on through ctypes.windll.
@@ -2989,10 +2990,13 @@ _PARK = -20000              # where a new window is first mapped: off every scre
 _DWMWA_CLOAK = 13
 _DWMWA_WINDOW_CORNER_PREFERENCE = 33
 _SRCCOPY = 0x00CC0020
-_GW_HWNDPREV = 3
 _HWND_TOPMOST = -1
 _SWP_NOSIZE, _SWP_NOMOVE, _SWP_NOACTIVATE, _SWP_SHOWWINDOW = 0x1, 0x2, 0x10, 0x40
 _STM_SETIMAGE = 0x0172
+_GWL_EXSTYLE = -20
+_WS_EX_TOOLWINDOW = 0x00000080
+_WS_EX_APPWINDOW = 0x00040000
+_WS_EX_LAYERED = 0x00080000
 _STILL_STYLE = (0x80000000       # a popup
                 | 0x0000000E     # SS_BITMAP: the system paints the picture
                 | 0x00000100)    # SS_NOTIFY: a click stops on it, never below it
@@ -3022,7 +3026,6 @@ def _show_api():
         H = ctypes.c_void_p
         protos = (
             (u32.GetParent, H, [H]),
-            (u32.GetWindow, H, [H, ctypes.c_uint]),
             (u32.GetWindowRect, wt.BOOL, [H, ctypes.POINTER(wt.RECT)]),
             (u32.GetUpdateRect, wt.BOOL, [H, ctypes.c_void_p, wt.BOOL]),
             (u32.GetWindowDC, H, [H]),
@@ -3037,6 +3040,12 @@ def _show_api():
             (u32.DestroyWindow, wt.BOOL, [H]),
             (u32.SetWindowPos, wt.BOOL, [H, H, ctypes.c_int, ctypes.c_int,
                                          ctypes.c_int, ctypes.c_int, ctypes.c_uint]),
+            (u32.GetWindowLongW, ctypes.c_long, [H, ctypes.c_int]),
+            (u32.GetLayeredWindowAttributes, wt.BOOL,
+             [H, ctypes.POINTER(wt.DWORD), ctypes.POINTER(ctypes.c_ubyte),
+              ctypes.POINTER(wt.DWORD)]),
+            (u32.SetLayeredWindowAttributes, wt.BOOL,
+             [H, wt.DWORD, ctypes.c_ubyte, wt.DWORD]),
             (g32.CreateCompatibleDC, H, [H]),
             (g32.CreateDIBSection, H, [H, ctypes.POINTER(_BITMAPINFOHEADER), ctypes.c_uint,
                                        ctypes.POINTER(ctypes.c_void_p), H, wt.DWORD]),
@@ -3081,6 +3090,18 @@ def _set_cloak(hwnd, on):
             hwnd, _DWMWA_CLOAK, ctypes.byref(v), ctypes.sizeof(v)) == 0
     except Exception:
         return False
+
+
+def _on_taskbar(hwnd):
+    """True when the window has a button on the taskbar: the widget's own
+    does when the user turned it on (show_in_taskbar). Unknown counts as yes."""
+    if _SHOW is None or not hwnd:
+        return True
+    try:
+        ex = _SHOW['u32'].GetWindowLongW(hwnd, _GWL_EXSTYLE)
+    except Exception:
+        return True
+    return bool(ex & _WS_EX_APPWINDOW) or not (ex & _WS_EX_TOOLWINDOW)
 
 
 def _unpainted(win):
@@ -3128,8 +3149,9 @@ class _Still:
 
     The window's own pixels, read from its surface, shown by a plain system
     STATIC popup set directly above it in the z-order and given the same
-    corners. Taking the real window away behind it changes no pixel on
-    screen. From its surface and not from the screen: a screen grab of the
+    corners and the same translucency (the widget's own window is 0.94
+    opaque: a solid picture of it stood out while it was up). Taking the
+    real window away behind it changes no pixel on screen. From its surface and not from the screen: a screen grab of the
     account list took in the account page lying over it, and would have left
     the page's ghost behind when the page was redrawn smaller. Built cloaked,
     painted at once (UpdateWindow), and uncloaked whole. It is never
@@ -3154,6 +3176,9 @@ class _Still:
         self.rect = (x, y, w, h)
         # 24 bits: no alpha channel for the system to blend the picture with.
         bi = _BITMAPINFOHEADER(ctypes.sizeof(_BITMAPINFOHEADER), w, -h, 1, 24, 0, 0, 0, 0, 0, 0)
+        key, alpha, flags = wt.DWORD(), ctypes.c_ubyte(), wt.DWORD()
+        layered = bool(u32.GetLayeredWindowAttributes(hwnd, ctypes.byref(key),
+                                                      ctypes.byref(alpha), ctypes.byref(flags)))
         bits = ctypes.c_void_p()
         src = u32.GetWindowDC(hwnd)
         mem = g32.CreateCompatibleDC(src)
@@ -3166,11 +3191,15 @@ class _Still:
             g32.SelectObject(mem, old)
             if not ok:
                 raise OSError('the window could not be read')
-            self.hwnd = u32.CreateWindowExW(_STILL_EX, 'Static', None, _STILL_STYLE,
+            self.hwnd = u32.CreateWindowExW(_STILL_EX | (_WS_EX_LAYERED if layered else 0),
+                                            'Static', None, _STILL_STYLE,
                                             x, y, w, h, None, None,
                                             api['k32'].GetModuleHandleW(None), None)
             if not self.hwnd:
                 raise OSError('the still window could not be created')
+            if layered and not u32.SetLayeredWindowAttributes(self.hwnd, key.value,
+                                                              alpha.value, flags.value):
+                raise OSError('the still window could not take the translucency')
             if not _set_cloak(self.hwnd, True):
                 raise OSError('the still window could not be cloaked')
             if rounded:
@@ -3178,10 +3207,8 @@ class _Still:
                 api['dwm'].DwmSetWindowAttribute(self.hwnd, _DWMWA_WINDOW_CORNER_PREFERENCE,
                                                  ctypes.byref(pref), ctypes.sizeof(pref))
             u32.SendMessageW(self.hwnd, _STM_SETIMAGE, None, self._bmp)   # IMAGE_BITMAP
-            # Directly above the window it stands for: below whatever is above it.
-            above = u32.GetWindow(hwnd, _GW_HWNDPREV)
-            u32.SetWindowPos(self.hwnd, above or ctypes.c_void_p(_HWND_TOPMOST), 0, 0, 0, 0,
-                             _SWP_NOSIZE | _SWP_NOMOVE | _SWP_NOACTIVATE | _SWP_SHOWWINDOW)
+            if not self.seat(hwnd, show=True):
+                raise OSError('the still window could not be shown')
             u32.UpdateWindow(self.hwnd)
             _gdi_flush()
             _set_cloak(self.hwnd, False)
@@ -3191,6 +3218,24 @@ class _Still:
         finally:
             g32.DeleteDC(mem)
             u32.ReleaseDC(hwnd, src)
+
+    def seat(self, hwnd, show=False):
+        """Directly above the window `hwnd`, below whatever is above it: put
+        just under it, and the window then put under the picture. Only our
+        own windows are named to Windows. The picture used to be put after
+        the window above, and when that one was the system's
+        (ForegroundStaging, which Windows keeps over the topmost windows, the
+        widget's included) Windows refused, access denied (measured
+        2026-09-28): the picture never showed, and the window it stood for
+        went blank while it changed. The windows a window owns (the widget's
+        popups) stay above it, and so above its picture."""
+        u32 = _SHOW['u32']
+        flags = _SWP_NOSIZE | _SWP_NOMOVE | _SWP_NOACTIVATE
+        if not self.hwnd or not u32.SetWindowPos(self.hwnd, hwnd, 0, 0, 0, 0,
+                                                 flags | (_SWP_SHOWWINDOW if show else 0)):
+            return False
+        u32.SetWindowPos(hwnd, self.hwnd, 0, 0, 0, 0, flags)
+        return True
 
     def lift(self):
         """Back to the top of the topmost band, just after its window was."""
@@ -4970,6 +5015,7 @@ class Widget:
         self._dx = self._dy = 0
         self._expanded = False
         self._essential = False
+        self._reshaping = False     # the expand dot or the mode switch at work
         self._rs_x = self._rs_y = self._rs_w = self._rs_h = 0
         self._menu_win = None
         self._menu_click_job = None   # outside-click watcher while a menu is open
@@ -5373,57 +5419,56 @@ class Widget:
 
     # ── Toggle expand/collapse ─────────────────────
 
-    def _animate(self, start_y, start_h, end_y, end_h, cover, step=0):
-        """Smooth upward expand/collapse with cover overlay to prevent artifacts."""
-        total = 10
-        if step == 0:
-            try:
-                self.root.attributes('-alpha', 1.0)  # opaque animates smoother
-            except Exception:
-                pass
-        if step > total:
-            self.root.geometry(f'{self.root.winfo_width()}x{end_h}+{self.root.winfo_x()}+{end_y}')
-            self.root.update_idletasks()
-            cover.destroy()
-            try:
-                self.root.attributes('-alpha', 0.94)  # restore translucency
-            except Exception:
-                pass
-            self._animating = False
-            return
-        t = 1 - (1 - step / total) ** 3  # ease-out cubic
-        cur_h = int(start_h + (end_h - start_h) * t)
-        cur_y = int(start_y + (end_y - start_y) * t)
-        self.root.geometry(f'{self.root.winfo_width()}x{cur_h}+{self.root.winfo_x()}+{cur_y}')
-        self.root.after(8, self._animate, start_y, start_h, end_y, end_h, cover, step + 1)
+    def _reshape(self, change):
+        """Change the widget's own layout and size, and show only the result.
 
-    def _start_anim(self, start_y, start_h, end_y, end_h):
-        """Create cover overlay and start animation."""
-        cover = tk.Frame(self.root, bg=BG)
-        # Extend beyond bounds to cover any edge artifacts
-        cover.place(x=-10, y=-10, relwidth=1, relheight=1, width=20, height=20)
-        cover.lift()
-        self.root.update_idletasks()
-        self._animating = True
-        self._animate(start_y, start_h, end_y, end_h, cover)
+        The expand dot and the mode switch used to cover the widget with a
+        plain panel and grow it in ten steps 8 ms apart: every step uncovered
+        a band that Windows showed black until Tk painted it, the bars came
+        back all at once at the end, and the translucency was dropped for the
+        ride and put back after it. The user asked for these to change the way
+        the windows now open (2026-09-28). A still picture of the widget stays
+        on screen while the real one, cloaked, is laid out, sized and painted
+        (_hold), and the finished widget takes the picture's place in one
+        frame (_present). A click meanwhile lands on the picture and is lost,
+        as one during the animation was.
+
+        🔴 Not while the widget has a button on the taskbar (show_in_taskbar):
+        a window taken off the screen may take its button off the taskbar,
+        and the progress drawn on it (not measured: the taskbar cannot be
+        watched without showing it to the user). The change then shows as it
+        is made, in one step, as it does when DWM refuses the cloak."""
+        root = self.root
+        self._reshaping = True
+        # What _hold and _present ask of a window: on show (the user just
+        # clicked it), rounded (dwm_round at start-up), and its geometry.
+        root._revealed = True
+        root._rounded = True
+        root._place = lambda: (root.winfo_width(), root.winfo_height(),
+                               root.winfo_x(), root.winfo_y())
+        if not _on_taskbar(_frame_of(root)):
+            self._hold(root)
+
+        def done():
+            self._reshaping = False
+
+        try:
+            change()
+        finally:
+            # Whatever happened, the widget comes back: _present uncloaks it.
+            self._present(root, root._place, then=done, gone=done)
 
     def _toggle_expand(self):
-        if getattr(self, '_animating', False):
+        if self._reshaping:
             return
         # Expand is an essential-mode affordance only; normal mode already
         # shows the selected bars stacked (the dot is hidden there).
         if not self._essential:
             return
-        start_h = self.root.winfo_height()
-        start_y = self.root.winfo_y()
-        bottom = start_y + start_h
+        self._reshape(self._flip_expand)
 
-        # Cover the window during the relayout + animation so the brief paint of
-        # the new layout squished into the old height never flashes. Re-lifted
-        # after the repack so it stays above the freshly packed widgets.
-        cover = tk.Frame(self.root, bg=BG)
-        cover.place(x=-10, y=-10, relwidth=1, relheight=1, width=20, height=20)
-
+    def _flip_expand(self):
+        """Open the strip to every bar stacked, or fold it back (_reshape)."""
         self._expanded = not self._expanded
         if self._expanded:
             # Expanding is 'see everything': show all bars stacked, with a bit
@@ -5438,8 +5483,6 @@ class Widget:
             self.bottom_pad.config(height=6)
             # back to the collapsed side-by-side strip
             self._enter_ess_collapsed()
-
-        cover.lift()  # above the freshly packed widgets, so the reflow is hidden
         self.root.update_idletasks()
         # Re-floor for the layout now showing, both ways round. Collapsing
         # into the strip may need a wider minimum than the last compute (bars
@@ -5456,31 +5499,27 @@ class Widget:
             # wider and the next periodic save would store that as the user's
             # width for this bar count.
             self._restore_ess_width(keep_height=True)
-            # Let it land: the animation below reads the width back, and a
-            # stale read would re-apply the wider one.
+            # Let it land: the height below reads the width back, and a stale
+            # read would re-apply the wider one.
             self.root.update_idletasks()
         # Size to the freshly-laid-out content in BOTH directions, keeping the
         # bottom edge anchored. A saved collapsed height was wrong when the mode
         # changed between expand and collapse (e.g. expand in essential, switch
         # to normal, then collapse): it restored essential's small height
         # instead of normal's. winfo_reqheight() always reflects current mode.
-        end_h = self.root.winfo_reqheight()
-        end_y = bottom - end_h
-        # Reset to the start height (the cover already hides the content) and
-        # animate; _animate destroys the cover when it finishes.
-        self.root.geometry(f'{self.root.winfo_width()}x{start_h}+{self.root.winfo_x()}+{start_y}')
-        self._animating = True
-        self._animate(start_y, start_h, end_y, end_h, cover)
+        self._resize_bottom_anchored()
+        self.root.update_idletasks()
 
     # ── Essential mode ─────────────────────────────
 
     def _toggle_essential(self):
-        if getattr(self, '_animating', False):
+        if self._reshaping:
             return
         wlog(f'MODE   toggle essential: {self._essential} -> {not self._essential}')
-        start_h = self.root.winfo_height()
-        start_y = self.root.winfo_y()
-        bottom = start_y + start_h
+        self._reshape(self._flip_essential)
+
+    def _flip_essential(self):
+        """Switch between the essential strip and standard mode (_reshape)."""
         self._essential = not self._essential
         if self._essential:
             self.tb.pack_forget()
@@ -5513,8 +5552,6 @@ class Widget:
                 self._unbind_drag_section(sec)
         self._update_expand_visibility()
         self.root.update_idletasks()
-        end_h = self.root.winfo_reqheight()
-        end_y = bottom - end_h
         self._update_minsize(keep_height=True)
         if restore_width:
             self._restore_ess_width(keep_height=True)
@@ -5523,9 +5560,9 @@ class Widget:
         # x would then be re-applied with the wider width, moving the widget
         # right instead of growing it leftward as intended.
         self.root.update_idletasks()
-        # Cover content, reset to start, animate
-        self.root.geometry(f'{self.root.winfo_width()}x{start_h}+{self.root.winfo_x()}+{start_y}')
-        self._start_anim(start_y, start_h, end_y, end_h)
+        # The height the new layout asks for, the bottom edge where it was.
+        self._resize_bottom_anchored()
+        self.root.update_idletasks()
 
     def _restore_essential(self):
         """Restore essential mode on startup - no animation, direct layout."""
@@ -6006,10 +6043,9 @@ class Widget:
         if cur_w > 1 and cur_w < needed:
             right = self.root.winfo_x() + cur_w
             y = self.root.winfo_y()
-            # keep_height: the caller is about to animate the height itself, so
-            # leave it alone. Writing the height the content asks for would show
-            # the finished size for a frame or two before the animation starts,
-            # because the flush below puts it on screen immediately.
+            # keep_height: the caller sets the height itself once the width has
+            # landed (_flip_expand, _flip_essential), from the bottom edge the
+            # widget had: a height written here would move that edge first.
             h = self.root.winfo_height() if keep_height else self.root.winfo_reqheight()
             self.root.geometry(f'{needed}x{h}+{right - needed}+{y}')
             # Apply it now. Tk would defer the move to an idle handler, and the
@@ -6052,8 +6088,7 @@ class Widget:
         if cur > 1 and cur != target:
             right = self.root.winfo_x() + cur
             y = self.root.winfo_y()
-            # See _update_minsize: when the caller animates the height, writing
-            # the content's height here would flash the finished size first.
+            # See _update_minsize: the caller sets the height itself.
             h = self.root.winfo_height() if keep_height else self.root.winfo_reqheight()
             self.root.geometry(f'{target}x{h}+{right - target}+{y}')
             # Apply it now, for the reason spelled out in _update_minsize: Tk
@@ -11916,6 +11951,11 @@ class Widget:
                 if not hwnd:
                     hwnd = self.root.winfo_id()
                 self._hwnd = hwnd
+            # While the widget changes behind its picture (_reshape) it is
+            # cloaked, and raising it changes nothing on screen. The picture
+            # is not moved here: it stays where it was put, directly above the
+            # widget as it was, under the widget's own popups (Windows keeps
+            # a window's popups above it) and over what was under the widget.
             ctypes.windll.user32.SetWindowPos(
                 hwnd, -1, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010)
             self.root.attributes('-topmost', True)
@@ -11974,8 +12014,13 @@ class Widget:
         """
         alive = []
         raising = False
-        wx, wy = self.root.winfo_rootx(), self.root.winfo_rooty()
-        ww, wh = self.root.winfo_width(), self.root.winfo_height()
+        # The widget, and the picture standing in for it while it changes
+        # (_reshape): the picture has the size it had.
+        widget = [(self.root.winfo_rootx(), self.root.winfo_rooty(),
+                   self.root.winfo_width(), self.root.winfo_height())]
+        still = getattr(self.root, '_still', None)
+        if still is not None and still.hwnd:
+            widget.append(still.rect)
         for dlg in self._open_dialogs:
             try:
                 if not dlg.winfo_exists():
@@ -11995,7 +12040,8 @@ class Widget:
                         if still is not None and still.hwnd:
                             rects.append(still.rect)
                     raising = any(dx < wx + ww and wx < dx + dw_ and dy < wy + wh
-                                  and wy < dy + dh_ for dx, dy, dw_, dh_ in rects)
+                                  and wy < dy + dh_ for dx, dy, dw_, dh_ in rects
+                                  for wx, wy, ww, wh in widget)
                 if raising:
                     self._raise_window(dlg)
             except tk.TclError:
