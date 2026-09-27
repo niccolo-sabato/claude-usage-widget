@@ -9011,11 +9011,12 @@ class Widget:
         return (bw, bh, wx, wy)
 
     def _on_banner_follow(self):
-        # Not while the widget changes behind its picture (_reshape): the
-        # banner went to the widget's new place 50 to 110 ms before the widget
-        # showed there (review of 2026-09-28). It follows when the widget
-        # comes out.
-        if self._reshaping:
+        # Not while the widget changes behind its picture (_reshape, the widget
+        # cloaked): the banner went to the widget's new place 50 to 110 ms
+        # before the widget showed there. It follows when the widget comes out
+        # (done). A widget reshaped in view (a taskbar button, no picture) is
+        # followed at once, as before (second review of 2026-09-28).
+        if self._reshaping and getattr(self.root, '_cloaked', False):
             return
         bw, bh = getattr(self, '_banner_size', (0, 0))
         if bw and bh:
