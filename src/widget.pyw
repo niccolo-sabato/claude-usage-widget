@@ -7102,9 +7102,13 @@ class Widget:
         def drag_s(e): dlg._dx, dlg._dy = e.x, e.y
 
         def drag_m(e):
-            # Where the user puts it, it stays (_place_dialog).
-            dlg._dragged = True
-            dlg.geometry(f'+{dlg.winfo_x()+e.x-dlg._dx}+{dlg.winfo_y()+e.y-dlg._dy}')
+            nx, ny = dlg.winfo_x() + e.x - dlg._dx, dlg.winfo_y() + e.y - dlg._dy
+            dlg.geometry(f'+{nx}+{ny}')
+            # Where the user puts it, it stays, on the side of the widget it
+            # now sits (_place_dialog). A flag that a drag had happened
+            # stayed set for good, a twitch of the title bar with it.
+            dlg._seat = (self._dialog_seat(nx, ny, dlg.winfo_width(), dlg.winfo_height()),
+                         self._widget_rect())
         for w in (tb, title_lbl):
             w.bind('<Button-1>', drag_s)
             w.bind('<B1-Motion>', drag_m)
@@ -7439,7 +7443,7 @@ class Widget:
         dialog is shorter than its content, the widgets packed last are the
         ones squeezed out.
         """
-        stand_in, anchor, seat = None, None, (None, False)
+        stand_in, anchor, seat = None, None, None
         if key is not None:
             old = self._dialogs.get(key)
             try:
@@ -7456,7 +7460,7 @@ class Widget:
                     # window before it stands in for this one.
                     stand_in, old._stand_in = getattr(old, '_stand_in', None), None
                     anchor = getattr(old, '_anchor', None)
-                seat = (getattr(old, '_clear', None), getattr(old, '_dragged', False))
+                seat = getattr(old, '_seat', None)
                 try:
                     old.destroy()
                 except tk.TclError:
@@ -7474,7 +7478,7 @@ class Widget:
         self._prepare(dlg)
         dlg._stand_in = stand_in
         dlg._anchor = anchor
-        dlg._clear, dlg._dragged = seat
+        dlg._seat = seat
         dlg._place_args = (dw, dh)
         dlg._place = lambda: self._place_dialog(dlg, *dlg._place_args)
 
@@ -7496,22 +7500,48 @@ class Widget:
             dlg, dlg._place, then=drop_stand_in, gone=drop_stand_in))
         return dlg, body
 
+    def _dialog_seat(self, x, top, w, h):
+        """How a dialog at (x, top, w, h) sits against the widget now: 'above'
+        or 'below' it and clear of it, or None (beside it, or over it)."""
+        rx, ry = self.root.winfo_x(), self.root.winfo_y()
+        rw, rh = self.root.winfo_width(), self.root.winfo_height()
+        if not (x < rx + rw and rx < x + w):
+            return None
+        if top + h <= ry:
+            return 'above'
+        if top >= ry + rh:
+            return 'below'
+        return None
+
+    def _widget_rect(self):
+        return (self.root.winfo_x(), self.root.winfo_y(),
+                self.root.winfo_width(), self.root.winfo_height())
+
     def _place_dialog(self, dlg, dw, dh_floor=0):
         """Give a dialog the height its content asks for, and its place.
 
         Until it first shows, the place comes from that height, as it always
-        did: above the widget and clear of it, below when there is no room.
-        It is worked out for the height plus the room the dialog keeps for a
-        part that can open later (dlg._reserve: the account page's advanced
-        options), so that opening that part unfolds downward. A dialog opened
-        in the place of one of its kind opens where that one was (dlg._anchor).
+        did: above the widget and clear of it, below when there is no room. A
+        dialog with a part that can open later (dlg._reserve: the account
+        page's advanced options, the key form behind the login way) is placed
+        where its whole height fits clear of the widget, above or below, so
+        that the part unfolds downward; when no side has room for all of it,
+        it is placed for its own height and lifted by what the screen allows.
+        A dialog opened in the place of one of its kind opens where that one
+        was (dlg._anchor), and sits as that one did.
 
         🔴 Once it has shown, its top edge stays where the user saw it or
-        dragged it: the dialog grows and shrinks downward, and moves up only
-        as far as it must to stay on its screen, and clear of the widget when
-        it sat clear of it. It used to be placed afresh above the widget on
-        every change, so every change moved its top edge and everything in
-        it. A dialog on show is held still while it changes (_hold).
+        dragged it: the dialog grows and shrinks downward, and moves only as
+        far as it must to stay on its screen and on its side of the widget
+        (dlg._seat: which side, and where the widget was then). The side holds
+        while the widget only grows or shrinks at its other edge (an error
+        panel), so a widget growing into a dialog pushes the dialog away; when
+        the widget or the dialog has been moved since, it is judged afresh
+        from where they are (review of 2026-09-27, second iteration: a side
+        remembered as a flag pulled a dialog onto a widget dragged elsewhere).
+        It used to be placed afresh above the widget on every change, so every
+        change moved its top edge and everything in it. A dialog on show is
+        held still while it changes (_hold).
 
         dh_floor sets a minimum height (for dialogs that look better with some
         breathing room than shrink-wrapped); the content still wins when
@@ -7521,6 +7551,7 @@ class Widget:
             self._hold(dlg)
         dlg._place_args = (dw, dh_floor)
         dlg.update_idletasks()
+        rx, ry, rw, rh = self._widget_rect()
         anchor = getattr(dlg, '_anchor', None)
         if shown or anchor:
             if shown:
@@ -7532,35 +7563,40 @@ class Widget:
                                _MONITOR_DEFAULTTONEAREST)
             ml, mt, mr, mb = info[1] if info else self._widget_monitor_area()
             need = min(max(dh_floor, dlg.winfo_reqheight()), (mb - mt) - 2 * SCREEN_MARGIN)
+            side, was = getattr(dlg, '_seat', None) or (None, None)
+            grown_in_place = was is not None and (
+                side == 'above' and was[1] + was[3] == ry + rh
+                or side == 'below' and was[1] == ry)
+            if not grown_in_place:
+                side = self._dialog_seat(x, top, dw, seen_bottom - top)
+            if side and not (x < rx + rw and rx < x + dw):
+                side = None
             lowest = mb - TASKBAR_GAP
-            rx, ry, rw = self.root.winfo_x(), self.root.winfo_y(), self.root.winfo_width()
-            clear = getattr(dlg, '_clear', None)
-            if clear is None or getattr(dlg, '_dragged', False):
-                # Moved by the user, or nothing known: as it sits now.
-                clear = x < rx + rw and rx < x + dw and seen_bottom <= ry
-            if clear:
-                # Placed clear above the widget: it stays clear, even of a
-                # widget that has grown up into it since (an error panel).
-                # Judged from where the widget is now, that dialog was left
-                # over it for good (review of 2026-09-27).
+            if side == 'above':
                 lowest = min(lowest, ry - SCREEN_MARGIN)
+            elif side == 'below':
+                top = max(top, ry + rh + SCREEN_MARGIN)
+            # The screen first: a dialog that fits neither side of the widget
+            # keeps its buttons on the screen, over the widget if it must.
             top = max(mt + SCREEN_MARGIN, min(top, lowest - need))
             x = max(ml + SCREEN_MARGIN, min(x, mr - dw - SCREEN_MARGIN))
         else:
             ml, mt, mr, mb = self._widget_monitor_area()
             room = (mb - mt) - 2 * SCREEN_MARGIN
             need = min(max(dh_floor, dlg.winfo_reqheight()), room)
-            x, top = self._place_popup(dw, need)
             reserve = getattr(dlg, '_reserve', 0)
-            if reserve and top + need <= self.root.winfo_y():
-                # Above the widget: up by the room the folded part takes, as
-                # far as the screen allows. Placed for the two heights
-                # together, a page that could not have both above the widget
-                # was clamped onto it (review of 2026-09-27).
-                top = max(mt + SCREEN_MARGIN, top - reserve)
+            whole = min(room, need + reserve)
+            x, top = self._place_popup(dw, whole)
+            if not (reserve and self._dialog_seat(x, top, dw, whole)):
+                # No side of the widget has room for the whole of it (review
+                # of 2026-09-27: placed for the two heights anyway, the page
+                # was clamped onto the widget). Its own height, as before,
+                # and above the widget as much of the rest as the screen has.
+                x, top = self._place_popup(dw, need)
+                if reserve and self._dialog_seat(x, top, dw, need) == 'above':
+                    top = max(mt + SCREEN_MARGIN, top - reserve)
         dlg.geometry(f'{dw}x{need}+{x}+{top}')
-        rx, ry, rw = self.root.winfo_x(), self.root.winfo_y(), self.root.winfo_width()
-        dlg._clear = x < rx + rw and rx < x + dw and top + need <= ry
+        dlg._seat = (self._dialog_seat(x, top, dw, need), (rx, ry, rw, rh))
         # What _present compares the next placement with, whoever asked
         # for this one.
         dlg._geo = (dw, need, x, top)
