@@ -3151,6 +3151,7 @@ class _Still:
         x, y, w, h = r.left, r.top, r.right - r.left, r.bottom - r.top
         if w <= 0 or h <= 0:
             raise OSError('the window has no size')
+        self.rect = (x, y, w, h)
         # 24 bits: no alpha channel for the system to blend the picture with.
         bi = _BITMAPINFOHEADER(ctypes.sizeof(_BITMAPINFOHEADER), w, -h, 1, 24, 0, 0, 0, 0, 0, 0)
         bits = ctypes.c_void_p()
@@ -7099,8 +7100,11 @@ class Widget:
         close_btn.bind('<Leave>', lambda e: close_btn.config(fg=DIM, bg=BG_TITLE))
 
         def drag_s(e): dlg._dx, dlg._dy = e.x, e.y
-        def drag_m(e): dlg.geometry(
-            f'+{dlg.winfo_x()+e.x-dlg._dx}+{dlg.winfo_y()+e.y-dlg._dy}')
+
+        def drag_m(e):
+            # Where the user puts it, it stays (_place_dialog).
+            dlg._dragged = True
+            dlg.geometry(f'+{dlg.winfo_x()+e.x-dlg._dx}+{dlg.winfo_y()+e.y-dlg._dy}')
         for w in (tb, title_lbl):
             w.bind('<Button-1>', drag_s)
             w.bind('<B1-Motion>', drag_m)
@@ -7311,10 +7315,13 @@ class Widget:
                 run['rounds'] += 1
                 self.root.after(0, settle)
                 return
-            # Idle: the queue is empty by then, so the Expose events the paint
-            # messages became have been handled, and show() draws what they
-            # asked for before anything is uncloaked.
-            self.root.after_idle(show)
+            # A timer, queued behind the Expose events those paint messages
+            # became: they are handled first, and show() draws what they asked
+            # for before anything is uncloaked. Not an idle callback: every
+            # update_idletasks runs those, and a change made meanwhile (a pill
+            # button measures itself with one) ran show() in its middle and
+            # uncloaked a list rebuilt halfway (review of 2026-09-27).
+            self.root.after(0, show)
 
         def show():
             if not alive():
@@ -7332,7 +7339,7 @@ class Widget:
                     return
                 if _unpainted(win):
                     _paint_now(win)
-                    self.root.after_idle(show)
+                    self.root.after(0, show)
                     return
             else:
                 wlog('SHOW   a window was still settling after 500 ms: shown as it was')
@@ -7432,7 +7439,7 @@ class Widget:
         dialog is shorter than its content, the widgets packed last are the
         ones squeezed out.
         """
-        stand_in, anchor = None, None
+        stand_in, anchor, seat = None, None, (None, False)
         if key is not None:
             old = self._dialogs.get(key)
             try:
@@ -7449,6 +7456,7 @@ class Widget:
                     # window before it stands in for this one.
                     stand_in, old._stand_in = getattr(old, '_stand_in', None), None
                     anchor = getattr(old, '_anchor', None)
+                seat = (getattr(old, '_clear', None), getattr(old, '_dragged', False))
                 try:
                     old.destroy()
                 except tk.TclError:
@@ -7466,6 +7474,7 @@ class Widget:
         self._prepare(dlg)
         dlg._stand_in = stand_in
         dlg._anchor = anchor
+        dlg._clear, dlg._dragged = seat
         dlg._place_args = (dw, dh)
         dlg._place = lambda: self._place_dialog(dlg, *dlg._place_args)
 
@@ -7525,8 +7534,15 @@ class Widget:
             need = min(max(dh_floor, dlg.winfo_reqheight()), (mb - mt) - 2 * SCREEN_MARGIN)
             lowest = mb - TASKBAR_GAP
             rx, ry, rw = self.root.winfo_x(), self.root.winfo_y(), self.root.winfo_width()
-            if x < rx + rw and rx < x + dw and seen_bottom <= ry:
-                # It sat above the widget, clear of it: it stays clear.
+            clear = getattr(dlg, '_clear', None)
+            if clear is None or getattr(dlg, '_dragged', False):
+                # Moved by the user, or nothing known: as it sits now.
+                clear = x < rx + rw and rx < x + dw and seen_bottom <= ry
+            if clear:
+                # Placed clear above the widget: it stays clear, even of a
+                # widget that has grown up into it since (an error panel).
+                # Judged from where the widget is now, that dialog was left
+                # over it for good (review of 2026-09-27).
                 lowest = min(lowest, ry - SCREEN_MARGIN)
             top = max(mt + SCREEN_MARGIN, min(top, lowest - need))
             x = max(ml + SCREEN_MARGIN, min(x, mr - dw - SCREEN_MARGIN))
@@ -7534,8 +7550,17 @@ class Widget:
             ml, mt, mr, mb = self._widget_monitor_area()
             room = (mb - mt) - 2 * SCREEN_MARGIN
             need = min(max(dh_floor, dlg.winfo_reqheight()), room)
-            x, top = self._place_popup(dw, min(room, need + getattr(dlg, '_reserve', 0)))
+            x, top = self._place_popup(dw, need)
+            reserve = getattr(dlg, '_reserve', 0)
+            if reserve and top + need <= self.root.winfo_y():
+                # Above the widget: up by the room the folded part takes, as
+                # far as the screen allows. Placed for the two heights
+                # together, a page that could not have both above the widget
+                # was clamped onto it (review of 2026-09-27).
+                top = max(mt + SCREEN_MARGIN, top - reserve)
         dlg.geometry(f'{dw}x{need}+{x}+{top}')
+        rx, ry, rw = self.root.winfo_x(), self.root.winfo_y(), self.root.winfo_width()
+        dlg._clear = x < rx + rw and rx < x + dw and top + need <= ry
         # What _present compares the next placement with, whoever asked
         # for this one.
         dlg._geo = (dw, need, x, top)
@@ -11911,9 +11936,18 @@ class Widget:
                 if not dlg.winfo_ismapped():
                     continue
                 if not raising:
-                    dx, dy = dlg.winfo_rootx(), dlg.winfo_rooty()
-                    raising = (dx < wx + ww and wx < dx + dlg.winfo_width()
-                               and dy < wy + wh and wy < dy + dlg.winfo_height())
+                    # The window, and the picture standing in for it: a page
+                    # built out of sight in place of another is not yet where
+                    # its picture is, and the widget went over the picture for
+                    # a tick (review of 2026-09-27).
+                    rects = [(dlg.winfo_rootx(), dlg.winfo_rooty(),
+                              dlg.winfo_width(), dlg.winfo_height())]
+                    for still in (getattr(dlg, '_stand_in', None),
+                                  getattr(dlg, '_still', None)):
+                        if still is not None and still.hwnd:
+                            rects.append(still.rect)
+                    raising = any(dx < wx + ww and wx < dx + dw_ and dy < wy + wh
+                                  and wy < dy + dh_ for dx, dy, dw_, dh_ in rects)
                 if raising:
                     self._raise_window(dlg)
             except tk.TclError:
