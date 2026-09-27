@@ -7492,31 +7492,19 @@ class Widget:
             dlg, dlg._place, then=drop_stand_in, gone=drop_stand_in))
         return dlg, body
 
-    def _dialog_seat(self, x, top, w, h):
-        """How a dialog at (x, top, w, h) sits against the widget now: 'above'
-        or 'below' it and clear of it, or None (beside it, or over it)."""
-        rx, ry = self.root.winfo_x(), self.root.winfo_y()
-        rw, rh = self.root.winfo_width(), self.root.winfo_height()
-        if not (x < rx + rw and rx < x + w):
-            return None
-        if top + h <= ry:
-            return 'above'
-        if top >= ry + rh:
-            return 'below'
-        return None
-
-    def _widget_rect(self):
-        return (self.root.winfo_x(), self.root.winfo_y(),
-                self.root.winfo_width(), self.root.winfo_height())
-
     def _keep_clear(self, x, top, w, h, lo, hi):
         """Where a dialog on show goes when it changes (_place_dialog).
 
         Where it is, while it is on its screen (its top between lo and hi) and
         clear of the widget. Otherwise the nearest place that is both: just
-        above the widget, just below it, or back on the screen. Where it is,
-        back on its screen, when no place is: its buttons stay reachable, over
-        the widget if they must, as they always did.
+        above the widget, just below it, or back on the screen, SCREEN_MARGIN
+        away from the widget; when no side has room for the margin, as far
+        from the widget as the screen allows, touching it at worst, as
+        _place_popup put a dialog below it (fourth review of 2026-09-27: held
+        to the margin alone, a dialog with room below for itself but not for
+        the margin stayed over the widget). Where it is, back on its screen,
+        when no place is: its buttons stay reachable, over the widget if they
+        must, as they always did.
 
         🔴 No memory of which side of the widget a dialog was on, and no exact
         comparison of edges: the second and third reviews of 2026-09-27 found
@@ -7534,12 +7522,17 @@ class Widget:
 
         if lo <= top <= hi and clear(top):
             return top
-        places = [t for t in (min(max(top, lo), hi), ry - SCREEN_MARGIN - h,
-                              ry + rh + SCREEN_MARGIN)
+        here = min(max(top, lo), hi)
+        above, below = ry - SCREEN_MARGIN - h, ry + rh + SCREEN_MARGIN
+        places = [t for t in (here, above, below)
                   if lo <= t <= hi and clear(t, SCREEN_MARGIN)]
+        if not places:
+            places = [t for t in (here, min(max(above, lo), hi),
+                                  min(max(below, lo), hi))
+                      if clear(t)]
         if places:
             return min(places, key=lambda t: abs(t - top))
-        return min(max(top, lo), hi)
+        return here
 
     def _dialog_seat(self, x, top, w, h):
         """How a dialog at (x, top, w, h) sits against the widget now: 'above'
