@@ -1090,6 +1090,56 @@ def reopen_renewals():
     _CLOSING.clear()
 
 
+# An update about to replace the program: the installer closes by force every
+# process running from the program's folder, the command line the scripts run
+# included. Marked in the store, so that every process sees it under the
+# renewal lock and starts nothing; the widget clears it when it starts again
+# (the installer relaunches it), and it lapses by itself after a while if the
+# update never happened (review of 2026-09-30, fourth iteration).
+INSTALL_MARK = '.installing'
+INSTALL_MARK_S = 600
+
+
+def mark_install():
+    """An update is about to start: no process starts a renewal, a switch or
+    a check from now on."""
+    try:
+        ensure_store()
+        with open(os.path.join(store(), INSTALL_MARK), 'w', encoding='utf-8') as f:
+            f.write(datetime.now().astimezone().isoformat())
+    except OSError:
+        pass
+
+
+def clear_install_mark():
+    """The update is over, or did not start."""
+    try:
+        os.remove(os.path.join(store(), INSTALL_MARK))
+    except OSError:
+        pass
+
+
+def _install_pending():
+    try:
+        age = time.time() - os.path.getmtime(os.path.join(store(), INSTALL_MARK))
+    except OSError:
+        return False
+    return 0 <= age < INSTALL_MARK_S
+
+
+def renewal_busy():
+    """Whether a renewal, a switch or a check holds the renewal lock in this
+    process or in another (the command line): the lock's file is tried, and
+    let go at once when it could be had."""
+    if renewal_in_flight():
+        return True
+    fd = _lock_renewal_file(time.monotonic())
+    if fd is None:
+        return True
+    _unlock_renewal_file(fd)
+    return False
+
+
 def renewal_in_flight():
     """Whether a renewal, a switch or a check of this process holds the
     renewal lock. A quit then could cut it between the server's answer and
@@ -1167,7 +1217,8 @@ def renewal_lock(wait_s=None):
             # one of the two always sees the other, so nothing starts behind
             # a quit that found the lock free (review of 2026-09-30, second
             # iteration). What is already inside (a switch renewing) goes on.
-            yield not (_CLOSING.is_set() and _renewal_held['depth'] == 1)
+            yield not (_renewal_held['depth'] == 1
+                       and (_CLOSING.is_set() or _install_pending()))
         finally:
             _renewal_held['depth'] -= 1
             if _renewal_held['depth'] == 0:
@@ -1237,6 +1288,22 @@ def holds_no_login(live):
     if not live.get('read'):
         return (live.get('judgement') or {}).get('key') == 'cc_j_file_missing'
     return not holds_login(live)
+
+
+# How far apart two renewal dates of one sign-in can be (chain()): the date
+# is the sign-in's, and a renewal keeps it (_ask_and_keep, as Claude Code
+# does); a few seconds for a writer that computes it from the answer again.
+# Two sign-ins, each through a browser, are never this close.
+SIGNIN_SLACK_MS = 20 * 1000
+
+
+def same_signin(oauth, live):
+    """Whether a login's tokens are of the sign-in whose login is in Claude
+    Code's file, by the renewal date all the tokens of a sign-in share
+    (chain()). Neither label nor key enters into it."""
+    mine = chain(oauth)
+    theirs = chain({'refreshTokenExpiresAt': live.get('refresh_expires')})
+    return bool(mine and theirs and abs(mine - theirs) <= SIGNIN_SLACK_MS)
 
 
 def proven_live_account(live, call=None, known=None):
@@ -1382,7 +1449,7 @@ def _renew_held(name, post, call=None, known=None):
         # may be this one. Said as what it is: about that file, not this login.
         return {'judgement': dict(live.get('judgement') or verdict(
                     UNKNOWN, 'cc_j_file_unreadable', {}, 'cc_r_try_again'), kind=UNKNOWN),
-                'renewed': False}
+                'renewed': False, 'about_live': ''}
     if live.get('refresh_print') and live['refresh_print'] == mine:
         return {'judgement': verdict(UNKNOWN, 'cc_j_renew_in_use', {'name': name}),
                 'renewed': False, 'in_use': True}
@@ -1413,6 +1480,16 @@ def _renew_held(name, post, call=None, known=None):
         if org == data['organizationUuid']:
             return {'judgement': verdict(UNKNOWN, 'cc_j_renew_account_in_use', {'name': name}),
                     'renewed': False, 'in_use': True, 'proof': proof}
+        # 🔴 Nor a token of the sign-in Claude Code is using, whatever the
+        # saved login's label says: an earlier token of that sign-in is one
+        # Claude Code has already rotated away, and sending it may retire the
+        # whole sign-in. A wrong label (an older tool's) had exactly that
+        # renewed, through the label of the login being renewed (review of
+        # 2026-09-30, fourth iteration). Written live, it is dead: refused.
+        if not label_confirmed(data) and same_signin(oauth, live):
+            return {'judgement': verdict(BAD, 'cc_j_renew_same_signin', {'name': name},
+                                         'cc_r_resave_while_active'),
+                    'renewed': False, 'same_signin': True, 'proof': proof}
 
     # The copy of the profile as it stands, taken BEFORE asking: once the
     # server answers, the old token is retired, and the first thing done with
@@ -1460,9 +1537,13 @@ def _ask_and_keep(name, post, data, oauth, token, mine, scopes):
             new['expiresAt'] = now_ms + int(float(answer['expires_in']) * 1000)
         except (KeyError, TypeError, ValueError):
             new['expiresAt'] = now_ms + SHORT_TOKEN_DEFAULT_S * 1000
+        # The renewal date is the sign-in's (chain()), and stays: Claude Code
+        # keeps it through its renewals (measured on 2026-09-27), and the rule
+        # that never renews a token of the live login's sign-in reads it.
+        # From the answer only when the login had none.
         try:
             left = float(answer.get('refresh_token_expires_in'))
-            if left > 0:
+            if left > 0 and not new.get('refreshTokenExpiresAt'):
                 new['refreshTokenExpiresAt'] = now_ms + int(left * 1000)
         except (TypeError, ValueError):
             pass
@@ -1998,6 +2079,13 @@ def save_profile(name, live_data=None, call=None, proven=None, expect_org=None):
         }
         if org_note in ('server', 'confirmed'):
             prof['orgProof'] = org_proof(mine)
+        elif (previous_org == org and label_confirmed(previous)
+              and fingerprint(((previous or {}).get('claudeAiOauth') or {})
+                              .get('refreshToken')) == mine):
+            # The same token, the same account: the server's confirmation
+            # stays. A save that found only a label dropped it (review of
+            # 2026-09-30, fourth iteration).
+            prof['orgProof'] = previous['orgProof']
         ensure_store()
         backup_profile(name)
         write_json_atomic(profile_path(name), prof)
@@ -2231,6 +2319,12 @@ def _switch_held(name, *, knowingly, call, plan_check, name_for_org, post):
         # account" parked a fresh login under an 'auto-' name and put an older
         # snapshot live, and Claude Code answered the next command with
         # "OAuth session expired" (review of 2026-09-26). Nothing is written.
+        # A live login the server refuses is said as such (review of
+        # 2026-09-30, fourth iteration).
+        if _check_live(name, target, False, call, live)['judgement']['kind'] == BAD:
+            return {'done': False, 'asks': False,
+                    'judgement': verdict(UNKNOWN, 'cc_j_renew_live_refused',
+                                         {'name': name}, 'cc_r_login_again')}
         return {'done': False, 'asks': False,
                 'judgement': verdict(UNKNOWN, 'cc_j_live_unidentified', {},
                                      'cc_r_identify_live')}
@@ -2298,6 +2392,7 @@ def _switch_held(name, *, knowingly, call, plan_check, name_for_org, post):
         return {'done': False, 'asks': False, 'judgement': live.get('judgement')}
 
     checked = None
+    out_known = None
     if post is not None:
         # What this switch has heard from the server about the live login
         # goes with it. Not a saved login holding its tokens: a label that
@@ -2329,6 +2424,13 @@ def _switch_held(name, *, knowingly, call, plan_check, name_for_org, post):
                     'judgement': verdict(UNKNOWN, 'cc_j_live_unidentified', {},
                                          'cc_r_identify_live')}
         proof = checked.get('proof') or {}
+        if proof.get('org') and proof.get('print') == live.get('refresh_print'):
+            # Whose the live login is, as renew proved it (the server, or
+            # saved logins whose labels the server confirmed): the outgoing
+            # login is saved by it, before any label (below).
+            out_known = {'org': proof['org'],
+                         'note': 'server' if proof.get('how') in ('server', 'known')
+                         else 'confirmed'}
         if (proof.get('how') == 'server' and proof.get('org')
                 and proof.get('print') == live.get('refresh_print')):
             # The server's word renew heard about the live login: the save of
@@ -2380,7 +2482,9 @@ def _switch_held(name, *, knowingly, call, plan_check, name_for_org, post):
     pre_oauth = pre.get('claudeAiOauth') or {}
     pre_print = fingerprint(pre_oauth.get('refreshToken'))
     out_proven = None
-    if (live.get('org_source') == 'server' and live.get('org')
+    if out_known and pre_print and pre_print == live.get('refresh_print'):
+        out_proven = dict(out_known, email=live.get('server_email'))
+    elif (live.get('org_source') == 'server' and live.get('org')
             and pre_print and pre_print == live.get('refresh_print')):
         out_proven = {'org': live['org'], 'email': live.get('server_email'),
                       'note': 'server'}

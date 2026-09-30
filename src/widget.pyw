@@ -1655,6 +1655,7 @@ CC_LANG = {
         'cc_j_renew_moved': 'The saved login of {name} changed while I was renewing it, so I changed nothing.',
         'cc_j_renew_busy': 'Another switch or check of a saved login was already under way on this computer, so I changed nothing.',
         'cc_j_renew_live_refused': 'The server refuses the login Claude Code is using right now, so I cannot tell whose it is, and I did not renew the saved login of {name}.',
+        'cc_j_renew_same_signin': 'The saved login of {name} holds an earlier token of the login Claude Code is using now: it would sign Claude Code out, so it is not used.',
         'cc_j_renew_not_kept': 'The server renewed the saved login of {name}, but I could not make sure its new tokens were saved, and the old ones no longer work.',
         'cc_j_renew_other': 'The server refused the request ({error}, HTTP {code}), not the login.',
         'cc_j_in_use_renews': 'In use by Claude Code, which renews it at its next command: there is nothing to check it with right now.',
@@ -1801,6 +1802,7 @@ CC_LANG = {
         'cc_j_renew_moved': 'L’accesso salvato di {name} è cambiato mentre lo rinnovavo, quindi non ho cambiato niente.',
         'cc_j_renew_busy': 'Su questo computer era già in corso un altro passaggio o una verifica di un accesso salvato, quindi non ho cambiato niente.',
         'cc_j_renew_live_refused': 'Il server rifiuta il login che Claude Code sta usando in questo momento, quindi non posso capire di chi sia, e non ho rinnovato l’accesso salvato di {name}.',
+        'cc_j_renew_same_signin': 'L’accesso salvato di {name} contiene un token precedente del login che Claude Code sta usando: farebbe uscire Claude Code, quindi non lo uso.',
         'cc_j_renew_not_kept': 'Il server ha rinnovato l’accesso salvato di {name}, ma non ho potuto assicurarmi che i token nuovi fossero salvati, e quelli vecchi non funzionano più.',
         'cc_j_renew_other': 'Il server ha rifiutato la richiesta ({error}, HTTP {code}), non l’accesso.',
         'cc_j_in_use_renews': 'In uso da Claude Code, che lo rinnova al prossimo comando: adesso non c’è niente con cui verificarlo.',
@@ -1947,6 +1949,7 @@ CC_LANG = {
         'cc_j_renew_moved': '{name} の保存済みログインが更新中に変わったため、何も変更していません。',
         'cc_j_renew_busy': 'このPCで別の切り替えか保存済みログインの確認がすでに進行中だったため、何も変更していません。',
         'cc_j_renew_live_refused': 'サーバーは Claude Code が今使用中のログインを拒否しているため、どのアカウントのものか確認できず、{name} の保存済みログインは更新していません。',
+        'cc_j_renew_same_signin': '{name} の保存済みログインには、Claude Code が今使っているログインの以前のトークンが入っています。使うと Claude Code がサインアウトされるため、使いません。',
         'cc_j_renew_not_kept': 'サーバーは {name} の保存済みログインを更新しましたが、新しいトークンが保存されたか確認できませんでした。古いトークンはもう使えません。',
         'cc_j_renew_other': 'サーバーが拒否したのはリクエスト（{error}、HTTP {code}）で、ログインではありません。',
         'cc_j_in_use_renews': 'Claude Code が使用中で、次のコマンドで更新されます。今は確認に使えるものがありません。',
@@ -9413,18 +9416,38 @@ class Widget:
         now answers "busy"), and the installer starts when what is under way
         has finished. The widget stays on screen meanwhile: the elevation
         prompt wants a process with the focus.
+
+        The command line the scripts run is closed by the installer too: the
+        lock is tried in every process, and a mark in the store keeps any
+        process from starting one (cc_accounts.mark_install). One install at a
+        time: a second download while one waits only changes the file it
+        runs; two waits ran two installers over each other (review of
+        2026-09-30, fourth iteration).
         """
+        self._install_path = path
+        if getattr(self, '_install_waiting', None) is not None:
+            return          # a wait is under way: it runs this file
+        self._install_waiting = time.monotonic()
         cc_accounts.close_renewals()
-        if cc_accounts.renewal_in_flight():
-            now = time.monotonic()
-            if getattr(self, '_install_waiting', None) is None:
-                self._install_waiting = now
+        cc_accounts.mark_install()
+        self._install_when_free()
+
+    def _install_when_free(self):
+        """_launch_installer's wait: the installer once no process holds the
+        renewal lock, or QUIT_RENEWAL_WAIT_S at the latest."""
+        busy = cc_accounts.renewal_busy()
+        if busy and time.monotonic() - self._install_waiting < QUIT_RENEWAL_WAIT_S:
+            if not getattr(self, '_install_logged', False):
+                self._install_logged = True
                 wlog('UPDATE  waiting for a renewal to be kept before installing')
-            if now - self._install_waiting < QUIT_RENEWAL_WAIT_S:
-                self.root.after(200, lambda: self._launch_installer(path))
-                return
+            self.root.after(200, self._install_when_free)
+            return
+        if busy:
             wlog('UPDATE  a renewal is still at work: installing anyway')
-        self._launch_installer_now(path)
+        # Reset either way: a retry after a failed start waits again.
+        self._install_waiting = None
+        self._install_logged = False
+        self._launch_installer_now(self._install_path)
 
     def _launch_installer_now(self, path):
         """Run the downloaded installer silently and exit so it can replace files.
@@ -9488,6 +9511,7 @@ class Widget:
         except Exception as e:
             wlog(f'UPDATE  launch failed: {e}')
             # The widget stays: renewals may start again (_launch_installer).
+            cc_accounts.clear_install_mark()
             cc_accounts.reopen_renewals()
             return
         wlog('UPDATE  installer launched (/VERYSILENT), exiting widget')
@@ -11686,8 +11710,14 @@ class Widget:
             if kind == cc_accounts.GOOD:
                 return BLUE, t('cc_ui_st_in_use_ok').format(when=cc_when(at)), '', ''
             if kind == cc_accounts.BAD:
-                # The line itself says "sign in again with /login".
-                return RED, t('cc_ui_st_refused').format(when=cc_when(at)), tip, ''
+                if (j or {}).get('remedy') == 'cc_r_login_again':
+                    # A refusal: the line itself says "sign in again".
+                    return RED, t('cc_ui_st_refused').format(when=cc_when(at)), tip, ''
+                # Not a refusal (another account's credentials, an earlier
+                # token of this sign-in): said as what it is, with its own
+                # remedy (review of 2026-09-30, fourth iteration).
+                return (RED, t('cc_ui_st_bad').format(why=cc_say(j)), tip,
+                        cc_say(j, 'remedy'))
             return (ORANGE, t('cc_ui_st_unverified').format(when=cc_when(at), why=cc_say(j)),
                     tip, cc_say(j, 'remedy'))
         if (profile.get('active') and said and said[0].get('key') == 'cc_j_verified_in_use'
@@ -12776,6 +12806,10 @@ if __name__ == '__main__':
             _code = 1
         sys.exit(_code)
     _mutex = None if os.environ.get('CLAUDE_USAGE_DEV') == '1' else _single_instance()
+    # Started again: an update that marked the store (mark_install) is over,
+    # or never happened. Renewals may start.
+    if _mutex is not None:
+        cc_accounts.clear_install_mark()
 
     # Catch unhandled exceptions globally (including tkinter callbacks)
     def _excepthook(exc_type, exc_value, exc_tb):
