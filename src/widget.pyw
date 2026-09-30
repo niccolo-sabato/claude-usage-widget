@@ -814,6 +814,7 @@ LANG = {
         'acct_cc_in_use': 'Claude Code on this computer is signed in as this account.',
         'acct_cc_elsewhere': 'Claude Code is signed in as another account right now.',
         'acct_cc_unknown': 'It is not clear yet which account Claude Code is signed in as.',
+        'acct_cc_no_login': 'Claude Code has no login on this computer right now: switching puts this one in use.',
         'acct_cc_how': 'To be able to switch to it, sign in to Claude Code once with this account: the widget saves the login by itself.',
         'acct_cc_how_manual': 'To be able to switch to it, sign in to Claude Code once with this account, then open this page again and press "Save this login".',
         'acct_cc_dead_how': 'Sign in to Claude Code with this account: the widget brings the saved login up to date by itself.',
@@ -1055,6 +1056,7 @@ LANG = {
         'acct_cc_in_use': 'Claude Code su questo computer è autenticato con questo account.',
         'acct_cc_elsewhere': 'Claude Code adesso è autenticato con un altro account.',
         'acct_cc_unknown': 'Non è ancora chiaro con quale account è autenticato Claude Code.',
+        'acct_cc_no_login': 'Claude Code non ha un accesso su questo computer in questo momento: passando, usa questo.',
         'acct_cc_how': 'Per poterci passare, accedi una volta a Claude Code con questo account: il widget salva l’accesso da solo.',
         'acct_cc_how_manual': 'Per poterci passare, accedi una volta a Claude Code con questo account, poi riapri questa pagina e premi "Salva questo accesso".',
         'acct_cc_dead_how': 'Accedi a Claude Code con questo account: il widget rimette in pari da solo l’accesso salvato.',
@@ -1310,6 +1312,7 @@ LANG = {
         'acct_cc_in_use': 'このコンピューターの Claude Code はこのアカウントでサインインしています。',
         'acct_cc_elsewhere': 'Claude Code は現在、別のアカウントでサインインしています。',
         'acct_cc_unknown': 'Claude Code がどのアカウントでサインインしているか、まだ確認できていません。',
+        'acct_cc_no_login': 'このPCの Claude Code は今ログインしていません。切り替えるとこのログインが使われます。',
         'acct_cc_how': '切り替えられるようにするには、このアカウントで Claude Code に一度サインインしてください。ログインはウィジェットが自動で保存します。',
         'acct_cc_how_manual': '切り替えられるようにするには、このアカウントで Claude Code に一度サインインしてから、このページを開き直して「このログインを保存」を押してください。',
         'acct_cc_dead_how': 'このアカウントで Claude Code にサインインしてください。保存済みのログインはウィジェットが自動で更新します。',
@@ -1651,6 +1654,7 @@ CC_LANG = {
         'cc_j_renew_account_in_use': 'Claude Code is signed in to this account: its saved login is not renewed from here, because its token may be one Claude Code has already replaced.',
         'cc_j_renew_moved': 'The saved login of {name} changed while I was renewing it, so I changed nothing.',
         'cc_j_renew_busy': 'Another switch or check of a saved login was already under way on this computer, so I changed nothing.',
+        'cc_j_renew_live_refused': 'The server refuses the login Claude Code is using right now, so I cannot tell whose it is, and I did not renew the saved login of {name}.',
         'cc_j_renew_not_kept': 'The server renewed the saved login of {name}, but I could not make sure its new tokens were saved, and the old ones no longer work.',
         'cc_j_renew_other': 'The server refused the request ({error}, HTTP {code}), not the login.',
         'cc_j_in_use_renews': 'In use by Claude Code, which renews it at its next command: there is nothing to check it with right now.',
@@ -1796,6 +1800,7 @@ CC_LANG = {
         'cc_j_renew_account_in_use': 'Claude Code è entrato con questo account: il suo accesso salvato non si rinnova da qui, perché il suo token potrebbe essere uno che Claude Code ha già sostituito.',
         'cc_j_renew_moved': 'L’accesso salvato di {name} è cambiato mentre lo rinnovavo, quindi non ho cambiato niente.',
         'cc_j_renew_busy': 'Su questo computer era già in corso un altro passaggio o una verifica di un accesso salvato, quindi non ho cambiato niente.',
+        'cc_j_renew_live_refused': 'Il server rifiuta il login che Claude Code sta usando in questo momento, quindi non posso capire di chi sia, e non ho rinnovato l’accesso salvato di {name}.',
         'cc_j_renew_not_kept': 'Il server ha rinnovato l’accesso salvato di {name}, ma non ho potuto assicurarmi che i token nuovi fossero salvati, e quelli vecchi non funzionano più.',
         'cc_j_renew_other': 'Il server ha rifiutato la richiesta ({error}, HTTP {code}), non l’accesso.',
         'cc_j_in_use_renews': 'In uso da Claude Code, che lo rinnova al prossimo comando: adesso non c’è niente con cui verificarlo.',
@@ -1941,6 +1946,7 @@ CC_LANG = {
         'cc_j_renew_account_in_use': 'Claude Code はこのアカウントでサインイン中です。保存済みログインのトークンは Claude Code がすでに置き換えたものかもしれないため、ここからは更新しません。',
         'cc_j_renew_moved': '{name} の保存済みログインが更新中に変わったため、何も変更していません。',
         'cc_j_renew_busy': 'このPCで別の切り替えか保存済みログインの確認がすでに進行中だったため、何も変更していません。',
+        'cc_j_renew_live_refused': 'サーバーは Claude Code が今使用中のログインを拒否しているため、どのアカウントのものか確認できず、{name} の保存済みログインは更新していません。',
         'cc_j_renew_not_kept': 'サーバーは {name} の保存済みログインを更新しましたが、新しいトークンが保存されたか確認できませんでした。古いトークンはもう使えません。',
         'cc_j_renew_other': 'サーバーが拒否したのはリクエスト（{error}、HTTP {code}）で、ログインではありません。',
         'cc_j_in_use_renews': 'Claude Code が使用中で、次のコマンドで更新されます。今は確認に使えるものがありません。',
@@ -3904,6 +3910,13 @@ def cc_http(url, headers):
 # endpoint answered curl's own agent with 429, and a named one normally
 # (measured on 2026-09-30 with an invented token).
 CC_AGENT = f'ClaudeUsageWidget/{APP_VERSION} (+https://github.com/niccolo-sabato/claude-usage-widget)'
+# How long a quit waits for a renewal, a switch or a check under way
+# (cc_accounts.renewal_in_flight). Only a last resort: every request is bounded
+# by its own timeouts (cc_post: 25 s a run, a second run without the revocation
+# check, a second request after invalid_scope; the reads: 20 s), and a switch
+# adds a few reads to its renewal. 30 s was shorter than one renewal (review of
+# 2026-09-30, second iteration).
+QUIT_RENEWAL_WAIT_S = 180
 
 
 def cc_post(url, body, headers=()):
@@ -10710,16 +10723,27 @@ class Widget:
                 colour, words, tip = status
                 line = tk.Frame(inner, bg=BAR_BG)
                 line.pack(fill='x', pady=(self.dp(6), 0))
-                tk.Label(line, image=_dot_image(self.dp(7), colour), bg=BAR_BG).pack(
-                    side='left', anchor='n',
-                    pady=(max(0, (FT_DLG_HINT.metrics('linespace') - self.dp(7)) // 2), 0))
+                dot = tk.Label(line, image=_dot_image(self.dp(7), colour), bg=BAR_BG)
+                dot.pack(side='left', anchor='n',
+                         pady=(max(0, (FT_DLG_HINT.metrics('linespace') - self.dp(7)) // 2), 0))
                 said = tk.Label(line, text=words, font=FT_DLG_HINT,
                                 fg=DIM if colour in (DIM, BLUE, DOT_GREEN) else colour,
                                 bg=BAR_BG, anchor='w', justify='left',
                                 wraplength=inner_w - self.dp(48))
                 said.pack(side='left', fill='x', padx=(self.dp(4), 0))
-                if tip:
-                    self._tooltip(said, tip)
+                tip_now = {'text': tip}
+                self._tooltip(said, lambda: tip_now['text'])
+
+                def set_status(colour_, words_, tip_):
+                    # The same line brought up to date where it is, for an
+                    # answer that arrives while the page is in the user's
+                    # hands (_cc_views_after_check).
+                    dot.config(image=_dot_image(self.dp(7), colour_))
+                    said.config(text=words_,
+                                fg=DIM if colour_ in (DIM, BLUE, DOT_GREEN) else colour_)
+                    tip_now['text'] = tip_
+
+                dlg._cc_set_status = set_status
             if actions:
                 row = tk.Frame(inner, bg=BAR_BG)
                 row.pack(fill='x', pady=(self.dp(10), 0))
@@ -10755,17 +10779,39 @@ class Widget:
             # (review of 2026-09-30).
             self._cc_verify(profile['name'], rebuild)
 
-        def redraw_if_idle():
+        def show_check():
+            # The page drawn again with the login's new state when nothing on
+            # it is in the user's hands; otherwise only the login's own line,
+            # where it is. Skipping the page then left a Verify pressed after
+            # "Save this login" showing nothing at all, and a page opened
+            # during a check on "Checking..." for good (review of 2026-09-30,
+            # second iteration).
             try:
                 if not dlg.winfo_exists():
                     return
             except tk.TclError:
                 return
-            if page_busy() is False:
+            busy = page_busy()
+            if busy is None:
+                return
+            if not busy:
                 reopen(advanced=st['advanced'])
+                return
+            setter = getattr(dlg, '_cc_set_status', None)
+            fresh = self._cc_state()
+            prof = self._cc_profile_for(acc, fresh)
+            if setter is None or prof is None:
+                return
+            lv = (fresh or {}).get('live') or {}
+            now_here = bool(lv.get('org') and lv.get('org') == acc.get('org_id')
+                            and cc_accounts.holds_login(lv))
+            try:
+                setter(*self._cc_status(prof, now_here, lv.get('refresh_print')))
+            except tk.TclError:
+                pass
 
         dlg._cc_profile_name = profile['name'] if profile else None
-        dlg._cc_redraw_if_idle = redraw_if_idle
+        dlg._cc_redraw_if_idle = show_check
 
         if here:
             chip, chip_fg = '● ' + t('acct_cc_here'), DOT_GREEN
@@ -10786,7 +10832,10 @@ class Widget:
         elif profile:
             chip, chip_fg = t('acct_cc_saved'), DIM
             if cc_known:
-                text = t('acct_cc_elsewhere')
+                # With no login in Claude Code's file nothing is in use: not
+                # "another account" (review of 2026-09-30, second iteration).
+                text = t('acct_cc_no_login' if cc_accounts.holds_no_login(live)
+                         else 'acct_cc_elsewhere')
                 cc_actions.append((t('acct_switch_here'),
                                    lambda n=profile['name']: close_and(
                                        lambda: self._cc_switch_dialog(n, rebuild))))
@@ -11498,22 +11547,28 @@ class Widget:
                 wlog(f'CC     verify raised: {_redact(str(e))}')
                 res = {'judgement': cc_accounts.verdict(
                     cc_accounts.UNKNOWN, 'cc_j_no_answer', {}, 'cc_r_check_connection')}
-            # What the answer is about, read as the check left it: the saved
-            # login, or for a check of the login in use, the live one. Once
-            # that changes (a sign-in, a switch, Claude Code renewing), the
-            # answer says nothing any more (_cc_status), as the verdict kept
-            # on disk (cc_accounts.last_check). Keyed by name alone, "refused,
-            # sign in again" outlived the sign-in it asked for (review of
-            # 2026-09-30).
-            try:
-                if res.get('in_use'):
-                    about = (None, cc_accounts.active().get('refresh_print'))
-                else:
+            # What the answer is about: the token verify looked at, under the
+            # renewal lock, the saved login's or, for a check of the login in
+            # use, the live one's. Once that changes (a sign-in, a switch,
+            # Claude Code renewing), the answer says nothing any more
+            # (_cc_status), as the verdict kept on disk (last_check). Keyed by
+            # name alone, "refused, sign in again" outlived the sign-in it
+            # asked for; read after the check, an answer that had waited for a
+            # switch was pinned to the token the switch left (review of
+            # 2026-09-30, both iterations).
+            if res.get('in_use'):
+                about = (None, res.get('about_live') or '')
+            elif res.get('about') is not None:
+                about = (res['about'], None)
+            else:
+                # Nothing looked at (another switch or check held the lock):
+                # about the saved login as it stands.
+                try:
                     data, _failure = cc_accounts.read_profile(name)
                     about = (cc_accounts.fingerprint(((data or {}).get('claudeAiOauth') or {})
                                                      .get('refreshToken')), None)
-            except Exception:
-                about = ('', None)          # an answer about nothing known: never shown
+                except Exception:
+                    about = ('', None)      # about nothing known: never shown
 
             def apply():
                 busy.discard(name)
@@ -11784,8 +11839,16 @@ class Widget:
             # there is a why. Cut with no tooltip, the time of a check or the
             # date a login is good until could not be read at all (review of
             # 2026-09-30).
-            self._tooltip(st_lbl, lambda: '\n'.join(
-                x for x in ((st_text if st_cut['on'] else ''), st_tip) if x))
+            def st_tip_now():
+                if not st_cut['on']:
+                    return st_tip
+                # The whole line, then only what it does not already say (the
+                # remedy): the reason twice read as a stutter (review of
+                # 2026-09-30, second iteration).
+                rest = [x for x in (st_tip or '').split('\n') if x and x not in st_text]
+                return '\n'.join([st_text] + rest)
+
+            self._tooltip(st_lbl, st_tip_now)
             if profile is not None:
                 # A switch at work does not grey it: the check waits for the
                 # switch (_cc_verify).
@@ -12539,25 +12602,54 @@ class Widget:
         self._save_geometry()
         sys.exit(0)
 
+    def _quit_hide(self):
+        """Out of sight while the quit waits for a renewal: the widget, every
+        window of its, and the timers that would fetch, notify and save
+        meanwhile. Only the widget was hidden, and a Switch or a Verify could
+        still be pressed on a dialog left open (review of 2026-09-30, second
+        iteration)."""
+        try:
+            self._close_menu()
+            self._save_geometry()
+            self._quit_geometry_saved = True
+        except tk.TclError:
+            pass
+        for job in ('_job', '_countdown_job', '_topmost_job', '_pulse_job'):
+            jid = getattr(self, job, None)
+            if jid:
+                try:
+                    self.root.after_cancel(jid)
+                except (tk.TclError, ValueError):
+                    pass
+                setattr(self, job, None)
+        for win in list(self._dialogs.values()):
+            try:
+                win.destroy()
+            except (tk.TclError, AttributeError):
+                pass
+        try:
+            self.root.withdraw()
+        except tk.TclError:
+            pass
+
     def _quit(self):
         # 🔴 A renewal between its request and the write of its answer holds
         # the only copy of a login: the server retires the old token as it
-        # answers. Quitting then (the menu, an update, a restart) lost it
-        # (review of 2026-09-30): the widget goes out of sight and waits for
-        # it, 30 seconds at most.
+        # answers. Quitting then (the menu, an update, a restart) lost it. So
+        # the quit first closes the gate, and nothing new starts (a check
+        # queued behind another, a switch, a Verify pressed now); then it
+        # waits, out of sight, while anything holds the renewal lock. Checked
+        # once and capped at 30 s, a renewal starting behind the check, or one
+        # slower than the cap, was still lost (review of 2026-09-30, both
+        # iterations).
+        cc_accounts.close_renewals()
         if cc_accounts.renewal_in_flight():
             now = time.monotonic()
             if getattr(self, '_quit_waiting', None) is None:
                 self._quit_waiting = now
                 wlog('QUIT   waiting for a renewal to be kept')
-                try:
-                    self._close_menu()
-                    self._save_geometry()
-                    self._quit_geometry_saved = True
-                    self.root.withdraw()
-                except tk.TclError:
-                    pass
-            if now - self._quit_waiting < 30:
+                self._quit_hide()
+            if now - self._quit_waiting < QUIT_RENEWAL_WAIT_S:
                 if getattr(self, '_quit_poll', None) is None:
                     def again():
                         self._quit_poll = None
