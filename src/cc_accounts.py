@@ -535,10 +535,12 @@ def profiles(live=None):
             claim = None
         elif print_ and live.get('refresh_print') and print_ == live['refresh_print']:
             claim = (3, 'cc_why_same_refresh', 'certain', True)
-        elif org and live.get('org') and org == live['org']:
+        elif org and live.get('org') and org == live['org'] and holds_login(live):
+            # Not the organization left in a file with no login (2026-09-30):
+            # it named an account in use while nothing was.
             claim = (2, 'cc_why_same_org_live', 'certain', False)
         elif (org and live.get('org_cache') and org == live['org_cache']
-              and live.get('org') in (None, live['org_cache'])):
+              and live.get('org') in (None, live['org_cache']) and holds_login(live)):
             # The lagging cache only when nothing better names the account:
             # once the file or the server has named another one, the cache is
             # still describing the account of before (review of 2026-09-26).
@@ -1119,7 +1121,7 @@ def renewal_lock(wait_s=None):
         _RENEWAL.release()
 
 
-def renew(name, post, wait_s=None):
+def renew(name, post, wait_s=None, call=None, known=None):
     """Renew a saved login with the server, and keep what comes back.
 
     The one way to know that a saved login still works: a date says when the
@@ -1132,15 +1134,19 @@ def renew(name, post, wait_s=None):
     🔴 Never the login Claude Code is using. Its renewal token would be
     replaced under it, and Claude Code, which holds it, would be signed out at
     its next renewal. That one is answered with 'in_use' and nothing is sent.
-    Which login is in use is read under the renewal lock (renewal_lock), where
-    no switch can be halfway: a login a switch has just put live is seen.
+    Nor any saved login of the ACCOUNT in use, on a proof of whose the live
+    login is (proven_live_account: `known`, what the caller has just proved
+    about those very tokens; a saved login holding them; the server asked with
+    `call`): without a proof nothing is renewed ('unidentified'). Which login
+    is in use is read under the renewal lock (renewal_lock), where no switch
+    can be halfway: a login a switch has just put live is seen.
 
     🔴 What comes back is written into the profile before anything else is
     done with it. The old renewal token is dead from the moment the server
     answers, so a new one that was not kept would be a login lost.
 
-    Returns {'judgement', 'renewed': bool}, with 'in_use', 'moved' or 'busy'
-    when those are the reason nothing was renewed. GOOD 'cc_j_renewed' after a
+    Returns {'judgement', 'renewed': bool}, with 'in_use', 'unidentified',
+    'moved' or 'busy' when those are the reason nothing was renewed. GOOD 'cc_j_renewed' after a
     renewal that was kept; BAD 'cc_j_renew_refused' when the server refused
     the token (the saved login is dead: sign in again); UNKNOWN when there was
     no usable answer, which says nothing about the login, or when another
@@ -1151,25 +1157,105 @@ def renew(name, post, wait_s=None):
             return {'judgement': verdict(UNKNOWN, 'cc_j_renew_busy', {'name': name},
                                          'cc_r_try_again'),
                     'renewed': False, 'busy': True}
-        return _renew_held(name, post)
+        return _renew_held(name, post, call, known)
 
 
-def account_in_use(data, live):
-    """Whether a saved login is of the account Claude Code is signed in to on
-    this computer, whatever its token: the live file holds a login, and names
-    that account (its own key, or the identity cache when the file says none,
-    as right after a sign-in).
+def holds_login(live):
+    """Whether Claude Code's file, as `live` read it, holds a login: tokens of
+    either kind."""
+    return bool(live.get('refresh_print') or live.get('access_print'))
 
-    Erring towards yes costs a check that is not made; towards no, it may cost
-    the login in use (renew).
+
+def holds_no_login(live):
+    """No login at all in Claude Code's file: the file is gone, or holds no
+    tokens, as Claude Code leaves it when the server refuses a renewal
+    (2026-09-30). A file that is there and cannot be read is not this: what is
+    in it is not known."""
+    if not live.get('read'):
+        return (live.get('judgement') or {}).get('key') == 'cc_j_file_missing'
+    return not holds_login(live)
+
+
+def proven_live_account(live, call=None, known=None):
+    """Whose the login in Claude Code's file is, on a proof: (organization,
+    how), `how` being 'known', 'holder' or 'server'; (None, 'none') when the
+    file holds no login, (None, 'unproven') when nothing can say.
+
+    The proofs, strongest first: what the caller has just proved about these
+    very tokens (`known`: {'print', 'org'}); the saved logins holding the same
+    renewal token, when they agree on the account; the server's word on the
+    live short token (live_identity, a read that rotates nothing).
+
+    🔴 Not the organization written in the file: the tools that switch
+    accounts write that key, and one that swapped only the tokens left it
+    naming another account (INCOHERENT_COPY). Nor the identity cache, which
+    lags a sign-in by hours. A renewal decided on either spent the retired
+    token of the login in use, or took the account being switched to for the
+    one in use and let its login be written unchecked (review of 2026-09-30).
     """
-    org = (data or {}).get('organizationUuid')
-    if not org or not (live.get('refresh_print') or live.get('access_print')):
-        return False
-    return org == (live.get('org') or live.get('org_cache'))
+    if not holds_login(live):
+        return None, 'none'
+    mine = live.get('refresh_print')
+    if known and known.get('org') and mine and known.get('print') == mine:
+        return known['org'], 'known'
+    if mine:
+        orgs = set()
+        for other in profile_names():
+            data, failure = read_profile(other)
+            if failure or not isinstance(data, dict) or not data.get('organizationUuid'):
+                continue
+            if fingerprint((data.get('claudeAiOauth') or {}).get('refreshToken')) == mine:
+                orgs.add(data['organizationUuid'])
+        if len(orgs) == 1:
+            return orgs.pop(), 'holder'
+    probe = live_identity(dict(live), call, confirm=True)
+    if probe.get('org_source') == 'server' and probe.get('org'):
+        return probe['org'], 'server'
+    return None, 'unproven'
 
 
-def _renew_held(name, post):
+# Between a renewal's request and the write of what came back, the new pair
+# exists only in this process: the server retires the old token as it
+# answers. The widget does not quit while this is set (renewal_in_flight).
+_RENEWING = threading.Event()
+
+
+def renewal_in_flight():
+    """Whether a renewal of this process is between its request and the write
+    of its answer: a quit then loses the login it renewed."""
+    return _RENEWING.is_set()
+
+
+def _read_profile_patiently(name, tries=10):
+    """read_profile, tried again for a second while the file cannot be opened
+    (another reader holding it, an antivirus scan): after a renewal the answer
+    is only in memory, and a read that failed once is no reason to drop it."""
+    data, failure = read_profile(name)
+    for _ in range(tries - 1):
+        if not failure or failure.get('key') != 'cc_j_file_unreadable':
+            break
+        time.sleep(0.1)
+        data, failure = read_profile(name)
+    return data, failure
+
+
+def _write_profile_patiently(name, prof, tries=20):
+    """Write a profile, tried again for two seconds: on Windows the replace
+    fails while another reader has the file open (the widget's refresh reads
+    every saved login, the command line may be listing them), and after a
+    renewal a write that failed once lost the login (review of 2026-09-30).
+    True once written."""
+    for attempt in range(tries):
+        try:
+            write_json_atomic(profile_path(name), prof)
+            return True
+        except OSError:
+            if attempt < tries - 1:
+                time.sleep(0.1)
+    return False
+
+
+def _renew_held(name, post, call=None, known=None):
     """renew, with the renewal lock held."""
     data, failure = read_profile(name)
     if failure:
@@ -1181,7 +1267,7 @@ def _renew_held(name, post):
                 'renewed': False}
     mine = fingerprint(token)
     live = active()
-    if not live.get('read') and (live.get('judgement') or {}).get('key') != 'cc_j_file_missing':
+    if not live.get('read') and not holds_no_login(live):
         # Claude Code's file is there and cannot be read (halfway through a
         # write, or damaged): which login is in use cannot be told, and it
         # may be this one. Said as what it is: about that file, not this login.
@@ -1191,19 +1277,50 @@ def _renew_held(name, post):
     if live.get('refresh_print') and live['refresh_print'] == mine:
         return {'judgement': verdict(UNKNOWN, 'cc_j_renew_in_use', {'name': name}),
                 'renewed': False, 'in_use': True}
-    # 🔴 Nor the saved login of the account Claude Code is signed in to, with
+    # 🔴 Nor a saved login of the account Claude Code is signed in to, with
     # whatever token. When it lags behind the live one (the widget brings it
-    # in step when the file changes, and had not yet, or was not running),
-    # its renewal token is one Claude Code has already rotated away: sent
-    # again, it is refused at best, and a server that takes the reuse of a
-    # retired token for theft retires the whole sign-in, the live token with
-    # it. What is in use is Claude Code's to renew.
-    if account_in_use(data, live):
-        return {'judgement': verdict(UNKNOWN, 'cc_j_renew_account_in_use', {'name': name}),
-                'renewed': False, 'in_use': True}
+    # in step when the file changes, and had not yet, or was not running), its
+    # renewal token is one Claude Code has already rotated away: sent again,
+    # it is refused at best, and a server that takes the reuse of a retired
+    # token for theft retires the whole sign-in, the live token with it. So
+    # whose the live login is has to be PROVED (proven_live_account), and when
+    # nothing can say, nothing is renewed.
+    if holds_login(live):
+        org, _how = proven_live_account(live, call, known)
+        if org is None:
+            return {'judgement': verdict(UNKNOWN, 'cc_j_renew_unidentified', {'name': name},
+                                         'cc_r_identify_live'),
+                    'renewed': False, 'unidentified': True}
+        if not data.get('organizationUuid'):
+            # Whose it is cannot be told, and so neither whether it is an
+            # earlier copy of the login in use.
+            return {'judgement': verdict(BAD, 'cc_j_no_org', {}, 'cc_r_resave_while_active'),
+                    'renewed': False}
+        if org == data['organizationUuid']:
+            return {'judgement': verdict(UNKNOWN, 'cc_j_renew_account_in_use', {'name': name}),
+                    'renewed': False, 'in_use': True}
+
+    # The copy of the profile as it stands, taken BEFORE asking: once the
+    # server answers, the old token is retired, and the first thing done with
+    # the answer is to write it (review of 2026-09-30). The copy is the old
+    # token's history (history_prints); one that cannot be taken stops nothing.
+    try:
+        ensure_store()
+        backup_profile(name)
+    except OSError:
+        pass
 
     scopes = [x for x in (oauth.get('scopes') or []) if isinstance(x, str) and x]
     scopes = scopes or list(DEFAULT_SCOPES)
+    _RENEWING.set()
+    try:
+        return _ask_and_keep(name, post, data, oauth, token, mine, scopes)
+    finally:
+        _RENEWING.clear()
+
+
+def _ask_and_keep(name, post, data, oauth, token, mine, scopes):
+    """The request of renew, and what is done with its answer."""
     code, text, answer = _ask_renewal(post, token, scopes)
     if (answer is None and code == 400 and _oauth_error(text) == 'invalid_scope'
             and scopes != list(DEFAULT_SCOPES)):
@@ -1233,47 +1350,48 @@ def _renew_held(name, post):
             pass
         if isinstance(answer.get('scope'), str) and answer['scope'].split():
             new['scopes'] = answer['scope'].split()
+        # A pair that could not be saved is a login lost, not a file to
+        # restore: the copy holds the retired token.
+        lost = {'judgement': verdict(BAD, 'cc_j_renew_not_kept', {'name': name},
+                                     'cc_r_login_again'),
+                'renewed': False}
         with _LOCK:
-            current, failure = read_profile(name)
-            if failure or fingerprint(((current or {}).get('claudeAiOauth') or {})
-                                      .get('refreshToken')) != mine:
+            current, failure = _read_profile_patiently(name)
+            if failure and failure.get('key') == 'cc_j_file_missing':
+                # Taken away meanwhile (archived, renamed): not brought back.
+                return moved
+            if not failure and fingerprint(((current or {}).get('claudeAiOauth') or {})
+                                           .get('refreshToken')) != mine:
                 # Somebody wrote this login meanwhile (another process
                 # renewing it, or a sign-in brought in): what is there now is
                 # theirs, and is not replaced by an answer about an older one.
                 return moved
-            prof = dict(current)
+            # A file that still cannot be read is written over all the same:
+            # the answer exists only here, and the old token is retired.
+            prof = dict(current if not failure else data)
             prof['claudeAiOauth'] = new
             prof['savedAt'] = datetime.now().astimezone().isoformat()
             prof['checked'] = _check_record(GOOD, 'cc_j_renewed', new['refreshToken'])
-            # The server has retired the old token by now: the copy of the old
-            # profile is only its history (history_prints), and a copy that
-            # cannot be taken does not keep the new pair from being saved.
-            try:
-                ensure_store()
-                backup_profile(name)
-            except OSError:
-                pass
-            # A pair that could not be saved is a login lost, not a file to
-            # restore: the copy holds the retired token.
-            lost = {'judgement': verdict(BAD, 'cc_j_renew_not_kept', {'name': name},
-                                         'cc_r_login_again'),
-                    'renewed': False}
-            try:
-                write_json_atomic(profile_path(name), prof)
-            except OSError:
+            if not _write_profile_patiently(name, prof):
                 return lost
-            back, failure = read_profile(name)
+            back, failure = _read_profile_patiently(name)
             if failure or fingerprint(((back or {}).get('claudeAiOauth') or {})
                                       .get('refreshToken')) != fingerprint(new['refreshToken']):
                 return lost
         rt, _, _ = when(new.get('refreshTokenExpiresAt'))
+        if rt is None:
+            # A login saved without its date, and an answer that brings none:
+            # nothing to tell, rather than "good until None".
+            return {'judgement': verdict(GOOD, 'cc_j_renewed_no_date',
+                                         {'name': name, 'email': data.get('email')}),
+                    'renewed': True}
         return {'judgement': verdict(GOOD, 'cc_j_renewed',
                                      {'name': name, 'until': rt, 'email': data.get('email')}),
                 'renewed': True}
 
     if code in (400, 401) and _oauth_error(text) == 'invalid_grant':
         with _LOCK:
-            current, failure = read_profile(name)
+            current, failure = _read_profile_patiently(name)
             if failure or fingerprint(((current or {}).get('claudeAiOauth') or {})
                                       .get('refreshToken')) != mine:
                 return moved
@@ -1319,12 +1437,16 @@ def verify(name, call=None, post=None, live=None):
     token = (data.get('claudeAiOauth') or {}).get('refreshToken')
     mine = fingerprint(token)
     same_login = bool(mine) and live.get('refresh_print') == mine
-    if not same_login and not account_in_use(data, live):
+    if not same_login:
         if post is None:
             return {'judgement': verdict(UNKNOWN, 'cc_j_no_answer', {},
                                          'cc_r_check_connection'), 'renewed': False}
-        # renew looks again, under its lock, at whether it is in use.
-        return renew(name, post)
+        # renew proves, under its lock, whose the login in use is, and renews
+        # only a saved login of another account. For this account it answers
+        # 'in_use', and the login in use is checked here instead, read only.
+        res = renew(name, post, call=call)
+        if not res.get('in_use'):
+            return res
 
     current, failure = read_json(cred_file())
     oauth = ((current or {}).get('claudeAiOauth') or {}) if not failure else {}
@@ -1903,8 +2025,7 @@ def _switch_held(name, *, knowingly, call, plan_check, name_for_org, post):
     # this: what is in it cannot be known, and it is not written over.
     live_missing = (not live.get('read')
                     and (live.get('judgement') or {}).get('key') == 'cc_j_file_missing')
-    live_empty = live_missing or bool(live.get('read') and not live.get('refresh_print')
-                                      and not live.get('access_print'))
+    live_empty = holds_no_login(live)
     # The saved profile holding the very login that is live now: the one every
     # gesture uses for that account (the elected one among twins), and never a
     # folder no switch can use. A '_auto-' parking left by another tool made
@@ -2004,10 +2125,29 @@ def _switch_held(name, *, knowingly, call, plan_check, name_for_org, post):
 
     checked = None
     if post is not None:
-        checked = renew(name, post)
+        # What this switch has proved about the live login goes with it: a
+        # saved login holding its tokens, or the server's word.
+        known = None
+        if proof_holder is not None and proof_holder.get('org'):
+            known = {'print': live.get('refresh_print'), 'org': proof_holder['org']}
+        elif live.get('org_source') == 'server' and live.get('org'):
+            known = {'print': live.get('refresh_print'), 'org': live['org']}
+        checked = renew(name, post, call=call, known=known)
         if checked['judgement']['kind'] == BAD:
             return {'done': False, 'asks': False, 'judgement': checked['judgement'],
                     'checked': checked}
+        if checked.get('in_use'):
+            # On a proof, Claude Code is signed in to this account already, and
+            # the saved login lags behind its live one: nothing to switch, and
+            # no token spent. Saving brings the saved login in step.
+            return {'done': False, 'asks': False, 'checked': checked,
+                    'judgement': verdict(UNKNOWN, 'cc_j_already_active',
+                                         {'name': name, 'behind': True}, 'cc_r_save_now')}
+        if checked.get('unidentified'):
+            # Nothing is written over a login nobody can name (below).
+            return {'done': False, 'asks': False, 'checked': checked,
+                    'judgement': verdict(UNKNOWN, 'cc_j_live_unidentified', {},
+                                         'cc_r_identify_live')}
         if checked.get('moved'):
             # The saved login changed while it was being renewed: what it
             # holds now has not been looked at, and the token read before may

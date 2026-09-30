@@ -1643,6 +1643,8 @@ CC_LANG = {
         'cc_cli_sync_unverified': 'The saved login "{name}" was written, but it does not read back as the one in use. Run the same command again.',
         # the renewal and the check of a saved login (2026-09-30)
         'cc_j_renewed': 'The saved login was renewed: it works, and it is good until {until}.',
+        'cc_j_renewed_no_date': 'The saved login was renewed: it works.',
+        'cc_j_renew_unidentified': 'I cannot tell which account Claude Code is signed in to right now, so I did not renew the saved login of {name}: it could be an earlier copy of the login in use.',
         'cc_j_renew_refused': 'The server no longer accepts the saved login of {name}: switching to it would sign Claude Code out.',
         'cc_j_renew_refused_before': 'The server refused this saved login on {when}.',
         'cc_j_renew_in_use': 'This is the login Claude Code is using: it is not renewed from here.',
@@ -1663,7 +1665,9 @@ CC_LANG = {
         'cc_ui_st_in_use': 'In use by Claude Code on this computer',
         'cc_ui_st_in_use_ok': 'In use by Claude Code on this computer · checked {when}',
         'cc_ui_st_saved': 'Saved login · good until {until}',
+        'cc_ui_st_saved_no_date': 'Saved login',
         'cc_ui_st_verified': 'Verified {when} · good until {until}',
+        'cc_ui_st_verified_no_date': 'Verified {when}',
         'cc_ui_st_refused': 'Refused by the server {when}: sign in again with /login',
         'cc_ui_st_bad': 'Not usable: {why}',
         'cc_ui_st_unverified': 'Not verified {when}: {why}',
@@ -1784,6 +1788,8 @@ CC_LANG = {
         'cc_cli_sync_unverified': 'L’accesso salvato "{name}" è stato scritto, ma non si rilegge uguale a quello in uso. Rilancia lo stesso comando.',
         # il rinnovo e la verifica di un accesso salvato (30/9/2026)
         'cc_j_renewed': 'Accesso salvato rinnovato: funziona, ed è valido fino al {until}.',
+        'cc_j_renewed_no_date': 'Accesso salvato rinnovato: funziona.',
+        'cc_j_renew_unidentified': 'Non riesco a capire con quale account è entrato Claude Code in questo momento, quindi non ho rinnovato l’accesso salvato di {name}: potrebbe essere una copia precedente del login in uso.',
         'cc_j_renew_refused': 'Il server non accetta più l’accesso salvato di {name}: passarci farebbe uscire Claude Code.',
         'cc_j_renew_refused_before': 'Il server ha rifiutato questo accesso salvato il {when}.',
         'cc_j_renew_in_use': 'È il login che Claude Code sta usando: da qui non si rinnova.',
@@ -1804,7 +1810,9 @@ CC_LANG = {
         'cc_ui_st_in_use': 'In uso da Claude Code su questo computer',
         'cc_ui_st_in_use_ok': 'In uso da Claude Code su questo computer · verificato {when}',
         'cc_ui_st_saved': 'Accesso salvato · valido fino al {until}',
+        'cc_ui_st_saved_no_date': 'Accesso salvato',
         'cc_ui_st_verified': 'Verificato {when} · valido fino al {until}',
+        'cc_ui_st_verified_no_date': 'Verificato {when}',
         'cc_ui_st_refused': 'Rifiutato dal server {when}: entra di nuovo con /login',
         'cc_ui_st_bad': 'Non utilizzabile: {why}',
         'cc_ui_st_unverified': 'Non verificato {when}: {why}',
@@ -1925,6 +1933,8 @@ CC_LANG = {
         'cc_cli_sync_unverified': '保存済みのログイン「{name}」を書き込みましたが、読み直すと使用中のログインと一致しません。同じコマンドをもう一度実行してください。',
         # 保存済みログインの更新と確認（2026-09-30）
         'cc_j_renewed': '保存済みログインを更新しました。有効で、{until} まで使えます。',
+        'cc_j_renewed_no_date': '保存済みログインを更新しました。有効です。',
+        'cc_j_renew_unidentified': 'Claude Code が今どのアカウントでサインインしているか確認できないため、{name} の保存済みログインは更新していません。使用中のログインの以前のコピーかもしれません。',
         'cc_j_renew_refused': 'サーバーは {name} の保存済みログインをもう受け付けません。切り替えると Claude Code がサインアウトされます。',
         'cc_j_renew_refused_before': 'サーバーは {when} にこの保存済みログインを拒否しました。',
         'cc_j_renew_in_use': 'Claude Code が使用中のログインのため、ここからは更新しません。',
@@ -1945,7 +1955,9 @@ CC_LANG = {
         'cc_ui_st_in_use': 'このPCの Claude Code が使用中',
         'cc_ui_st_in_use_ok': 'このPCの Claude Code が使用中 · {when} に確認済み',
         'cc_ui_st_saved': '保存済みログイン · {until} まで有効',
+        'cc_ui_st_saved_no_date': '保存済みログイン',
         'cc_ui_st_verified': '{when} に確認済み · {until} まで有効',
+        'cc_ui_st_verified_no_date': '{when} に確認済み',
         'cc_ui_st_refused': '{when} にサーバーが拒否しました。/login でサインインし直してください',
         'cc_ui_st_bad': '使用できません: {why}',
         'cc_ui_st_unverified': '{when} は確認できませんでした: {why}',
@@ -10608,7 +10620,9 @@ class Widget:
         profile = self._cc_profile_for(acc, cc_st)
         live = (cc_st or {}).get('live') or {}
         live_org = live.get('org')
-        here = bool(live_org and live_org == acc.get('org_id'))
+        # Not by an organization left in a file with no login (2026-09-30):
+        # nothing is in use then.
+        here = bool(live_org and live_org == acc.get('org_id') and cc_accounts.holds_login(live))
         # Where the numbers really come from. Claude Code comes first when it
         # is on this account, or when there is nothing else; with Claude Code
         # on another account the widget falls back to the key, and the mark
@@ -10626,9 +10640,9 @@ class Widget:
             source = AUTH_KEY
         else:
             source = methods[0] if methods else None
-        cc_known = bool(live_org) or any(
+        cc_known = (bool(live_org) or cc_accounts.holds_no_login(live) or any(
             p.get('active') and p.get('certainty') == 'certain'
-            for p in (cc_st or {}).get('profiles') or [])
+            for p in (cc_st or {}).get('profiles') or []))
         dead = bool(profile and not here and profile.get('verdict') == cc_accounts.BAD)
         # A login nobody has named yet: the file carries no organization after
         # a sign-in, and the server is asked as the page opens. Drawn from the
@@ -10638,6 +10652,22 @@ class Widget:
         # the answer names the login: an answer that names nobody does not
         # start another check.
         unidentified = bool(live.get('read') and live.get('access_print') and not live_org)
+
+        def page_busy():
+            # Whether something on the page is in the user's hands: a name
+            # being typed, a picture or colour chosen, the picker open, a
+            # message on screen (Link or a save at work). A redraw threw those
+            # away (review of 2026-09-27). None once the page is gone.
+            try:
+                picker = self._dialogs.get('avatar')
+                return (name_entry.get().strip() != (acc.get('name') or '')
+                        or st['color'] != account_color(acc)
+                        or st['avatar'] != dict(acc.get('avatar') or {})
+                        or bool(status_lbl.cget('text'))
+                        or bool(picker is not None and picker.winfo_exists()))
+            except tk.TclError:
+                return None
+
         if unidentified:
             def identified():
                 try:
@@ -10648,21 +10678,9 @@ class Widget:
                 if not ((getattr(self, '_cc_saved', None) or {}).get('live') or {}).get('org'):
                     return
                 # Drawn again only if nothing on the page is in the user's
-                # hands: a name being typed, a picture or colour chosen, the
-                # picker open, a message on screen (Link or a save at work).
-                # The redraw threw those away (review of 2026-09-27); the
-                # next opening shows the login recognised anyway. The
-                # Advanced section stays as it was.
-                try:
-                    picker = self._dialogs.get('avatar')
-                    busy = (name_entry.get().strip() != (acc.get('name') or '')
-                            or st['color'] != account_color(acc)
-                            or st['avatar'] != dict(acc.get('avatar') or {})
-                            or bool(status_lbl.cget('text'))
-                            or bool(picker is not None and picker.winfo_exists()))
-                except tk.TclError:
-                    return
-                if not busy:
+                # hands (page_busy); the next opening shows the login
+                # recognised anyway. The Advanced section stays as it was.
+                if page_busy() is False:
                     reopen(advanced=st['advanced'])
             self._cc_sync_login(after=identified)
 
@@ -10730,9 +10748,24 @@ class Widget:
         cc_actions = []
 
         def verify_login():
-            # The answer goes where the page says things (status_lbl), and the
-            # page is drawn again with the new state of the login.
-            self._cc_verify(profile['name'], lambda: reopen(advanced=st['advanced']))
+            # The list is drawn again as the check starts and when it ends, and
+            # this page too, while it is still this login's and idle
+            # (_cc_views_after_check): an answer that took long no longer
+            # replaced another account's page or brought back a closed one
+            # (review of 2026-09-30).
+            self._cc_verify(profile['name'], rebuild)
+
+        def redraw_if_idle():
+            try:
+                if not dlg.winfo_exists():
+                    return
+            except tk.TclError:
+                return
+            if page_busy() is False:
+                reopen(advanced=st['advanced'])
+
+        dlg._cc_profile_name = profile['name'] if profile else None
+        dlg._cc_redraw_if_idle = redraw_if_idle
 
         if here:
             chip, chip_fg = '● ' + t('acct_cc_here'), DOT_GREEN
@@ -10780,7 +10813,7 @@ class Widget:
             # Beside Switch: the one way to know the saved login still works.
             cc_actions.insert(1 if cc_actions and not here else 0,
                               (t('cc_ui_verify'), verify_login))
-            cc_status = self._cc_status(profile, here)
+            cc_status = self._cc_status(profile, here, live.get('refresh_print'))
         if linked:
             cc_actions.append((t('cc_unlink'), unlink))
         card(t('auth_claude_code'), chip, chip_fg, text, cc_actions,
@@ -11436,15 +11469,27 @@ class Widget:
     def _cc_verify(self, name, done=None):
         """Check a saved login with the server, off the main thread
         (cc_accounts.verify): renewed and kept renewed, or, for the login in
-        use, asked about with its short token. `done` redraws whatever shows
-        it, once now (for "Checking...") and once with the answer.
+        use, asked about with its short token. `done` redraws the list (or
+        whatever started it), once now (for "Checking...") and once with the
+        answer; an open account page showing this login is drawn again too,
+        when nothing on it is in the user's hands (_cc_views_after_check).
 
-        Not while a switch is at work: both would renew the same login.
+        A switch at work holds the renewal lock, and the check waits for it
+        (cc_accounts.renewal_lock): dropped while a switch ran, it answered
+        nothing at all (review of 2026-09-30).
         """
         busy = self.__dict__.setdefault('_cc_verifying', set())
-        if name in busy or getattr(self, '_cc_switch_busy', False):
+        if name in busy:
             return
         busy.add(name)
+
+        def refresh():
+            if done:
+                try:
+                    done()
+                except tk.TclError:
+                    pass
+            self._cc_views_after_check(name)
 
         def work():
             try:
@@ -11453,30 +11498,60 @@ class Widget:
                 wlog(f'CC     verify raised: {_redact(str(e))}')
                 res = {'judgement': cc_accounts.verdict(
                     cc_accounts.UNKNOWN, 'cc_j_no_answer', {}, 'cc_r_check_connection')}
+            # What the answer is about, read as the check left it: the saved
+            # login, or for a check of the login in use, the live one. Once
+            # that changes (a sign-in, a switch, Claude Code renewing), the
+            # answer says nothing any more (_cc_status), as the verdict kept
+            # on disk (cc_accounts.last_check). Keyed by name alone, "refused,
+            # sign in again" outlived the sign-in it asked for (review of
+            # 2026-09-30).
+            try:
+                if res.get('in_use'):
+                    about = (None, cc_accounts.active().get('refresh_print'))
+                else:
+                    data, _failure = cc_accounts.read_profile(name)
+                    about = (cc_accounts.fingerprint(((data or {}).get('claudeAiOauth') or {})
+                                                     .get('refreshToken')), None)
+            except Exception:
+                about = ('', None)          # an answer about nothing known: never shown
 
             def apply():
                 busy.discard(name)
                 j = res.get('judgement') or {}
                 wlog(f"CC     checked the saved login {name}: {j.get('kind')} ({j.get('key')})")
-                self.__dict__.setdefault('_cc_verify_results', {})[name] = (j, datetime.now())
-                if done:
-                    try:
-                        done()
-                    except tk.TclError:
-                        pass
+                self.__dict__.setdefault('_cc_verify_results', {})[name] = (
+                    j, datetime.now()) + about
+                refresh()
             try:
                 self.root.after(0, apply)
             except (tk.TclError, RuntimeError) as e:
                 wlog(f'CC     could not report the check: {_redact(str(e))}')
 
         threading.Thread(target=work, daemon=True).start()
-        if done:
-            done()
+        refresh()
 
-    def _cc_status(self, profile, signed_in_here):
+    def _cc_views_after_check(self, name):
+        """Draw again the account page showing this saved login, if it is open,
+        and only through the page's own guard (_cc_redraw_if_idle): a name
+        being typed, a colour chosen, a message on screen stay. The list is
+        its caller's (`done`)."""
+        page = self._dialogs.get('account_details')
+        try:
+            if page is None or not page.winfo_exists():
+                return
+        except tk.TclError:
+            return
+        if getattr(page, '_cc_profile_name', None) != name:
+            return
+        redraw = getattr(page, '_cc_redraw_if_idle', None)
+        if redraw is not None:
+            redraw()
+
+    def _cc_status(self, profile, signed_in_here, live_print=None):
         """(colour, text, tooltip) of an account's Claude Code login, for its
         row and its page: in use here, saved and good until, verified when,
-        refused, or not usable and why."""
+        refused, or not usable and why. `live_print`: the fingerprint of the
+        renewal token in Claude Code's file now."""
         name = (profile or {}).get('name')
         if name and name in getattr(self, '_cc_verifying', set()):
             return BLUE, t('cc_ui_verifying'), ''
@@ -11484,6 +11559,12 @@ class Widget:
         until = (profile or {}).get('refresh_expires')
         until_txt = cc_day(until)
         said = getattr(self, '_cc_verify_results', {}).get(name) if name else None
+        # An answer of this session is about the tokens it was given for (see
+        # _cc_verify): once the saved login, or for a check of the login in
+        # use the live one, holds another, it says nothing any more.
+        if said and ((said[2] is not None and said[2] != (profile or {}).get('refresh_print'))
+                     or (said[3] is not None and said[3] != live_print)):
+            said = None
         # A good answer about a saved login is kept in the login itself, with
         # its time: only the others need remembering here.
         session = None if said and said[0].get('kind') == cc_accounts.GOOD else said
@@ -11530,8 +11611,15 @@ class Widget:
             return ORANGE, t('cc_ui_st_unverified').format(
                 when=cc_when(session[1]), why=cc_say(session[0])), tip
         if check and check['kind'] == cc_accounts.GOOD:
+            if not until:
+                # A login saved without its date: nothing to tell, rather than
+                # "good until ?".
+                return DOT_GREEN, t('cc_ui_st_verified_no_date').format(
+                    when=cc_when(check['at'])), tip
             return DOT_GREEN, t('cc_ui_st_verified').format(
                 when=cc_when(check['at']), until=until_txt), tip
+        if not until:
+            return DIM, t('cc_ui_st_saved_no_date'), tip
         return DIM, t('cc_ui_st_saved').format(until=until_txt), tip
 
     def _account_row(self, parent, acc, rebuild, cc_state=None, width=None):
@@ -11598,9 +11686,11 @@ class Widget:
         # When nobody can say, the module refuses the switch anyway, and a
         # button that can only answer "not now" is a button that should not
         # be there.
-        cc_known = bool(live_cc.get('org')) or any(
+        # With no login in Claude Code's file at all, nothing is in use and
+        # a switch has nothing to protect (cc_accounts.switch): it is offered.
+        cc_known = (bool(live_cc.get('org')) or cc_accounts.holds_no_login(live_cc) or any(
             p.get('active') and p.get('certainty') == 'certain'
-            for p in st_cc.get('profiles') or [])
+            for p in st_cc.get('profiles') or []))
         # Nor onto a saved login that is dead: the switch could only refuse it,
         # while the account page says "sign in again" (review of 2026-09-26).
         if (profile and not profile.get('active') and cc_known
@@ -11673,8 +11763,10 @@ class Widget:
         # row had room for two buttons on the right, not three (the user,
         # 2026-09-30: "the Verify button would not fit, review the UI").
         st_line = None
+        st_cut = {'on': False}
         if profile is not None or signed_in_here:
-            colour, st_text, st_tip = self._cc_status(profile, signed_in_here)
+            colour, st_text, st_tip = self._cc_status(profile, signed_in_here,
+                                                      live_cc.get('refresh_print'))
             st_line = tk.Frame(txt, bg=base)
             st_line.pack(fill='x', pady=(self.dp(2), 0))
             cells.append(st_line)
@@ -11688,11 +11780,16 @@ class Widget:
                               bg=base, anchor='w')
             st_lbl.pack(side='left', padx=(self.dp(4), 0))
             cells.append(st_lbl)
-            if st_tip:
-                self._tooltip(st_lbl, st_tip)
+            # One tooltip: the words the row had to cut (fit), then why, if
+            # there is a why. Cut with no tooltip, the time of a check or the
+            # date a login is good until could not be read at all (review of
+            # 2026-09-30).
+            self._tooltip(st_lbl, lambda: '\n'.join(
+                x for x in ((st_text if st_cut['on'] else ''), st_tip) if x))
             if profile is not None:
-                busy = (profile['name'] in getattr(self, '_cc_verifying', set())
-                        or getattr(self, '_cc_switch_busy', False))
+                # A switch at work does not grey it: the check waits for the
+                # switch (_cc_verify).
+                busy = profile['name'] in getattr(self, '_cc_verifying', set())
                 link = tk.Label(st_line, text=t('cc_ui_verify'), font=FT_DLG_HINT,
                                 fg=DIM if busy else BLUE, bg=base,
                                 cursor='arrow' if busy else 'hand2')
@@ -11755,8 +11852,10 @@ class Widget:
                 # What the dot and the Verify leave to the words between them.
                 others = sum(c.winfo_reqwidth() + self.dp(10)
                              for c in st_line.winfo_children() if c is not st_lbl)
-                st_lbl.config(text=elide(st_full, FT_DLG_HINT,
-                                         max(self.dp(40), avail - others - inner(st_lbl))))
+                now = elide(st_full, FT_DLG_HINT,
+                            max(self.dp(40), avail - others - inner(st_lbl)))
+                st_lbl.config(text=now)
+                st_cut['on'] = now != st_full
 
         txt.bind('<Configure>', fit, add='+')
 
@@ -12441,9 +12540,35 @@ class Widget:
         sys.exit(0)
 
     def _quit(self):
+        # 🔴 A renewal between its request and the write of its answer holds
+        # the only copy of a login: the server retires the old token as it
+        # answers. Quitting then (the menu, an update, a restart) lost it
+        # (review of 2026-09-30): the widget goes out of sight and waits for
+        # it, 30 seconds at most.
+        if cc_accounts.renewal_in_flight():
+            now = time.monotonic()
+            if getattr(self, '_quit_waiting', None) is None:
+                self._quit_waiting = now
+                wlog('QUIT   waiting for a renewal to be kept')
+                try:
+                    self._close_menu()
+                    self._save_geometry()
+                    self._quit_geometry_saved = True
+                    self.root.withdraw()
+                except tk.TclError:
+                    pass
+            if now - self._quit_waiting < 30:
+                if getattr(self, '_quit_poll', None) is None:
+                    def again():
+                        self._quit_poll = None
+                        self._quit()
+                    self._quit_poll = self.root.after(100, again)
+                return
+            wlog('QUIT   a renewal is still at work: quitting anyway')
         wlog('QUIT   _quit() called')
         self._close_menu()
-        self._save_geometry()
+        if not getattr(self, '_quit_geometry_saved', False):
+            self._save_geometry()
         if self._job:
             self.root.after_cancel(self._job)
         if self._countdown_job:
