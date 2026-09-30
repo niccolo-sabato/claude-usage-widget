@@ -314,6 +314,7 @@ _FONT_SPECS = {
     'FT_DLG_H':     ('Segoe UI', 11, 'bold'),   # Section headers inside dialogs
     'FT_DLG_BODY':  ('Segoe UI', 10),           # Body text, entries
     'FT_DLG_HINT':  ('Segoe UI', 9),            # Hints / status lines
+    'FT_DLG_HINT_LINK': ('Segoe UI', 9, 'normal', 'underline'),  # A link in one, under the pointer
     'FT_DLG_BTN':   ('Segoe UI', 10),           # Secondary pill button text
     'FT_DLG_BTN_B': ('Segoe UI', 10, 'bold'),   # Primary pill button text
     'FT_MENU':      ('Segoe UI', 10),           # Menu row text
@@ -337,7 +338,8 @@ def init_fonts(root, lang):
         globals()[name] = tkfont.Font(
             root=root, name='cu_' + name, exists=False,
             family=_family_for(spec[0], lang), size=spec[1],
-            weight=spec[2] if len(spec) > 2 else 'normal')
+            weight=spec[2] if len(spec) > 2 else 'normal',
+            underline=int(len(spec) > 3 and spec[3] == 'underline'))
 
 
 def apply_font_lang(lang):
@@ -1632,13 +1634,42 @@ CC_LANG = {
         'cc_cli_force': 'To switch anyway: claude-account.ps1 switch "{name}" -Force',
         'cc_cli_incoherent': 'The credentials file names the organization of one account while its tokens belong to another.',
         'cc_cli_synced': 'The saved login "{name}" is now in step with the one in use.',
-        'cc_cli_usage': 'Usage: --cc list | save NAME | switch NAME [--force] | resolve NAME | sync | doctor, with --quiet for one line and --out FILE for the output.',
+        'cc_cli_usage': 'Usage: --cc list | save NAME | switch NAME [--force] | verify NAME | resolve NAME | sync | doctor, with --quiet for one line and --out FILE for the output.',
         'cc_cli_failed': 'The command failed; the reason is in widget.log.',
         'cc_cli_in_step': 'The saved login "{name}" is already in step with the one in use.',
         'cc_cli_unlisted': 'The account in use has no saved login yet: save it once, choosing its name.',
         'cc_cli_not_synced': 'The saved login "{name}" was left as it is: the login in use is one it had already moved past.',
         'cc_cli_not_written': 'The saved login "{name}" could not be brought in step. Run the same command again.',
         'cc_cli_sync_unverified': 'The saved login "{name}" was written, but it does not read back as the one in use. Run the same command again.',
+        # the renewal and the check of a saved login (2026-09-30)
+        'cc_j_renewed': 'The saved login was renewed: it works, and it is good until {until}.',
+        'cc_j_renew_refused': 'The server no longer accepts the saved login of {name}: switching to it would sign Claude Code out.',
+        'cc_j_renew_refused_before': 'The server refused this saved login on {when}.',
+        'cc_j_renew_in_use': 'This is the login Claude Code is using: it is not renewed from here.',
+        'cc_j_renew_account_in_use': 'Claude Code is signed in to this account: its saved login is not renewed from here, because its token may be one Claude Code has already replaced.',
+        'cc_j_renew_moved': 'The saved login of {name} changed while I was renewing it, so I changed nothing.',
+        'cc_j_renew_busy': 'Another switch or check of a saved login was already under way on this computer, so I changed nothing.',
+        'cc_j_renew_not_kept': 'The server renewed the saved login of {name}, but I could not make sure its new tokens were saved, and the old ones no longer work.',
+        'cc_j_renew_other': 'The server refused the request ({error}, HTTP {code}), not the login.',
+        'cc_j_in_use_renews': 'In use by Claude Code, which renews it at its next command: there is nothing to check it with right now.',
+        'cc_j_in_use_refused': 'The server refused the login Claude Code is using.',
+        'cc_j_verified_in_use': 'In use by Claude Code, and it works.',
+        'cc_r_login_again': 'Sign in to that account with /login in Claude Code: the widget saves the new login by itself.',
+        'cc_ui_verify': 'Verify',
+        'cc_ui_verify_tip': 'Renews the saved login now, to be sure the server still accepts it. The login Claude Code is using is checked without renewing it.',
+        'cc_ui_verifying': 'Checking…',
+        'cc_ui_renewing': 'Renewing the saved login, to be sure it works…',
+        'cc_ui_unverified_risk': 'Switching without the check writes the login as it was saved: if the server no longer accepts it, Claude Code will ask you to sign in.',
+        'cc_ui_st_in_use': 'In use by Claude Code on this computer',
+        'cc_ui_st_in_use_ok': 'In use by Claude Code on this computer · checked {when}',
+        'cc_ui_st_saved': 'Saved login · good until {until}',
+        'cc_ui_st_verified': 'Verified {when} · good until {until}',
+        'cc_ui_st_refused': 'Refused by the server {when}: sign in again with /login',
+        'cc_ui_st_bad': 'Not usable: {why}',
+        'cc_ui_st_unverified': 'Not verified {when}: {why}',
+        'cc_ui_when_today': 'at {time}',
+        'cc_ui_when_day': 'on {day} at {time}',
+        'cc_ui_day': '{d}/{m}',
     },
     'it': {
         'cc_j_already_active': 'Claude Code è già autenticato come {name}.',
@@ -1744,13 +1775,42 @@ CC_LANG = {
         'cc_cli_force': 'Per passare lo stesso: claude-account.ps1 switch "{name}" -Force',
         'cc_cli_incoherent': 'Il file delle credenziali indica l’organizzazione di un account, ma i suoi token sono di un altro.',
         'cc_cli_synced': 'L’accesso salvato "{name}" adesso è in pari con quello in uso.',
-        'cc_cli_usage': 'Uso: --cc list | save NOME | switch NOME [--force] | resolve NOME | sync | doctor, con --quiet per una riga sola e --out FILE per l’uscita.',
+        'cc_cli_usage': 'Uso: --cc list | save NOME | switch NOME [--force] | verify NOME | resolve NOME | sync | doctor, con --quiet per una riga sola e --out FILE per l’uscita.',
         'cc_cli_failed': 'Il comando non è riuscito; il motivo è in widget.log.',
         'cc_cli_in_step': 'L’accesso salvato "{name}" è già in pari con quello in uso.',
         'cc_cli_unlisted': 'L’account in uso non ha ancora un accesso salvato: salvalo una volta, scegliendo tu il nome.',
         'cc_cli_not_synced': 'L’accesso salvato "{name}" è rimasto com’era: il login in uso è uno stato che aveva già superato.',
         'cc_cli_not_written': 'Non è stato possibile rimettere in pari l’accesso salvato "{name}". Rilancia lo stesso comando.',
         'cc_cli_sync_unverified': 'L’accesso salvato "{name}" è stato scritto, ma non si rilegge uguale a quello in uso. Rilancia lo stesso comando.',
+        # il rinnovo e la verifica di un accesso salvato (30/9/2026)
+        'cc_j_renewed': 'Accesso salvato rinnovato: funziona, ed è valido fino al {until}.',
+        'cc_j_renew_refused': 'Il server non accetta più l’accesso salvato di {name}: passarci farebbe uscire Claude Code.',
+        'cc_j_renew_refused_before': 'Il server ha rifiutato questo accesso salvato il {when}.',
+        'cc_j_renew_in_use': 'È il login che Claude Code sta usando: da qui non si rinnova.',
+        'cc_j_renew_account_in_use': 'Claude Code è entrato con questo account: il suo accesso salvato non si rinnova da qui, perché il suo token potrebbe essere uno che Claude Code ha già sostituito.',
+        'cc_j_renew_moved': 'L’accesso salvato di {name} è cambiato mentre lo rinnovavo, quindi non ho cambiato niente.',
+        'cc_j_renew_busy': 'Su questo computer era già in corso un altro passaggio o una verifica di un accesso salvato, quindi non ho cambiato niente.',
+        'cc_j_renew_not_kept': 'Il server ha rinnovato l’accesso salvato di {name}, ma non ho potuto assicurarmi che i token nuovi fossero salvati, e quelli vecchi non funzionano più.',
+        'cc_j_renew_other': 'Il server ha rifiutato la richiesta ({error}, HTTP {code}), non l’accesso.',
+        'cc_j_in_use_renews': 'In uso da Claude Code, che lo rinnova al prossimo comando: adesso non c’è niente con cui verificarlo.',
+        'cc_j_in_use_refused': 'Il server ha rifiutato il login che Claude Code sta usando.',
+        'cc_j_verified_in_use': 'In uso da Claude Code, e funziona.',
+        'cc_r_login_again': 'Entra in quell’account con /login in Claude Code: il widget salva da solo il nuovo accesso.',
+        'cc_ui_verify': 'Verifica',
+        'cc_ui_verify_tip': 'Rinnova adesso l’accesso salvato, per essere sicuri che il server lo accetti ancora. Il login che Claude Code sta usando viene controllato senza rinnovarlo.',
+        'cc_ui_verifying': 'Verifico…',
+        'cc_ui_renewing': 'Rinnovo l’accesso salvato, per essere sicuro che funzioni…',
+        'cc_ui_unverified_risk': 'Passando senza la verifica scrivo l’accesso così com’è salvato: se il server non lo accetta più, Claude Code ti chiederà di rientrare.',
+        'cc_ui_st_in_use': 'In uso da Claude Code su questo computer',
+        'cc_ui_st_in_use_ok': 'In uso da Claude Code su questo computer · verificato {when}',
+        'cc_ui_st_saved': 'Accesso salvato · valido fino al {until}',
+        'cc_ui_st_verified': 'Verificato {when} · valido fino al {until}',
+        'cc_ui_st_refused': 'Rifiutato dal server {when}: entra di nuovo con /login',
+        'cc_ui_st_bad': 'Non utilizzabile: {why}',
+        'cc_ui_st_unverified': 'Non verificato {when}: {why}',
+        'cc_ui_when_today': 'alle {time}',
+        'cc_ui_when_day': 'il {day} alle {time}',
+        'cc_ui_day': '{d}/{m}',
     },
     'ja': {
         'cc_j_already_active': 'Claude Code はすでに {name} としてサインインしています。',
@@ -1856,13 +1916,42 @@ CC_LANG = {
         'cc_cli_force': 'それでも切り替える場合: claude-account.ps1 switch "{name}" -Force',
         'cc_cli_incoherent': '認証情報ファイルの組織と、トークンの持ち主のアカウントが一致しません。',
         'cc_cli_synced': '保存済みのログイン「{name}」を使用中のログインと同じ状態にしました。',
-        'cc_cli_usage': '使い方: --cc list | save 名前 | switch 名前 [--force] | resolve 名前 | sync | doctor。--quiet で1行、--out FILE で出力先を指定します。',
+        'cc_cli_usage': '使い方: --cc list | save 名前 | switch 名前 [--force] | verify 名前 | resolve 名前 | sync | doctor。--quiet で1行、--out FILE で出力先を指定します。',
         'cc_cli_failed': 'コマンドが失敗しました。理由は widget.log に記録されています。',
         'cc_cli_in_step': '保存済みのログイン「{name}」は、すでに使用中のログインと同じ状態です。',
         'cc_cli_unlisted': '使用中のアカウントには、まだ保存済みのログインがありません。名前を決めて一度保存してください。',
         'cc_cli_not_synced': '使用中のログインは保存済みのログイン「{name}」が以前に持っていた状態のため、そのままにしました。',
         'cc_cli_not_written': '保存済みのログイン「{name}」を使用中のログインと同じ状態にできませんでした。同じコマンドをもう一度実行してください。',
         'cc_cli_sync_unverified': '保存済みのログイン「{name}」を書き込みましたが、読み直すと使用中のログインと一致しません。同じコマンドをもう一度実行してください。',
+        # 保存済みログインの更新と確認（2026-09-30）
+        'cc_j_renewed': '保存済みログインを更新しました。有効で、{until} まで使えます。',
+        'cc_j_renew_refused': 'サーバーは {name} の保存済みログインをもう受け付けません。切り替えると Claude Code がサインアウトされます。',
+        'cc_j_renew_refused_before': 'サーバーは {when} にこの保存済みログインを拒否しました。',
+        'cc_j_renew_in_use': 'Claude Code が使用中のログインのため、ここからは更新しません。',
+        'cc_j_renew_account_in_use': 'Claude Code はこのアカウントでサインイン中です。保存済みログインのトークンは Claude Code がすでに置き換えたものかもしれないため、ここからは更新しません。',
+        'cc_j_renew_moved': '{name} の保存済みログインが更新中に変わったため、何も変更していません。',
+        'cc_j_renew_busy': 'このPCで別の切り替えか保存済みログインの確認がすでに進行中だったため、何も変更していません。',
+        'cc_j_renew_not_kept': 'サーバーは {name} の保存済みログインを更新しましたが、新しいトークンが保存されたか確認できませんでした。古いトークンはもう使えません。',
+        'cc_j_renew_other': 'サーバーが拒否したのはリクエスト（{error}、HTTP {code}）で、ログインではありません。',
+        'cc_j_in_use_renews': 'Claude Code が使用中で、次のコマンドで更新されます。今は確認に使えるものがありません。',
+        'cc_j_in_use_refused': 'サーバーは Claude Code が使用中のログインを拒否しました。',
+        'cc_j_verified_in_use': 'Claude Code が使用中で、有効です。',
+        'cc_r_login_again': 'Claude Code で /login を実行してそのアカウントにサインインしてください。新しいログインはウィジェットが自動で保存します。',
+        'cc_ui_verify': '確認',
+        'cc_ui_verify_tip': '保存済みログインを今すぐ更新して、サーバーがまだ受け付けるか確かめます。Claude Code が使用中のログインは更新せずに確認します。',
+        'cc_ui_verifying': '確認しています…',
+        'cc_ui_renewing': '保存済みログインを更新して、使えるか確かめています…',
+        'cc_ui_unverified_risk': '確認せずに切り替えると、保存されたままのログインを書き込みます。サーバーがもう受け付けない場合、Claude Code からサインインを求められます。',
+        'cc_ui_st_in_use': 'このPCの Claude Code が使用中',
+        'cc_ui_st_in_use_ok': 'このPCの Claude Code が使用中 · {when} に確認済み',
+        'cc_ui_st_saved': '保存済みログイン · {until} まで有効',
+        'cc_ui_st_verified': '{when} に確認済み · {until} まで有効',
+        'cc_ui_st_refused': '{when} にサーバーが拒否しました。/login でサインインし直してください',
+        'cc_ui_st_bad': '使用できません: {why}',
+        'cc_ui_st_unverified': '{when} は確認できませんでした: {why}',
+        'cc_ui_when_today': '{time}',
+        'cc_ui_when_day': '{day} {time}',
+        'cc_ui_day': '{m}/{d}',
     },
 }
 
@@ -1903,6 +1992,26 @@ def cc_fill(data):
         else:
             out[key] = value
     return out
+
+
+def cc_when(moment):
+    """When a saved login was checked: 'alle 09:12' today, 'il 29/9 alle
+    09:12' before. '' for anything that is not a time."""
+    if not isinstance(moment, datetime):
+        return ''
+    clock = f'{moment:%H:%M}'
+    if moment.date() == datetime.now().date():
+        return t('cc_ui_when_today').format(time=clock)
+    return t('cc_ui_when_day').format(time=clock, day=cc_day(moment))
+
+
+def cc_day(moment):
+    """A date as day and month ('26/10'; '10/26' in Japanese). A saved login
+    lasts weeks, so its year says nothing, and with it the status line of a
+    row was cut short at 100%."""
+    if not isinstance(moment, datetime):
+        return '?'
+    return t('cc_ui_day').format(d=moment.day, m=moment.month)
 
 
 def cc_say(judgement, part='key'):
@@ -3777,6 +3886,66 @@ def cc_http(url, headers):
         wlog(f'CC     check could not be made: {_redact(str(e))}')
         return None, ''
     return _http_status(headers_out), body
+
+
+# How the widget introduces itself to the token endpoint: as what it is. The
+# endpoint answered curl's own agent with 429, and a named one normally
+# (measured on 2026-09-30 with an invented token).
+CC_AGENT = f'ClaudeUsageWidget/{APP_VERSION} (+https://github.com/niccolo-sabato/claude-usage-widget)'
+
+
+def cc_post(url, body, headers=()):
+    """The transport cc_accounts renews a saved login with: (status or None,
+    text).
+
+    🔴 The body carries the renewal token, so curl reads it from its standard
+    input and never finds it on its command line, where any process of the
+    user could read it. The answer carries the new tokens: it is handed back
+    and never logged.
+
+    One retry only, without the revocation check and only when that check is
+    what failed: the request has not left then. Any other failure is not
+    tried again. The server may have renewed the token and the answer been
+    lost, and asking again with the old token would turn "no answer" into a
+    refusal of a login that the server had just renewed.
+    """
+    if cc_accounts.on_bench():
+        # The credentials are fakes in a temporary folder (a bench): nothing
+        # of theirs goes to the real server, whatever the bench forgot to
+        # stand in for.
+        wlog('CC     renewal not asked: these credentials belong to a bench')
+        return None, ''
+    args = ['curl', '-sS', '-X', 'POST', '--max-time', '20',
+            '-H', 'Content-Type: application/json', '-H', f'User-Agent: {CC_AGENT}',
+            '-o', '-', '-w', '\n%{http_code}']
+    for h in headers:
+        args += ['-H', h]
+    args += ['--data-binary', '@-', url]
+    tried_no_revoke = False
+    while True:
+        try:
+            r = subprocess.run(args, input=body.encode('utf-8'), capture_output=True,
+                               timeout=25, creationflags=subprocess.CREATE_NO_WINDOW)
+        except subprocess.TimeoutExpired:
+            wlog('CC     renewal: no answer within 25 s')
+            return None, ''
+        except OSError as e:
+            wlog(f'CC     renewal could not be asked: {_redact(str(e))}')
+            return None, ''
+        if r.returncode == 0:
+            break
+        err = _redact(_first_line(_decode_console(r.stderr)))
+        if not tried_no_revoke and any(h in err.lower() for h in _REVOCATION_HINTS):
+            tried_no_revoke = True
+            args = args[:2] + ['--ssl-no-revoke'] + args[2:]
+            continue
+        wlog(f'CC     renewal: curl exit {r.returncode}: {err}')
+        return None, ''
+    text, _, code = r.stdout.decode('utf-8', 'replace').rpartition('\n')
+    try:
+        return int(code), text
+    except ValueError:
+        return None, ''
 
 
 # 🔴 Claude Code's OAuth endpoint does not bear a widget that refreshes
@@ -10497,7 +10666,7 @@ class Widget:
                     reopen(advanced=st['advanced'])
             self._cc_sync_login(after=identified)
 
-        def card(title, chip, chip_fg, text, actions, is_source):
+        def card(title, chip, chip_fg, text, actions, is_source, status=None):
             box = tk.Frame(body, bg=BAR_BG)
             box.pack(fill='x', pady=(0, self.dp(8)))
             inner = tk.Frame(box, bg=BAR_BG)
@@ -10517,6 +10686,22 @@ class Widget:
                 tk.Label(inner, text=text, font=FT_DLG_HINT, fg=DIM, bg=BAR_BG,
                          anchor='w', justify='left',
                          wraplength=inner_w - self.dp(28)).pack(fill='x', pady=(6, 0))
+            if status:
+                # The state of the saved login, as its row in the list says it:
+                # a dot of its colour, then the words.
+                colour, words, tip = status
+                line = tk.Frame(inner, bg=BAR_BG)
+                line.pack(fill='x', pady=(self.dp(6), 0))
+                tk.Label(line, image=_dot_image(self.dp(7), colour), bg=BAR_BG).pack(
+                    side='left', anchor='n',
+                    pady=(max(0, (FT_DLG_HINT.metrics('linespace') - self.dp(7)) // 2), 0))
+                said = tk.Label(line, text=words, font=FT_DLG_HINT,
+                                fg=DIM if colour in (DIM, BLUE, DOT_GREEN) else colour,
+                                bg=BAR_BG, anchor='w', justify='left',
+                                wraplength=inner_w - self.dp(48))
+                said.pack(side='left', fill='x', padx=(self.dp(4), 0))
+                if tip:
+                    self._tooltip(said, tip)
             if actions:
                 row = tk.Frame(inner, bg=BAR_BG)
                 row.pack(fill='x', pady=(self.dp(10), 0))
@@ -10543,6 +10728,12 @@ class Widget:
 
         linked = bool(acc.get('cc_linked'))
         cc_actions = []
+
+        def verify_login():
+            # The answer goes where the page says things (status_lbl), and the
+            # page is drawn again with the new state of the login.
+            self._cc_verify(profile['name'], lambda: reopen(advanced=st['advanced']))
+
         if here:
             chip, chip_fg = '● ' + t('acct_cc_here'), DOT_GREEN
             # "Reads this account through this login" only when it does: the
@@ -10584,10 +10775,16 @@ class Widget:
             # the server itself, and refuses another account's login.
             cc_actions.append((t('cc_link'), lambda: self._link_claude_code(
                 acc, reopen, status_lbl)))
+        cc_status = None
+        if profile is not None:
+            # Beside Switch: the one way to know the saved login still works.
+            cc_actions.insert(1 if cc_actions and not here else 0,
+                              (t('cc_ui_verify'), verify_login))
+            cc_status = self._cc_status(profile, here)
         if linked:
             cc_actions.append((t('cc_unlink'), unlink))
         card(t('auth_claude_code'), chip, chip_fg, text, cc_actions,
-             source == AUTH_CC)
+             source == AUTH_CC, cc_status)
 
         def drop_key():
             if not acc.get('cc_linked'):
@@ -11058,7 +11255,7 @@ class Widget:
         def work():
             try:
                 result = cc_accounts.switch(
-                    name, knowingly=st['knowingly'], call=cc_http,
+                    name, knowingly=st['knowingly'], call=cc_http, post=cc_post,
                     plan_check=self._cc_plan_alive,
                     name_for_org=lambda org: (find_account_by_org(self.cfg, org)
                                               or {}).get('name'))
@@ -11119,7 +11316,11 @@ class Widget:
 
             if result.get('asks'):
                 # Not refused: it could not be checked, which is a different
-                # thing, and the user is the one who decides.
+                # thing, and the user is the one who decides. What deciding
+                # means is said: a login written unchecked may be dead.
+                checked = result.get('checked') or {}
+                if checked and not checked.get('renewed'):
+                    remedy = '\n'.join(x for x in (remedy, t('cc_ui_unverified_risk')) if x)
                 show(note, ORANGE, remedy)
 
                 def proceed():
@@ -11138,10 +11339,9 @@ class Widget:
         def start():
             st['busy'] = True
             self._cc_switch_busy = True
-            # Not "checking": the check only happens when the profile's short
-            # token is still good, and promising it every time would be a
-            # sentence that is usually false.
-            show(t('cc_ui_switching'), FG, t('cc_ui_saving_out'))
+            # The saved login is renewed first (cc_accounts.switch), and that
+            # is the step that takes time.
+            show(t('cc_ui_switching'), FG, t('cc_ui_renewing'))
             render_buttons()
             threading.Thread(target=work, daemon=True).start()
 
@@ -11232,6 +11432,107 @@ class Widget:
         if status is not None:
             status.config(text=t('dlg_verifying'), fg=BLUE)
         threading.Thread(target=work, daemon=True).start()
+
+    def _cc_verify(self, name, done=None):
+        """Check a saved login with the server, off the main thread
+        (cc_accounts.verify): renewed and kept renewed, or, for the login in
+        use, asked about with its short token. `done` redraws whatever shows
+        it, once now (for "Checking...") and once with the answer.
+
+        Not while a switch is at work: both would renew the same login.
+        """
+        busy = self.__dict__.setdefault('_cc_verifying', set())
+        if name in busy or getattr(self, '_cc_switch_busy', False):
+            return
+        busy.add(name)
+
+        def work():
+            try:
+                res = cc_accounts.verify(name, call=cc_http, post=cc_post)
+            except Exception as e:
+                wlog(f'CC     verify raised: {_redact(str(e))}')
+                res = {'judgement': cc_accounts.verdict(
+                    cc_accounts.UNKNOWN, 'cc_j_no_answer', {}, 'cc_r_check_connection')}
+
+            def apply():
+                busy.discard(name)
+                j = res.get('judgement') or {}
+                wlog(f"CC     checked the saved login {name}: {j.get('kind')} ({j.get('key')})")
+                self.__dict__.setdefault('_cc_verify_results', {})[name] = (j, datetime.now())
+                if done:
+                    try:
+                        done()
+                    except tk.TclError:
+                        pass
+            try:
+                self.root.after(0, apply)
+            except (tk.TclError, RuntimeError) as e:
+                wlog(f'CC     could not report the check: {_redact(str(e))}')
+
+        threading.Thread(target=work, daemon=True).start()
+        if done:
+            done()
+
+    def _cc_status(self, profile, signed_in_here):
+        """(colour, text, tooltip) of an account's Claude Code login, for its
+        row and its page: in use here, saved and good until, verified when,
+        refused, or not usable and why."""
+        name = (profile or {}).get('name')
+        if name and name in getattr(self, '_cc_verifying', set()):
+            return BLUE, t('cc_ui_verifying'), ''
+        check = (profile or {}).get('check')
+        until = (profile or {}).get('refresh_expires')
+        until_txt = cc_day(until)
+        said = getattr(self, '_cc_verify_results', {}).get(name) if name else None
+        # A good answer about a saved login is kept in the login itself, with
+        # its time: only the others need remembering here.
+        session = None if said and said[0].get('kind') == cc_accounts.GOOD else said
+        tip = ''
+        if session:
+            tip = '\n'.join(x for x in (cc_say(session[0]), cc_say(session[0], 'remedy')) if x)
+        if signed_in_here:
+            # The latest word on the login in use, whatever it was: the check
+            # kept in its saved login, or the one made in this session, which
+            # is not kept there when the saved login lags behind the live one
+            # (cc_accounts.verify checks the live one all the same).
+            words = [(check['at'], check['kind'],
+                      cc_accounts.verdict(check['kind'], check.get('key') or '', {'name': name},
+                                          'cc_r_login_again'
+                                          if check['kind'] == cc_accounts.BAD else ''))
+                     ] if check else []
+            if said:
+                words.append((said[1], said[0].get('kind'), said[0]))
+            if not words:
+                return BLUE, t('cc_ui_st_in_use'), ''
+            at, kind, j = max(words, key=lambda x: x[0])
+            tip = '\n'.join(x for x in (cc_say(j), cc_say(j, 'remedy')) if x)
+            if kind == cc_accounts.GOOD:
+                return BLUE, t('cc_ui_st_in_use_ok').format(when=cc_when(at)), ''
+            if kind == cc_accounts.BAD:
+                return RED, t('cc_ui_st_refused').format(when=cc_when(at)), tip
+            return ORANGE, t('cc_ui_st_unverified').format(when=cc_when(at), why=cc_say(j)), tip
+        if (profile.get('active') and said and said[0].get('key') == 'cc_j_verified_in_use'
+                and (not check or said[1] > check['at'])):
+            # Checked as the login in use, on the server's word, where the
+            # disk alone could only say "likely" (right after a sign-in).
+            return BLUE, t('cc_ui_st_in_use_ok').format(when=cc_when(said[1])), ''
+        if profile.get('verdict') == cc_accounts.BAD:
+            if check and check['kind'] == cc_accounts.BAD:
+                j = next((x for x in profile.get('judgements') or []
+                          if x.get('key') == 'cc_j_renew_refused_before'), None)
+                return RED, t('cc_ui_st_refused').format(when=cc_when(check['at'])), \
+                    '\n'.join(x for x in (cc_say(j), cc_say(j, 'remedy')) if x) if j else ''
+            bad = next((x for x in profile.get('judgements') or []
+                        if x.get('kind') == cc_accounts.BAD), None)
+            return RED, t('cc_ui_st_bad').format(why=cc_say(bad) if bad else ''), \
+                '\n'.join(x for x in (cc_say(bad), cc_say(bad, 'remedy')) if x) if bad else ''
+        if session and (not check or session[1] > check['at']):
+            return ORANGE, t('cc_ui_st_unverified').format(
+                when=cc_when(session[1]), why=cc_say(session[0])), tip
+        if check and check['kind'] == cc_accounts.GOOD:
+            return DOT_GREEN, t('cc_ui_st_verified').format(
+                when=cc_when(check['at']), until=until_txt), tip
+        return DIM, t('cc_ui_st_saved').format(until=until_txt), tip
 
     def _account_row(self, parent, acc, rebuild, cc_state=None, width=None):
         """One account in the list.
@@ -11350,10 +11651,9 @@ class Widget:
 
         if active:
             badge(t('dlg_active'), accent)
-        if signed_in_here:
-            # Whose login is currently on this machine, which is a fact about
-            # Claude Code and not about what the widget is showing.
-            badge(t('dlg_cc_here'), BLUE)
+        # Whose login Claude Code has here is said on the row's own line for
+        # its login (below), with the state of that login, instead of by a
+        # second badge beside the name.
 
         methods = account_methods(acc)
         how = (t('auth_claude_code') if methods and methods[0] == AUTH_CC
@@ -11366,6 +11666,47 @@ class Widget:
         if shown != sub_txt:
             self._tooltip(sub_lbl, sub_txt)
         cells.append(sub_lbl)
+
+        # The Claude Code login of this account, on a line of its own: whose
+        # it is on this computer, whether the server still accepts the saved
+        # one and since when, and the Verify beside the fact it verifies. The
+        # row had room for two buttons on the right, not three (the user,
+        # 2026-09-30: "the Verify button would not fit, review the UI").
+        st_line = None
+        if profile is not None or signed_in_here:
+            colour, st_text, st_tip = self._cc_status(profile, signed_in_here)
+            st_line = tk.Frame(txt, bg=base)
+            st_line.pack(fill='x', pady=(self.dp(2), 0))
+            cells.append(st_line)
+            # Drawn, not a glyph: the Japanese font's circle is twice the
+            # Latin one's.
+            dot = tk.Label(st_line, image=_dot_image(self.dp(7), colour), bg=base)
+            dot.pack(side='left')
+            cells.append(dot)
+            st_lbl = tk.Label(st_line, text=st_text, font=FT_DLG_HINT,
+                              fg=DIM if colour in (DIM, BLUE, DOT_GREEN) else colour,
+                              bg=base, anchor='w')
+            st_lbl.pack(side='left', padx=(self.dp(4), 0))
+            cells.append(st_lbl)
+            if st_tip:
+                self._tooltip(st_lbl, st_tip)
+            if profile is not None:
+                busy = (profile['name'] in getattr(self, '_cc_verifying', set())
+                        or getattr(self, '_cc_switch_busy', False))
+                link = tk.Label(st_line, text=t('cc_ui_verify'), font=FT_DLG_HINT,
+                                fg=DIM if busy else BLUE, bg=base,
+                                cursor='arrow' if busy else 'hand2')
+                link.pack(side='left', padx=(self.dp(10), 0))
+                if not busy:
+                    link.bind('<Button-1>', lambda e, n=profile['name']:
+                              self._cc_verify(n, rebuild))
+                    link.bind('<Enter>', lambda e: link.config(
+                        font=FT_DLG_HINT_LINK))
+                    link.bind('<Leave>', lambda e: link.config(font=FT_DLG_HINT))
+                    self._tooltip(link, t('cc_ui_verify_tip'))
+                # A control, not a cell: the row's click would replace its own.
+                controls.append(link)
+            st_full = st_text
 
         def switch(_e=None):
             self._switch_account(acc.get('id'), rebuild)
@@ -11410,6 +11751,12 @@ class Widget:
             if now != sub_txt and not tip_state['on']:
                 self._tooltip(sub_lbl, sub_txt)
                 tip_state['on'] = True
+            if st_line is not None:
+                # What the dot and the Verify leave to the words between them.
+                others = sum(c.winfo_reqwidth() + self.dp(10)
+                             for c in st_line.winfo_children() if c is not st_lbl)
+                st_lbl.config(text=elide(st_full, FT_DLG_HINT,
+                                         max(self.dp(40), avail - others - inner(st_lbl))))
 
         txt.bind('<Configure>', fit, add='+')
 

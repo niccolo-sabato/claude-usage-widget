@@ -3,6 +3,7 @@
     "Claude Usage.exe" --cc list    [--quiet] [--out FILE]
     "Claude Usage.exe" --cc save    NAME [--quiet] [--out FILE]
     "Claude Usage.exe" --cc switch  NAME [--force] [--quiet] [--out FILE]
+    "Claude Usage.exe" --cc verify  NAME [--quiet] [--out FILE]
     "Claude Usage.exe" --cc resolve NAME [--out FILE]
     "Claude Usage.exe" --cc sync    [--quiet] [--out FILE]
     "Claude Usage.exe" --cc doctor  [--out FILE]
@@ -47,14 +48,15 @@ import traceback
 import cc_accounts as cc
 
 EXIT_DONE, EXIT_ERROR, EXIT_REFUSED, EXIT_STOPPED, EXIT_UNVERIFIED = 0, 1, 2, 3, 4
-ACTIONS = ('list', 'save', 'switch', 'resolve', 'sync', 'doctor')
+ACTIONS = ('list', 'save', 'switch', 'verify', 'resolve', 'sync', 'doctor')
 
 # A switch stopped by these was not refused on the saved login's merits, and
 # stopped before the credentials file was written: the login in use could not
 # be told apart, it moved meanwhile, or the outgoing one could not be saved
 # (that save may have added the organization to the file, next to the same
 # account's tokens, as with the old script's 3).
-_STOPPED = {'cc_j_live_unidentified', 'cc_j_live_moving', 'cc_j_outgoing_not_saved'}
+_STOPPED = {'cc_j_live_unidentified', 'cc_j_live_moving', 'cc_j_outgoing_not_saved',
+            'cc_j_renew_moved', 'cc_j_renew_busy'}
 # The credentials file could not be read: before the write, or right after it
 # when the switch reads back what it wrote, and the answer does not say which.
 # So "unknown" (1), and the scripts look at the file themselves.
@@ -136,6 +138,15 @@ def cmd_list(w, out, quiet):
         line = '%s %-22s %-32s %s' % (mark, p['name'], p.get('email') or '', until)
         if _in_use(p):
             line += '  (%s)' % w.t('acct_cc_here')
+        check = p.get('check')
+        if check:
+            # When the server last answered for this very token (verify, or
+            # the renewal a switch makes): the date alone never said it.
+            line += '  [%s]' % w.t('cc_ui_st_verified' if check['kind'] == cc.GOOD
+                                   else 'cc_ui_st_refused').format(
+                when=w.cc_when(check['at']),
+                until=w.pretty_date(p['refresh_expires'].isoformat())
+                if p.get('refresh_expires') else '?')
         out.append(line)
         if p.get('verdict') != cc.GOOD:
             bad = next((j for j in p.get('judgements') or [] if j.get('kind') != cc.GOOD), None)
@@ -222,16 +233,26 @@ def cmd_switch(w, out, name, force, quiet, cfg):
     # and a key claude.ai rotates on that read would have to be written into
     # the configuration that the running widget owns. The widget's own switch
     # makes that check.
-    r = cc.switch(target, knowingly=force, call=w.cc_http,
+    # The saved login is renewed before it is written (cc_accounts.renew):
+    # a login the server no longer accepts is refused here, before Claude
+    # Code is touched. The Planner's scheduled switch of 2026-09-30 went
+    # through on the date alone, onto such a login, and signed Claude Code
+    # out. With --force a switch that could not be checked (no answer) goes
+    # on; a refusal never does.
+    r = cc.switch(target, knowingly=force, call=w.cc_http, post=w.cc_post,
                   name_for_org=lambda org: names.get(org))
     j = r.get('judgement') or {}
     key = j.get('key') or ''
+    renewed = bool((r.get('checked') or {}).get('renewed'))
     if r.get('done'):
         if quiet:
-            out.append('switched="%s" tier="%s" saved_out="%s"' % (
-                target, (j.get('data') or {}).get('tier') or '', r.get('saved_out') or ''))
+            out.append('switched="%s" tier="%s" saved_out="%s" renewed="%s"' % (
+                target, (j.get('data') or {}).get('tier') or '', r.get('saved_out') or '',
+                'yes' if renewed else 'no'))
         else:
             out.append(_say(w, j))
+            if renewed:
+                out.append(w.cc_say(r['checked']['judgement']))
         return EXIT_DONE
     if key == 'cc_j_already_active':
         out.append('already-active="%s"' % target if quiet else _say(w, j))
@@ -253,6 +274,34 @@ def cmd_switch(w, out, name, force, quiet, cfg):
         if r.get('asks'):
             out.append(w.t('cc_cli_force').format(name=name))
     return EXIT_REFUSED
+
+
+def cmd_verify(w, out, name, quiet, cfg):
+    """Whether a saved login still works, by the only test that says so: the
+    login in use is asked about with its short token (a read), any other is
+    renewed and kept renewed (cc_accounts.verify). 0 it works, 2 the server
+    refused it (sign in again), 3 no answer: nothing is known."""
+    target = resolve(name, cfg)
+    if target is None:
+        j = cc.verdict(cc.BAD, 'cc_j_no_such_profile',
+                       {'name': name, 'known': cc.profile_names()}, 'cc_r_pick_existing')
+        out.append('refused="%s" why="%s"' % (name, j['key']) if quiet else _say(w, j))
+        return EXIT_REFUSED
+    r = cc.verify(target, call=w.cc_http, post=w.cc_post)
+    j = r.get('judgement') or {}
+    kind = j.get('kind')
+    if quiet:
+        out.append('verified="%s" result="%s" why="%s" renewed="%s"' % (
+            target, kind or '', j.get('key') or '', 'yes' if r.get('renewed') else 'no'))
+    else:
+        if target != name:
+            out.append(w.t('cc_cli_uses').format(name=target))
+        out.append(_say(w, j))
+    if kind == cc.GOOD:
+        return EXIT_DONE
+    if kind == cc.BAD:
+        return EXIT_REFUSED
+    return EXIT_STOPPED
 
 
 def cmd_sync(w, out, quiet):
@@ -364,13 +413,15 @@ def main(argv, w):
     try:
         if action == 'list':
             code = cmd_list(w, lines, quiet)
-        elif action in ('save', 'switch', 'resolve') and not name:
+        elif action in ('save', 'switch', 'verify', 'resolve') and not name:
             lines.append(w.t('cc_cli_usage'))
             code = EXIT_REFUSED
         elif action == 'save':
             code = cmd_save(w, lines, name, quiet, cfg)
         elif action == 'switch':
             code = cmd_switch(w, lines, name, force, quiet, cfg)
+        elif action == 'verify':
+            code = cmd_verify(w, lines, name, quiet, cfg)
         elif action == 'resolve':
             code = cmd_resolve(w, lines, name, cfg)
         elif action == 'sync':
