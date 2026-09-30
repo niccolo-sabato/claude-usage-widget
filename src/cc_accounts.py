@@ -1013,10 +1013,33 @@ def _check_record(kind, key, token):
             'key': key, 'print': fingerprint(token)}
 
 
-def _record_check(name, expect_print, kind, key):
+def org_proof(print_):
+    """The mark that the server has confirmed a saved login's organization
+    for the renewal token with this fingerprint (label_confirmed)."""
+    return {'print': print_, 'at': datetime.now().astimezone().isoformat()}
+
+
+def label_confirmed(data):
+    """Whether the server has confirmed a saved login's organization for the
+    renewal token it holds now: saved on the server's word, checked in use,
+    or renewed from a token so confirmed (the same sign-in). Kept as
+    `orgProof`, beside the tokens, never inside `claudeAiOauth`.
+
+    A label alone proves nothing about whose a login is: the file's key is
+    written from the labels, so the two agreeing proved nothing either, and a
+    label left wrong by an older tool had a retired token of the login in use
+    renewed (review of 2026-09-30, third iteration).
+    """
+    proof = (data or {}).get('orgProof')
+    mine = fingerprint(((data or {}).get('claudeAiOauth') or {}).get('refreshToken'))
+    return bool(mine and isinstance(proof, dict) and proof.get('print') == mine)
+
+
+def _record_check(name, expect_print, kind, key, confirmed=False):
     """Write a verdict into a saved login, if it still holds the token the
     verdict is about. Not a change of tokens, so no copy is taken: the
-    copies are the login's history of tokens (history_prints)."""
+    copies are the login's history of tokens (history_prints). `confirmed`:
+    the server has also confirmed the login's organization (org_proof)."""
     with _LOCK:
         data, failure = read_profile(name)
         if failure or not isinstance(data, dict):
@@ -1024,7 +1047,10 @@ def _record_check(name, expect_print, kind, key):
         token = (data.get('claudeAiOauth') or {}).get('refreshToken')
         if fingerprint(token) != expect_print:
             return False
-        data['checked'] = _check_record(kind, key, token)
+        if kind is not None:
+            data['checked'] = _check_record(kind, key, token)
+        if confirmed:
+            data['orgProof'] = org_proof(expect_print)
         try:
             write_json_atomic(profile_path(name), data)
         except OSError:
@@ -1056,6 +1082,12 @@ def close_renewals():
     """From now on no renewal, switch or check starts in this process: the
     widget is quitting. The one under way finishes (renewal_in_flight)."""
     _CLOSING.set()
+
+
+def reopen_renewals():
+    """The quit or the update did not happen after all (the installer could
+    not be started): renewals, switches and checks may start again."""
+    _CLOSING.clear()
 
 
 def renewal_in_flight():
@@ -1237,19 +1269,43 @@ def proven_live_account(live, call=None, known=None):
     probe = live_identity(dict(live), call, confirm=True)
     if probe.get('org_source') == 'server' and probe.get('org'):
         return probe['org'], 'server'
+    # The server's word on that very short token, heard while it was still
+    # good (ask_server_identity keeps it): whose a token is does not change
+    # when it expires. An expired live token left only the labels to go by
+    # (review of 2026-09-30, third iteration).
+    said = _said_about_live(live, call)
+    if said:
+        return said, 'server'
     if mine:
         orgs = set()
         for other in profile_names():
             data, failure = read_profile(other)
             if failure or not isinstance(data, dict) or not data.get('organizationUuid'):
                 continue
-            if fingerprint((data.get('claudeAiOauth') or {}).get('refreshToken')) == mine:
+            if (fingerprint((data.get('claudeAiOauth') or {}).get('refreshToken')) == mine
+                    and label_confirmed(data)):
                 orgs.add(data['organizationUuid'])
         if len(orgs) == 1:
-            org = next(iter(orgs))
-            if not live.get('org') or live['org'] == org:
-                return org, 'holder'
+            return orgs.pop(), 'holder'
     return None, 'unproven'
+
+
+def _said_about_live(live, call):
+    """The organization the server has already named (ask_server_identity)
+    for the short token in Claude Code's file, while that file still holds
+    the login `live` read; None when it has not."""
+    if call is None or not live.get('read'):
+        return None
+    data, failure = read_json(cred_file())
+    if failure:
+        return None
+    oauth = data.get('claudeAiOauth') or {}
+    if fingerprint(oauth.get('refreshToken')) != live.get('refresh_print'):
+        return None
+    if not oauth.get('accessToken'):
+        return None
+    said = _SERVER_SAID.get((call, fingerprint(oauth['accessToken'])))
+    return said[0] if said else None
 
 
 def _newest_copy_print(name):
@@ -1338,12 +1394,17 @@ def _renew_held(name, post, call=None, known=None):
     # token for theft retires the whole sign-in, the live token with it. So
     # whose the live login is has to be PROVED (proven_live_account), and when
     # nothing can say, nothing is renewed.
+    proof = None
     if holds_login(live):
-        org, _how = proven_live_account(live, call, known)
+        org, how = proven_live_account(live, call, known)
         if org is None:
             return {'judgement': verdict(UNKNOWN, 'cc_j_renew_unidentified', {'name': name},
                                          'cc_r_identify_live'),
-                    'renewed': False, 'unidentified': True}
+                    'renewed': False, 'unidentified': True,
+                    'about_live': live.get('refresh_print')}
+        # What was proved, and how, goes back with the answer: a switch goes
+        # by the server's word it did not hear itself (_switch_held).
+        proof = {'org': org, 'how': how, 'print': live.get('refresh_print')}
         if not data.get('organizationUuid'):
             # Whose it is cannot be told, and so neither whether it is an
             # earlier copy of the login in use.
@@ -1351,7 +1412,7 @@ def _renew_held(name, post, call=None, known=None):
                     'renewed': False}
         if org == data['organizationUuid']:
             return {'judgement': verdict(UNKNOWN, 'cc_j_renew_account_in_use', {'name': name}),
-                    'renewed': False, 'in_use': True}
+                    'renewed': False, 'in_use': True, 'proof': proof}
 
     # The copy of the profile as it stands, taken BEFORE asking: once the
     # server answers, the old token is retired, and the first thing done with
@@ -1370,7 +1431,10 @@ def _renew_held(name, post, call=None, known=None):
 
     scopes = [x for x in (oauth.get('scopes') or []) if isinstance(x, str) and x]
     scopes = scopes or list(DEFAULT_SCOPES)
-    return _ask_and_keep(name, post, data, oauth, token, mine, scopes)
+    res = _ask_and_keep(name, post, data, oauth, token, mine, scopes)
+    if proof:
+        res['proof'] = proof
+    return res
 
 
 def _ask_and_keep(name, post, data, oauth, token, mine, scopes):
@@ -1423,7 +1487,12 @@ def _ask_and_keep(name, post, data, oauth, token, mine, scopes):
             # A file that still cannot be read is written over all the same:
             # the answer exists only here, and the old token is retired.
             prof = dict(current if not failure else data)
+            # The same sign-in: a label the server confirmed for the old token
+            # stays confirmed for the new one (label_confirmed).
+            confirmed = label_confirmed(prof)
             prof['claudeAiOauth'] = new
+            if confirmed:
+                prof['orgProof'] = org_proof(fingerprint(new['refreshToken']))
             prof['savedAt'] = datetime.now().astimezone().isoformat()
             prof['checked'] = _check_record(GOOD, 'cc_j_renewed', new['refreshToken'])
             if not _write_profile_patiently(name, prof):
@@ -1528,7 +1597,8 @@ def _verify_held(name, call, post):
             if _check_live(name, data, False, call, live)['judgement']['kind'] == BAD:
                 return {'judgement': verdict(UNKNOWN, 'cc_j_renew_live_refused', {'name': name},
                                              'cc_r_login_again'),
-                        'renewed': False, 'unidentified': True, 'about': res.get('about')}
+                        'renewed': False, 'unidentified': True, 'about': res.get('about'),
+                        'about_live': live.get('refresh_print')}
             return res
         if not res.get('in_use'):
             return res
@@ -1578,7 +1648,8 @@ def _check_live(name, data, same_login, call, live):
                             {'email': (answer.get('account') or {}).get('email_address') or '?'},
                             'cc_r_resave_while_active'))
     if same_login:
-        _record_check(name, mine, GOOD, 'cc_j_verified_in_use')
+        _record_check(name, mine, GOOD, 'cc_j_verified_in_use',
+                      confirmed=bool(org and org == data.get('organizationUuid')))
     return said(verdict(GOOD, 'cc_j_verified_in_use', {'name': name}))
 
 
@@ -1925,6 +1996,8 @@ def save_profile(name, live_data=None, call=None, proven=None, expect_org=None):
             'organizationUuid': org,
             'claudeAiOauth': oauth,
         }
+        if org_note in ('server', 'confirmed'):
+            prof['orgProof'] = org_proof(mine)
         ensure_store()
         backup_profile(name)
         write_json_atomic(profile_path(name), prof)
@@ -1969,12 +2042,25 @@ def sync_live_into_profile(live=None, call=None):
     if fingerprint(oauth.get('refreshToken')) != live['refresh_print']:
         return {'pending': 'changed'}
     saved = profiles(live)
-    if any(p.get('refresh_print') == live['refresh_print']
-           and _usable_name(p.get('name'))
-           for p in saved if p.get('readable', True)):
+    holder = next((p for p in saved if p.get('readable', True)
+                   and p.get('refresh_print') == live['refresh_print']
+                   and _usable_name(p.get('name'))), None)
+    if holder is not None:
         # A profile already holds this login. Not a '_auto-' parking of
         # another tool: the account's own saved login would stay behind it
-        # for good (review of 2026-09-26).
+        # for good (review of 2026-09-26). Its label is confirmed on the
+        # server's word, once per token (ask_server_identity keeps it): a
+        # label is a proof of whose the live login is only once confirmed
+        # (label_confirmed), and the saved logins written before 2026-09-30
+        # carry no confirmation.
+        prof, failure = read_profile(holder['name'])
+        _at, at_expired, _ = when(oauth.get('expiresAt'))
+        if (not failure and holder.get('org') and not label_confirmed(prof)
+                and not at_expired and call is not None):
+            org, _email = ask_server_identity(oauth.get('accessToken'), call)
+            if org and org == holder['org']:
+                _record_check(holder['name'], live['refresh_print'], None, None,
+                              confirmed=True)
         return None
     _at, at_expired, _ = when(oauth.get('expiresAt'))
     if at_expired:
@@ -2232,10 +2318,24 @@ def _switch_held(name, *, knowingly, call, plan_check, name_for_org, post):
                     'judgement': verdict(UNKNOWN, 'cc_j_already_active',
                                          {'name': name, 'behind': True}, 'cc_r_save_now')}
         if checked.get('unidentified'):
-            # Nothing is written over a login nobody can name (below).
+            # Nothing is written over a login nobody can name (below). A live
+            # login the server refuses is said as such: that is the thing to
+            # act on (review of 2026-09-30, third iteration).
+            if _check_live(name, target, False, call, live)['judgement']['kind'] == BAD:
+                return {'done': False, 'asks': False, 'checked': checked,
+                        'judgement': verdict(UNKNOWN, 'cc_j_renew_live_refused',
+                                             {'name': name}, 'cc_r_login_again')}
             return {'done': False, 'asks': False, 'checked': checked,
                     'judgement': verdict(UNKNOWN, 'cc_j_live_unidentified', {},
                                          'cc_r_identify_live')}
+        proof = checked.get('proof') or {}
+        if (proof.get('how') == 'server' and proof.get('org')
+                and proof.get('print') == live.get('refresh_print')):
+            # The server's word renew heard about the live login: the save of
+            # the outgoing login below goes by it, not by a label. It stayed
+            # inside renew, and a parking folder's wrong label had the switch
+            # answer "already on it" (review of 2026-09-30, third iteration).
+            live = dict(live, org=proof['org'], org_source='server')
         if checked.get('moved'):
             # The saved login changed while it was being renewed: what it
             # holds now has not been looked at, and the token read before may
@@ -2286,8 +2386,13 @@ def _switch_held(name, *, knowingly, call, plan_check, name_for_org, post):
                       'note': 'server'}
     elif (proof_holder is not None and proof_holder.get('org')
           and proof_holder.get('refresh_print') == pre_print):
+        # A saved login holding these tokens. Its label may be wrong, but here
+        # that can only refuse the switch ("already on it") or save the
+        # outgoing login where it already is: nothing is spent on it. The
+        # server's word, when renew heard it, comes first (above).
         out_proven = {'org': proof_holder['org'], 'email': proof_holder.get('email'),
-                      'note': 'proof'}
+                      'note': 'confirmed' if label_confirmed(read_profile(proof_holder['name'])[0])
+                      else 'proof'}
     elif (call is not None and pre_oauth.get('accessToken')
           and not when(pre_oauth.get('expiresAt'))[1]):
         srv_org, srv_email = ask_server_identity(pre_oauth.get('accessToken'), call)

@@ -3910,13 +3910,15 @@ def cc_http(url, headers):
 # endpoint answered curl's own agent with 429, and a named one normally
 # (measured on 2026-09-30 with an invented token).
 CC_AGENT = f'ClaudeUsageWidget/{APP_VERSION} (+https://github.com/niccolo-sabato/claude-usage-widget)'
-# How long a quit waits for a renewal, a switch or a check under way
-# (cc_accounts.renewal_in_flight). Only a last resort: every request is bounded
-# by its own timeouts (cc_post: 25 s a run, a second run without the revocation
-# check, a second request after invalid_scope; the reads: 20 s), and a switch
-# adds a few reads to its renewal. 30 s was shorter than one renewal (review of
-# 2026-09-30, second iteration).
-QUIT_RENEWAL_WAIT_S = 180
+# How long a quit, or an update, waits for a renewal, a switch or a check
+# under way (cc_accounts.renewal_in_flight). Only a last resort: every step is
+# bounded by its own timeouts, and the longest chain, a switch, adds up to
+# about five minutes at worst (its identity reads, 2 x 20 s each; the
+# subscription read; icacls, 15 s twice; the renewal's proof; cc_post, 25 s a
+# run, twice, and again after invalid_scope; the outgoing identity). 30 s,
+# then 180 s, were shorter than that (review of 2026-09-30, second and third
+# iterations).
+QUIT_RENEWAL_WAIT_S = 600
 
 
 def cc_post(url, body, headers=()):
@@ -9400,6 +9402,31 @@ class Widget:
         self._place_dialog(dlg, dw, dh_floor=dh)
 
     def _launch_installer(self, path):
+        """Start the installer once nothing holds the renewal lock.
+
+        🔴 The installer closes this process by force (CloseApplications=force:
+        the Restart Manager ends it within about 30 s), whatever the quit that
+        follows would have waited for. Started while a renewal was out, it cut
+        the renewal between the server's answer and the write of it, and the
+        saved login was lost (review of 2026-09-30, third iteration). So the
+        gate closes first (nothing new starts; a Verify or a Switch pressed
+        now answers "busy"), and the installer starts when what is under way
+        has finished. The widget stays on screen meanwhile: the elevation
+        prompt wants a process with the focus.
+        """
+        cc_accounts.close_renewals()
+        if cc_accounts.renewal_in_flight():
+            now = time.monotonic()
+            if getattr(self, '_install_waiting', None) is None:
+                self._install_waiting = now
+                wlog('UPDATE  waiting for a renewal to be kept before installing')
+            if now - self._install_waiting < QUIT_RENEWAL_WAIT_S:
+                self.root.after(200, lambda: self._launch_installer(path))
+                return
+            wlog('UPDATE  a renewal is still at work: installing anyway')
+        self._launch_installer_now(path)
+
+    def _launch_installer_now(self, path):
         """Run the downloaded installer silently and exit so it can replace files.
 
         /VERYSILENT hides the wizard entirely (no language picker, no Next/Finish)
@@ -9460,6 +9487,8 @@ class Widget:
                 close_fds=True)
         except Exception as e:
             wlog(f'UPDATE  launch failed: {e}')
+            # The widget stays: renewals may start again (_launch_installer).
+            cc_accounts.reopen_renewals()
             return
         wlog('UPDATE  installer launched (/VERYSILENT), exiting widget')
         self._save_geometry()
@@ -10720,7 +10749,7 @@ class Widget:
             if status:
                 # The state of the saved login, as its row in the list says it:
                 # a dot of its colour, then the words.
-                colour, words, tip = status
+                colour, words, tip = status[:3]
                 line = tk.Frame(inner, bg=BAR_BG)
                 line.pack(fill='x', pady=(self.dp(6), 0))
                 dot = tk.Label(line, image=_dot_image(self.dp(7), colour), bg=BAR_BG)
@@ -10734,14 +10763,19 @@ class Widget:
                 tip_now = {'text': tip}
                 self._tooltip(said, lambda: tip_now['text'])
 
-                def set_status(colour_, words_, tip_):
+                def set_status(colour_, words_, tip_, _more=''):
                     # The same line brought up to date where it is, for an
                     # answer that arrives while the page is in the user's
-                    # hands (_cc_views_after_check).
+                    # hands (_cc_views_after_check); held still and measured
+                    # again as for every other change on the page: a longer
+                    # answer ran the bottom of the page out of the window
+                    # (review of 2026-09-30, third iteration).
+                    self._hold(dlg)
                     dot.config(image=_dot_image(self.dp(7), colour_))
                     said.config(text=words_,
                                 fg=DIM if colour_ in (DIM, BLUE, DOT_GREEN) else colour_)
                     tip_now['text'] = tip_
+                    self._place_dialog(dlg, dw, dh_floor=dh)
 
                 dlg._cc_set_status = set_status
             if actions:
@@ -11559,7 +11593,10 @@ class Widget:
             if res.get('in_use'):
                 about = (None, res.get('about_live') or '')
             elif res.get('about') is not None:
-                about = (res['about'], None)
+                # "Cannot tell" and "the live login is refused" are about the
+                # live login too: they stop meaning anything once it changes
+                # (a sign-in, as their remedy asks).
+                about = (res['about'], res.get('about_live'))
             else:
                 # Nothing looked at (another switch or check held the lock):
                 # about the saved login as it stands.
@@ -11603,13 +11640,17 @@ class Widget:
             redraw()
 
     def _cc_status(self, profile, signed_in_here, live_print=None):
-        """(colour, text, tooltip) of an account's Claude Code login, for its
-        row and its page: in use here, saved and good until, verified when,
-        refused, or not usable and why. `live_print`: the fingerprint of the
-        renewal token in Claude Code's file now."""
+        """(colour, text, tooltip, more) of an account's Claude Code login,
+        for its row and its page: in use here, saved and good until, verified
+        when, refused, or not usable and why. `more` is what the tooltip of a
+        line cut to fit adds after the whole line: the remedy, when the line
+        does not already say it. Joined to the whole tooltip instead, the
+        reason came twice (review of 2026-09-30, second and third iterations).
+        `live_print`: the fingerprint of the renewal token in Claude Code's
+        file now."""
         name = (profile or {}).get('name')
         if name and name in getattr(self, '_cc_verifying', set()):
-            return BLUE, t('cc_ui_verifying'), ''
+            return BLUE, t('cc_ui_verifying'), '', ''
         check = (profile or {}).get('check')
         until = (profile or {}).get('refresh_expires')
         until_txt = cc_day(until)
@@ -11639,43 +11680,47 @@ class Widget:
             if said:
                 words.append((said[1], said[0].get('kind'), said[0]))
             if not words:
-                return BLUE, t('cc_ui_st_in_use'), ''
+                return BLUE, t('cc_ui_st_in_use'), '', ''
             at, kind, j = max(words, key=lambda x: x[0])
             tip = '\n'.join(x for x in (cc_say(j), cc_say(j, 'remedy')) if x)
             if kind == cc_accounts.GOOD:
-                return BLUE, t('cc_ui_st_in_use_ok').format(when=cc_when(at)), ''
+                return BLUE, t('cc_ui_st_in_use_ok').format(when=cc_when(at)), '', ''
             if kind == cc_accounts.BAD:
-                return RED, t('cc_ui_st_refused').format(when=cc_when(at)), tip
-            return ORANGE, t('cc_ui_st_unverified').format(when=cc_when(at), why=cc_say(j)), tip
+                # The line itself says "sign in again with /login".
+                return RED, t('cc_ui_st_refused').format(when=cc_when(at)), tip, ''
+            return (ORANGE, t('cc_ui_st_unverified').format(when=cc_when(at), why=cc_say(j)),
+                    tip, cc_say(j, 'remedy'))
         if (profile.get('active') and said and said[0].get('key') == 'cc_j_verified_in_use'
                 and (not check or said[1] > check['at'])):
             # Checked as the login in use, on the server's word, where the
             # disk alone could only say "likely" (right after a sign-in).
-            return BLUE, t('cc_ui_st_in_use_ok').format(when=cc_when(said[1])), ''
+            return BLUE, t('cc_ui_st_in_use_ok').format(when=cc_when(said[1])), '', ''
         if profile.get('verdict') == cc_accounts.BAD:
             if check and check['kind'] == cc_accounts.BAD:
                 j = next((x for x in profile.get('judgements') or []
                           if x.get('key') == 'cc_j_renew_refused_before'), None)
                 return RED, t('cc_ui_st_refused').format(when=cc_when(check['at'])), \
-                    '\n'.join(x for x in (cc_say(j), cc_say(j, 'remedy')) if x) if j else ''
+                    '\n'.join(x for x in (cc_say(j), cc_say(j, 'remedy')) if x) if j else '', ''
             bad = next((x for x in profile.get('judgements') or []
                         if x.get('kind') == cc_accounts.BAD), None)
             return RED, t('cc_ui_st_bad').format(why=cc_say(bad) if bad else ''), \
-                '\n'.join(x for x in (cc_say(bad), cc_say(bad, 'remedy')) if x) if bad else ''
+                '\n'.join(x for x in (cc_say(bad), cc_say(bad, 'remedy')) if x) if bad else '', \
+                cc_say(bad, 'remedy') if bad else ''
         if session and (not check or session[1] > check['at']):
             return ORANGE, t('cc_ui_st_unverified').format(
-                when=cc_when(session[1]), why=cc_say(session[0])), tip
+                when=cc_when(session[1]), why=cc_say(session[0])), tip, \
+                cc_say(session[0], 'remedy')
         if check and check['kind'] == cc_accounts.GOOD:
             if not until:
                 # A login saved without its date: nothing to tell, rather than
                 # "good until ?".
                 return DOT_GREEN, t('cc_ui_st_verified_no_date').format(
-                    when=cc_when(check['at'])), tip
+                    when=cc_when(check['at'])), tip, ''
             return DOT_GREEN, t('cc_ui_st_verified').format(
-                when=cc_when(check['at']), until=until_txt), tip
+                when=cc_when(check['at']), until=until_txt), tip, ''
         if not until:
-            return DIM, t('cc_ui_st_saved_no_date'), tip
-        return DIM, t('cc_ui_st_saved').format(until=until_txt), tip
+            return DIM, t('cc_ui_st_saved_no_date'), tip, ''
+        return DIM, t('cc_ui_st_saved').format(until=until_txt), tip, ''
 
     def _account_row(self, parent, acc, rebuild, cc_state=None, width=None):
         """One account in the list.
@@ -11820,8 +11865,8 @@ class Widget:
         st_line = None
         st_cut = {'on': False}
         if profile is not None or signed_in_here:
-            colour, st_text, st_tip = self._cc_status(profile, signed_in_here,
-                                                      live_cc.get('refresh_print'))
+            colour, st_text, st_tip, st_more = self._cc_status(
+                profile, signed_in_here, live_cc.get('refresh_print'))
             st_line = tk.Frame(txt, bg=base)
             st_line.pack(fill='x', pady=(self.dp(2), 0))
             cells.append(st_line)
@@ -11843,10 +11888,9 @@ class Widget:
                 if not st_cut['on']:
                     return st_tip
                 # The whole line, then only what it does not already say (the
-                # remedy): the reason twice read as a stutter (review of
-                # 2026-09-30, second iteration).
-                rest = [x for x in (st_tip or '').split('\n') if x and x not in st_text]
-                return '\n'.join([st_text] + rest)
+                # remedy, _cc_status): the reason twice read as a stutter
+                # (review of 2026-09-30, second and third iterations).
+                return '\n'.join(x for x in (st_text, st_more) if x)
 
             self._tooltip(st_lbl, st_tip_now)
             if profile is not None:
@@ -12627,6 +12671,10 @@ class Widget:
                 win.destroy()
             except (tk.TclError, AttributeError):
                 pass
+        # Not in _dialogs, and its Update led to the installer (review of
+        # 2026-09-30, third iteration).
+        self._dismiss_update_banner()
+        self._hide_tooltips()
         try:
             self.root.withdraw()
         except tk.TclError:
