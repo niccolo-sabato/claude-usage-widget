@@ -21,6 +21,7 @@ A lightweight desktop tool that shows your **Claude.ai session limit, weekly lim
 - **Three live usage bars:** session (5h), weekly (7d) and the per-model weekly limit, each with a reset countdown
 - **Pick the bars you want:** show one, two or three at once, side by side or stacked; the same choice applies to both modes
 - **Multiple accounts:** save several Claude logins, switch instantly, each with its own name and colour
+- **Switch Claude Code between your accounts** from the widget, with each saved login renewed and checked before it goes live
 - **Bar colours your way:** a fixed colour per bar (with an in-app picker), or a dynamic palette that tracks the usage level
 - **Refresh countdown** shown as a quiet pulsing dot or as a numeric value, your choice
 - **Threshold toast notifications** when session usage crosses 25 / 50 / 75 / 90 / 95 / 100 %
@@ -140,6 +141,7 @@ The widget connects to Claude.ai using the same browser session you are already 
 - **Bars to show** picker: choose which bars appear; the same choice drives both modes
 - **Bar colours**: a fixed colour per bar chosen from an in-app picker (four presets plus a full colour wheel), or a dynamic palette that colours every bar by its usage level
 - **Dark or light theme**: the light one is a full palette, not an inverted dark one. Tk builds a widget with the colour it is given, so the choice applies when the widget starts and the menu has a restart right under it
+- **Weekly split**: the 7-day bar can be divided into 3 to 7 equal parts, for instance one for each day you work, so you can see how many days' worth of the week you have used. Off by default, under Display > Weekly split
 
 - **Countdown as a pulsing green dot** (default) or as a numeric value, your choice
 - **Sync time** display toggle for the last-update timestamp
@@ -171,8 +173,9 @@ The account page, behind **Manage**, and the avatar picker behind the circle:
 - The token is tied to whoever signed in last. The widget checks that it belongs to the account it is about to display, so switching Claude Code accounts never shows one account's numbers under another account's name
 - Tokens last hours, not weeks. When one expires and there is no key to fall back on, the widget says to run `claude` once
 - **Switch Claude Code between accounts** from the account list or an account's page. The widget keeps a saved login for each account and puts it back when you switch; the switch applies at once, in every Claude Code session already open
+- Before a saved login goes live, the widget renews it with the request Claude Code itself uses, so a login the server no longer accepts is refused with the reason instead of being written, and Claude Code is not left signed out. Each account row shows the state of its saved login, and **Verify** checks it on demand: a saved login is renewed and kept, the login in use is only asked about, never renewed
 - Saved logins live in `%USERPROFILE%\.claude-accounts\`, readable only by your Windows user. Before it writes Claude Code's credentials file (on a switch, or to add the organization a fresh sign-in leaves out) the widget keeps a copy of it, and it never saves a login under an account's name without first making sure the login belongs to that account
-- **From a script**, on the same rules: `"Claude Usage.exe" --cc list | save NAME | switch NAME [--force] | resolve NAME | sync | doctor`. `NAME` is a saved login or the name of an account in the widget; `--quiet` answers in one line (doctor always answers in full), `--out FILE` writes the answer to a file (the widget has no console). Exit codes: 0 done, 2 refused with nothing written, 3 stopped before switching the login, 4 written but not read back as expected, 1 an unexpected error, possibly after a write: check the credentials file (`doctor` says whose the login in use is)
+- **From a script**, on the same rules: `"Claude Usage.exe" --cc list | save NAME | switch NAME [--force] | verify NAME | resolve NAME | sync | doctor`. `NAME` is a saved login or the name of an account in the widget; `--quiet` answers in one line (doctor always answers in full), `--out FILE` writes the answer to a file (the widget has no console). Exit codes: 0 done, 2 refused with nothing written, 3 stopped before switching the login, 4 written but not read back as expected, 1 an unexpected error, possibly after a write: check the credentials file (`doctor` says whose the login in use is). `verify` answers 0 when the login works, 2 when the server refused it, 3 when nothing could be learned
 
 ### Authentication and setup
 - Companion **[Claude Session Key](https://chromewebstore.google.com/detail/claude-session-key/ppofmhjkjfinjpidlidepeonimpjmadj) extension** copies your session key with one click; it opens in **Chrome's side panel**, and as a popup on Brave and on any browser without one
@@ -191,7 +194,7 @@ The account page, behind **Manage**, and the avatar picker behind the circle:
 - Crash-resilient: structured logs in `%LOCALAPPDATA%\Claude Usage\widget.log`, separate `crash.log` capped at 256 KB, geometry auto-saved every refresh
 
 ### Privacy
-- Your data goes **only** to Anthropic: `claude.ai/api/organizations/*/usage` with a session key, the exact endpoint Claude.ai itself uses, and `api.anthropic.com` with a Claude Code token. The only other request is the update check to GitHub, which carries no credential and nothing about you (`"update_check_enabled": false` turns it off)
+- Your data goes **only** to Anthropic: `claude.ai/api/organizations/*/usage` with a session key, the exact endpoint Claude.ai itself uses, `api.anthropic.com` with a Claude Code token, and `platform.claude.com` to renew a saved login before a switch or on Verify. The only other request is the update check to GitHub, which carries no credential and nothing about you (`"update_check_enabled": false` turns it off)
 - No analytics, no telemetry, no third-party services, no phoning home
 - Session key stored locally in `%LOCALAPPDATA%\Claude Usage\config.json`; saved Claude Code logins in `%USERPROFILE%\.claude-accounts\`. The details are in [PRIVACY.md](PRIVACY.md)
 - 100 % open source: every line of code is auditable
@@ -225,7 +228,7 @@ Open it with **≡**, the **☰** button, or by right-clicking the bar in essent
 
 - **Refresh** and the **Normal / Essential** mode toggle (top level)
 - **Display**: countdown as a pulsing dot or a numeric value, the sync-time timestamp on/off, fixed or dynamic bar colours, the dark or light theme with a restart button
-  beside it, the taskbar icon and its Win11 progress overlay, what the line **under the bars** carries (the reset time, the time left, both or neither), and which bars to show (each with a colour swatch). Hover any option for a short explanation.
+  beside it, the taskbar icon and its Win11 progress overlay, what the line **under the bars** carries (the reset time, the time left, both or neither), the weekly split, and which bars to show (each with a colour swatch). Hover any option for a short explanation.
 - **Data & alerts**: refresh interval (10 to 3600 s) and threshold notifications
 - **Accounts**: opens the accounts window directly (add, switch, rename, remove, update each session key), with a link to the Claude.ai usage page
 - **General**: language (EN / IT / JA), check for updates, open the GitHub repo, open `config.json`, run the connection self-test
@@ -250,6 +253,7 @@ The widget manages its own config at `%LOCALAPPDATA%\Claude Usage\config.json`. 
   "essential_bars": ["session"],         // bars to show, in both modes
   "bar_dynamic": false,                  // colour bars by usage level instead of per bar
   "bar_colors": {},                      // per-bar colour overrides from the picker
+  "weekly_split": 0,                     // 3-7: the weekly bar in that many equal parts; 0 off
   "update_check_enabled": true,          // false: never ask GitHub for updates
   "always_check_updates": false,         // skip the 24h update-check throttle
   "debug_tk_scaling": null               // simulate higher DPI for layout testing
