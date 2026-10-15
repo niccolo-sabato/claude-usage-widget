@@ -1102,9 +1102,12 @@ INSTALL_MARK_S = 600
 
 def mark_install():
     """An update is about to start: no process starts a renewal, a switch or
-    a check from now on."""
+    a check from now on. Without a store there is no saved login to renew,
+    and an update must not create one for somebody who never used the
+    switch."""
+    if not os.path.isdir(store()):
+        return
     try:
-        ensure_store()
         with open(os.path.join(store(), INSTALL_MARK), 'w', encoding='utf-8') as f:
             f.write(datetime.now().astimezone().isoformat())
     except OSError:
@@ -1133,6 +1136,8 @@ def renewal_busy():
     let go at once when it could be had."""
     if renewal_in_flight():
         return True
+    if not os.path.isdir(store()):
+        return False        # no store, no lock file: nobody can hold it
     fd = _lock_renewal_file(time.monotonic())
     if fd is None:
         return True
