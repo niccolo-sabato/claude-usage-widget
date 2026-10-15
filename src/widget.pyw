@@ -260,7 +260,7 @@ BAR_DEFAULT_FILL = {'session': BAR_FILL_SESSION,
 BAR_PRESETS = [BAR_FILL_SESSION, BAR_FILL_WEEKLY, BAR_FILL_HIGH, BAR_FILL_PURPLE]
 
 # ─── App ────────────────────────────────────────────
-APP_VERSION = '2.10.0'
+APP_VERSION = '2.11.0-test1'
 
 # ─── Auto-update ────────────────────────────────────
 UPDATE_REPO = 'niccolo-sabato/claude-usage-widget'
@@ -996,8 +996,35 @@ LANG = {
         'selftest_api_bad_body': 'Unexpected response from claude.ai',
         'selftest_api_ok': 'Usage data received',
         'dlg_pick_org_title': 'Choose organization',
-        'dlg_pick_org_hint': 'This account belongs to more than one Claude organization. Choose the one whose usage you want to track.',
+        'dlg_pick_org_hint': 'This login belongs to more than one Claude organization, and each one is an account of its own. Choose the one to track; to track another as well, add the account again and choose it.',
         'dlg_pick_org_use': 'Use this org',
+        'dlg_pick_org_added': 'already in the list',
+        'reset_title': 'Limit resets',
+        'reset_checking': 'Checking for resets\u2026',
+        'reset_none': 'None available now. Anthropic grants them now and then, and they show up here.',
+        'reset_grant_left': '{left} of {total} left \u00b7 until {when}',
+        'reset_full_what': 'A reset clears the 5-hour and weekly limits together.',
+        'reset_use': 'Use reset',
+        'reset_needs_limit': 'It can be used once you reach a limit.',
+        'reset_unusable': 'It cannot be used right now.',
+        'reset_available': 'available',
+        'reset_session_ready': 'A reset of the 5-hour limit is available ({n} a week).',
+        'reset_session_next': 'Next reset of the 5-hour limit: {when}.',
+        'reset_session_use': 'Reset 5-hour limit',
+        'reset_confirm_title': 'Use the reset?',
+        'reset_confirm_full': 'The 5-hour and weekly usage of {name} goes back to zero now. This cannot be undone, and the week still restarts at its usual time ({week}).',
+        'reset_confirm_session': 'The 5-hour usage of {name} goes back to zero now. The weekly limit still applies.',
+        'reset_using': 'Using the reset\u2026',
+        'reset_done': 'Done: the limits are reset.',
+        'reset_failed_check': 'Could not check for resets: {why}',
+        'reset_r_already_used': 'That reset was already used: nothing changed.',
+        'reset_r_not_limited': 'Nothing was used: this reset only works at a limit, and you are not at one.',
+        'reset_r_cooldown': 'Not available yet: try again later.',
+        'reset_r_ineligible': 'This account cannot use the reset.',
+        'reset_r_unavailable': 'The reset is not available any more: nothing was used.',
+        'reset_r_rate_limited': 'Too many requests: try again in a minute.',
+        'reset_r_auth': 'The session key was refused: update it, then try again.',
+        'reset_r_no_answer': 'No answer from claude.ai. Check Settings > Usage on claude.ai before trying again.',
         # Kept for legacy references - consolidated into dlg_step_* above
     },
     'it': {
@@ -1251,8 +1278,35 @@ LANG = {
         'selftest_api_bad_body': 'Risposta inattesa da claude.ai',
         'selftest_api_ok': 'Dati di utilizzo ricevuti',
         'dlg_pick_org_title': 'Scegli organizzazione',
-        'dlg_pick_org_hint': 'Questo account fa parte di pi\u00f9 organizzazioni Claude. Scegli quella di cui monitorare l\u2019utilizzo.',
+        'dlg_pick_org_hint': 'Questo login fa parte di pi\u00f9 organizzazioni Claude, e ognuna \u00e8 un account a s\u00e9. Scegli quella da monitorare; per seguirne anche un\u2019altra, aggiungi di nuovo l\u2019account e sceglila.',
         'dlg_pick_org_use': 'Usa questa',
+        'dlg_pick_org_added': 'gi\u00e0 in elenco',
+        'reset_title': 'Reset dei limiti',
+        'reset_checking': 'Controllo dei reset\u2026',
+        'reset_none': 'Nessuno disponibile adesso. Anthropic li concede di tanto in tanto, e compaiono qui.',
+        'reset_grant_left': 'Disponibili: {left} su {total} \u00b7 fino al {when}',
+        'reset_full_what': 'Un reset azzera insieme il limite di 5 ore e quello settimanale.',
+        'reset_use': 'Usa il reset',
+        'reset_needs_limit': 'Si pu\u00f2 usare quando raggiungi un limite.',
+        'reset_unusable': 'Non si pu\u00f2 usare in questo momento.',
+        'reset_available': 'disponibile',
+        'reset_session_ready': '\u00c8 disponibile un reset del limite di 5 ore ({n} a settimana).',
+        'reset_session_next': 'Prossimo reset del limite di 5 ore: {when}.',
+        'reset_session_use': 'Azzera il limite di 5 ore',
+        'reset_confirm_title': 'Usare il reset?',
+        'reset_confirm_full': 'L\u2019uso di 5 ore e settimanale di {name} torna a zero adesso. Non si pu\u00f2 annullare, e la settimana riparte comunque alla solita ora ({week}).',
+        'reset_confirm_session': 'L\u2019uso di 5 ore di {name} torna a zero adesso. Il limite settimanale resta.',
+        'reset_using': 'Uso il reset\u2026',
+        'reset_done': 'Fatto: i limiti sono azzerati.',
+        'reset_failed_check': 'Non riesco a controllare i reset: {why}',
+        'reset_r_already_used': 'Quel reset era gi\u00e0 stato usato: non \u00e8 cambiato niente.',
+        'reset_r_not_limited': 'Non \u00e8 stato usato niente: questo reset funziona solo al limite, e non ci sei.',
+        'reset_r_cooldown': 'Non ancora disponibile: riprova pi\u00f9 tardi.',
+        'reset_r_ineligible': 'Questo account non pu\u00f2 usare il reset.',
+        'reset_r_unavailable': 'Il reset non \u00e8 pi\u00f9 disponibile: non \u00e8 stato usato niente.',
+        'reset_r_rate_limited': 'Troppe richieste: riprova fra un minuto.',
+        'reset_r_auth': 'La chiave di sessione \u00e8 stata rifiutata: aggiornala e riprova.',
+        'reset_r_no_answer': 'Nessuna risposta da claude.ai. Controlla Impostazioni > Utilizzo su claude.ai prima di riprovare.',
     },
     'ja': {
         'current_session': '\u73fe\u5728\u306e\u30bb\u30c3\u30b7\u30e7\u30f3',
@@ -1507,8 +1561,35 @@ LANG = {
         'selftest_api_bad_body': 'claude.ai\u304b\u3089\u4e88\u671f\u3057\u306a\u3044\u5fdc\u7b54\u304c\u3042\u308a\u307e\u3057\u305f',
         'selftest_api_ok': '\u4f7f\u7528\u91cf\u30c7\u30fc\u30bf\u3092\u53d6\u5f97\u3057\u307e\u3057\u305f',
         'dlg_pick_org_title': '\u7d44\u7e54\u3092\u9078\u629e',
-        'dlg_pick_org_hint': '\u3053\u306e\u30a2\u30ab\u30a6\u30f3\u30c8\u306f\u8907\u6570\u306e Claude \u7d44\u7e54\u306b\u6240\u5c5e\u3057\u3066\u3044\u307e\u3059\u3002\u4f7f\u7528\u91cf\u3092\u8ffd\u8de1\u3059\u308b\u7d44\u7e54\u3092\u9078\u629e\u3057\u3066\u304f\u3060\u3055\u3044\u3002',
+        'dlg_pick_org_hint': '\u3053\u306e\u30ed\u30b0\u30a4\u30f3\u306f\u8907\u6570\u306e Claude \u7d44\u7e54\u306b\u6240\u5c5e\u3057\u3066\u304a\u308a\u3001\u7d44\u7e54\u3054\u3068\u306b\u5225\u306e\u30a2\u30ab\u30a6\u30f3\u30c8\u3067\u3059\u3002\u8ffd\u8de1\u3059\u308b\u7d44\u7e54\u3092\u9078\u3093\u3067\u304f\u3060\u3055\u3044\u3002\u5225\u306e\u7d44\u7e54\u3082\u8ffd\u8de1\u3059\u308b\u306b\u306f\u3001\u30a2\u30ab\u30a6\u30f3\u30c8\u3092\u3082\u3046\u4e00\u5ea6\u8ffd\u52a0\u3057\u3066\u305d\u306e\u7d44\u7e54\u3092\u9078\u3073\u307e\u3059\u3002',
         'dlg_pick_org_use': '\u3053\u306e\u7d44\u7e54\u3092\u4f7f\u7528',
+        'dlg_pick_org_added': '\u8ffd\u52a0\u6e08\u307f',
+        'reset_title': '\u5236\u9650\u306e\u30ea\u30bb\u30c3\u30c8',
+        'reset_checking': '\u30ea\u30bb\u30c3\u30c8\u3092\u78ba\u8a8d\u3057\u3066\u3044\u307e\u3059\u2026',
+        'reset_none': '\u4eca\u4f7f\u3048\u308b\u30ea\u30bb\u30c3\u30c8\u306f\u3042\u308a\u307e\u305b\u3093\u3002Anthropic \u304b\u3089\u968f\u6642\u4ed8\u4e0e\u3055\u308c\u3001\u3053\u3053\u306b\u8868\u793a\u3055\u308c\u307e\u3059\u3002',
+        'reset_grant_left': '\u6b8b\u308a {left}/{total} \u56de \u00b7 {when} \u307e\u3067',
+        'reset_full_what': '\u30ea\u30bb\u30c3\u30c8\u3059\u308b\u3068\u30015 \u6642\u9593\u3068\u9031\u9593\u306e\u4f7f\u7528\u91cf\u304c\u307e\u3068\u3081\u3066\u30bc\u30ed\u306b\u623b\u308a\u307e\u3059\u3002',
+        'reset_use': '\u30ea\u30bb\u30c3\u30c8\u3092\u4f7f\u3046',
+        'reset_needs_limit': '\u5236\u9650\u306b\u9054\u3059\u308b\u3068\u4f7f\u3048\u307e\u3059\u3002',
+        'reset_unusable': '\u4eca\u306f\u4f7f\u3048\u307e\u305b\u3093\u3002',
+        'reset_available': '\u5229\u7528\u53ef\u80fd',
+        'reset_session_ready': '5 \u6642\u9593\u306e\u5236\u9650\u306e\u30ea\u30bb\u30c3\u30c8\u304c\u4f7f\u3048\u307e\u3059\uff08\u9031 {n} \u56de\uff09\u3002',
+        'reset_session_next': '\u6b21\u306e 5 \u6642\u9593\u306e\u5236\u9650\u306e\u30ea\u30bb\u30c3\u30c8: {when}',
+        'reset_session_use': '5 \u6642\u9593\u306e\u5236\u9650\u3092\u30ea\u30bb\u30c3\u30c8',
+        'reset_confirm_title': '\u30ea\u30bb\u30c3\u30c8\u3092\u4f7f\u3044\u307e\u3059\u304b\uff1f',
+        'reset_confirm_full': '{name} \u306e 5 \u6642\u9593\u3068\u9031\u9593\u306e\u4f7f\u7528\u91cf\u304c\u4eca\u3059\u3050\u30bc\u30ed\u306b\u623b\u308a\u307e\u3059\u3002\u53d6\u308a\u6d88\u3057\u306f\u3067\u304d\u307e\u305b\u3093\u3002\u9031\u306e\u30ea\u30bb\u30c3\u30c8\u306f\u3044\u3064\u3082\u306e\u6642\u523b\uff08{week}\uff09\u306e\u307e\u307e\u3067\u3059\u3002',
+        'reset_confirm_session': '{name} \u306e 5 \u6642\u9593\u306e\u4f7f\u7528\u91cf\u304c\u4eca\u3059\u3050\u30bc\u30ed\u306b\u623b\u308a\u307e\u3059\u3002\u9031\u9593\u306e\u5236\u9650\u306f\u305d\u306e\u307e\u307e\u9069\u7528\u3055\u308c\u307e\u3059\u3002',
+        'reset_using': '\u30ea\u30bb\u30c3\u30c8\u3092\u4f7f\u3063\u3066\u3044\u307e\u3059\u2026',
+        'reset_done': '\u5b8c\u4e86: \u5236\u9650\u304c\u30ea\u30bb\u30c3\u30c8\u3055\u308c\u307e\u3057\u305f\u3002',
+        'reset_failed_check': '\u30ea\u30bb\u30c3\u30c8\u3092\u78ba\u8a8d\u3067\u304d\u307e\u305b\u3093\u3067\u3057\u305f: {why}',
+        'reset_r_already_used': '\u3053\u306e\u30ea\u30bb\u30c3\u30c8\u306f\u3059\u3067\u306b\u4f7f\u308f\u308c\u3066\u3044\u307e\u3059\u3002\u4f55\u3082\u5909\u308f\u3063\u3066\u3044\u307e\u305b\u3093\u3002',
+        'reset_r_not_limited': '\u4f55\u3082\u4f7f\u308f\u308c\u3066\u3044\u307e\u305b\u3093\u3002\u3053\u306e\u30ea\u30bb\u30c3\u30c8\u306f\u5236\u9650\u306b\u9054\u3057\u305f\u3068\u304d\u3060\u3051\u4f7f\u3048\u307e\u3059\u3002',
+        'reset_r_cooldown': '\u307e\u3060\u4f7f\u3048\u307e\u305b\u3093\u3002\u3057\u3070\u3089\u304f\u3057\u3066\u304b\u3089\u3082\u3046\u4e00\u5ea6\u304a\u8a66\u3057\u304f\u3060\u3055\u3044\u3002',
+        'reset_r_ineligible': '\u3053\u306e\u30a2\u30ab\u30a6\u30f3\u30c8\u3067\u306f\u30ea\u30bb\u30c3\u30c8\u3092\u4f7f\u3048\u307e\u305b\u3093\u3002',
+        'reset_r_unavailable': '\u3053\u306e\u30ea\u30bb\u30c3\u30c8\u306f\u3082\u3046\u4f7f\u3048\u307e\u305b\u3093\u3002\u4f55\u3082\u4f7f\u308f\u308c\u3066\u3044\u307e\u305b\u3093\u3002',
+        'reset_r_rate_limited': '\u30ea\u30af\u30a8\u30b9\u30c8\u304c\u591a\u3059\u304e\u307e\u3059\u30021 \u5206\u307b\u3069\u5f85\u3063\u3066\u304b\u3089\u3082\u3046\u4e00\u5ea6\u304a\u8a66\u3057\u304f\u3060\u3055\u3044\u3002',
+        'reset_r_auth': '\u30bb\u30c3\u30b7\u30e7\u30f3\u30ad\u30fc\u304c\u62d2\u5426\u3055\u308c\u307e\u3057\u305f\u3002\u66f4\u65b0\u3057\u3066\u304b\u3089\u3082\u3046\u4e00\u5ea6\u304a\u8a66\u3057\u304f\u3060\u3055\u3044\u3002',
+        'reset_r_no_answer': 'claude.ai \u304b\u3089\u5fdc\u7b54\u304c\u3042\u308a\u307e\u305b\u3093\u3002\u3082\u3046\u4e00\u5ea6\u8a66\u3059\u524d\u306b\u3001claude.ai \u306e\u8a2d\u5b9a > \u4f7f\u7528\u72b6\u6cc1\u3092\u78ba\u8a8d\u3057\u3066\u304f\u3060\u3055\u3044\u3002',
     },
 }
 
@@ -3575,8 +3656,9 @@ def _curl_attempt(url, cookie, extra=(), timeout=20, headers=()):
             _redact(_first_line(_decode_console(result.stderr))))
 
 
-def _curl_call(url, cookie, timeout=20, retry_transient=True, headers=()):
-    """Fetch a claude.ai URL; return (headers, body) or raise.
+def _curl_call(url, cookie, timeout=20, retry_transient=True, headers=(), data=None):
+    """Fetch a claude.ai URL; return (headers, body) or raise. With `data`,
+    a POST of that body (which must hold nothing secret: it is an argument).
 
     Shared by every call so the transport behaves identically everywhere.
     Two recoveries are built in, each attempted at most once:
@@ -3588,12 +3670,15 @@ def _curl_call(url, cookie, timeout=20, retry_transient=True, headers=()):
       standby or a reconnecting VPN routinely costs one request.
 
     The connection self-test passes retry_transient=False, since it reports
-    what a single attempt does and a retry would mask the symptom.
+    what a single attempt does and a retry would mask the symptom. So does a
+    request that changes something (a reset used): the answer of a lost
+    attempt may still have spent it.
     """
+    body_args = ['--data-raw', data] if data is not None else []
     extra = []
     tried_no_revoke = tried_transient = False
     while True:
-        code, out, err = _curl_attempt(url, cookie, extra, timeout, headers)
+        code, out, err = _curl_attempt(url, cookie, extra + body_args, timeout, headers)
         if code == 0:
             break
         if not tried_no_revoke and any(h in err.lower() for h in _REVOCATION_HINTS):
@@ -3642,6 +3727,151 @@ def _curl_get(url, session_key):
     return body
 
 
+# ── Limit resets (#14) ─────────────────────────────────────────────────────
+# Anthropic grants resets now and then (a model launch, a promotion): a full
+# one clears the 5-hour and weekly limits together, and some plans also get a
+# reset of the 5-hour limit once a week, offered at that limit. claude.ai
+# shows them under Settings > Usage; the usage answer carries them when asked
+# with the query below, as `cedar_ember` (the grants of full resets) and
+# `juniper_tide` (the 5-hour one), and both are null without it. Read from
+# Claude Code 2.1.300, which uses the same blocks for /limit-reset, and
+# measured on 2026-10-15. Only claude.ai may redeem one: the Claude Code token
+# is answered "surface", so this takes the account's session key.
+RESET_STATUS_URL = API_URL + '?at_wall=1&skip_spend=1'
+RESET_CLAIM_URL = 'https://claude.ai/api/organizations/{}/reset_rate_limits'
+RESET_PROGRAM_FULL = 'cedar_ember'
+RESET_PROGRAM_SESSION = 'juniper_tide'
+RESET_RESULTS = ('reset', 'already_used', 'not_limited', 'cooldown', 'ineligible',
+                 'unavailable')
+RESET_STATUS_REUSE_S = 60
+_GRANT_ID = re.compile(r'^[a-z0-9_-]{1,40}$')      # what the server takes
+# A reset that was not used, and the sentence that says why.
+RESET_OUTCOME_KEYS = {
+    'already_used': 'reset_r_already_used', 'not_limited': 'reset_r_not_limited',
+    'cooldown': 'reset_r_cooldown', 'ineligible': 'reset_r_ineligible',
+    'unavailable': 'reset_r_unavailable', 'rate_limited': 'reset_r_rate_limited',
+    'auth': 'reset_r_auth', 'no_answer': 'reset_r_no_answer'}
+
+
+def _iso_local(iso):
+    """An ISO time from the server as a local datetime, or None."""
+    try:
+        return datetime.fromisoformat(str(iso).replace('Z', '+00:00')).astimezone()
+    except (TypeError, ValueError):
+        return None
+
+
+def reset_when(iso):
+    """A grant's end or a reset's time, as the account lines say a date:
+    '23/10 01:00' ('10/23 01:00' in Japanese). '' for no time."""
+    moment = _iso_local(iso)
+    return f'{cc_day(moment)} {moment:%H:%M}' if moment else ''
+
+
+def parse_resets(data):
+    """The resets in a usage answer asked with RESET_STATUS_URL.
+
+    {'grants': [...], 'next_grant': id or None, 'session': {...} or None,
+    'weekly_resets_at': iso or None}. A grant is {'id', 'label', 'left',
+    'total', 'ends_at', 'usable', 'needs_limit', 'clears'}, kept only with a
+    reset left and an id the server would take back. `session` is the 5-hour
+    reset, only for an account the server offers it to: {'available',
+    'next_at', 'per_week'}."""
+    out = {'grants': [], 'next_grant': None, 'session': None, 'weekly_resets_at': None}
+    if not isinstance(data, dict):
+        return out
+    full = data.get('cedar_ember')
+    if isinstance(full, dict):
+        out['weekly_resets_at'] = full.get('weekly_resets_at')
+        if full.get('eligible'):
+            for g in full.get('grants') or []:
+                if not isinstance(g, dict):
+                    continue
+                gid, left = g.get('id'), g.get('resets_left')
+                if not (isinstance(gid, str) and _GRANT_ID.match(gid)):
+                    continue
+                if not isinstance(left, int) or isinstance(left, bool) or left <= 0:
+                    continue
+                total = g.get('resets_total')
+                out['grants'].append({
+                    'id': gid, 'label': str(g.get('label') or ''), 'left': left,
+                    'total': total if isinstance(total, int) and total >= left else left,
+                    'ends_at': g.get('ends_at'),
+                    'usable': bool(g.get('usable_now')) and not g.get('paused'),
+                    'needs_limit': bool(g.get('use_requires_limit')),
+                    'clears': [c for c in g.get('clears') or [] if isinstance(c, str)]})
+            nxt = full.get('next_grant_id')
+            if any(g['id'] == nxt for g in out['grants']):
+                out['next_grant'] = nxt
+    session = data.get('juniper_tide')
+    if isinstance(session, dict) and session.get('eligible'):
+        per_week = session.get('resets_per_week')
+        out['session'] = {'available': bool(session.get('available')),
+                          'next_at': session.get('next_available_at'),
+                          'per_week': per_week if isinstance(per_week, int) and per_week > 0 else 1}
+    return out
+
+
+def fetch_resets(session_key, org_id):
+    """The resets claude.ai grants this account (parse_resets), or raising."""
+    headers, body = _curl_call(RESET_STATUS_URL.format(org_id),
+                               f'sessionKey={session_key}; lastActiveOrg={org_id}')
+    code = _http_status(headers)
+    if code in (401, 403):
+        raise RuntimeError(t('key_invalid_or_expired'))
+    if code is not None and code >= 400:
+        raise RuntimeError(f'HTTP {code}')
+    try:
+        return parse_resets(json.loads(body))
+    except ValueError:
+        raise RuntimeError(t('empty_response'))
+
+
+def claim_reset(session_key, org_id, program, grant_id=None):
+    """Use a reset. Returns {'result', 'reason', 'left', 'cleared',
+    'weekly_resets_at', 'next_at'}: `result` is one of RESET_RESULTS, or
+    'rate_limited' / 'auth' when claude.ai said so by its status. Raises when
+    nothing came back, and then nobody knows whether the reset was used.
+
+    One attempt only (see _curl_call). A full reset names its grant and
+    carries a request id of its own, which is how the server tells a repeat
+    from a second use (Claude Code sends the same three fields)."""
+    body = {'program': program}
+    if program == RESET_PROGRAM_FULL:
+        if not (isinstance(grant_id, str) and _GRANT_ID.match(grant_id)):
+            raise ValueError('a full reset needs the id of its grant')
+        body['grant_id'] = grant_id
+        body['request_id'] = uuid.uuid4().hex
+    elif program != RESET_PROGRAM_SESSION:
+        raise ValueError('unknown reset program')
+    headers, text = _curl_call(RESET_CLAIM_URL.format(org_id),
+                               f'sessionKey={session_key}; lastActiveOrg={org_id}',
+                               retry_transient=False,
+                               headers=('Content-Type: application/json',),
+                               data=json.dumps(body))
+    code = _http_status(headers)
+    if code == 429:
+        return {'result': 'rate_limited'}
+    if code in (401, 403):
+        return {'result': 'auth'}
+    try:
+        answer = json.loads(text)
+    except ValueError:
+        answer = None
+    if not isinstance(answer, dict):
+        if code is not None and code >= 400:
+            raise RuntimeError(f'HTTP {code}')
+        raise RuntimeError(t('empty_response'))
+    result = answer.get('result')
+    left = answer.get('resets_left')
+    return {'result': result if result in RESET_RESULTS else 'unavailable',
+            'reason': answer.get('reason'),
+            'left': left if isinstance(left, int) and not isinstance(left, bool) else None,
+            'cleared': [c for c in answer.get('cleared') or [] if isinstance(c, str)],
+            'weekly_resets_at': answer.get('weekly_resets_at'),
+            'next_at': answer.get('next_available_at')}
+
+
 def plan_label(tier):
     """Human label for an org's rate_limit_tier ('default_claude_max_5x' ->
     'Max 5x'). Falls back to a title-cased form of any unknown tier."""
@@ -3683,11 +3913,12 @@ def fetch_account_info(session_key):
     """Resolve org_id plus the account identity (email, name, plan) from a
     session key.
 
-    Returns {'org_id', 'email', 'name', 'plan', 'org_choices'}. `org_id` is
-    None only when the account has several trackable orgs, the browser's
-    last-active org is unknown, and none wins the ranking outright; then
-    `org_choices` lists the candidates [{'id', 'name', 'tier'}] (best first)
-    for the caller to show a picker.
+    Returns {'org_id', 'email', 'name', 'plan', 'org_choices'}. Whenever the
+    login can read more than one org, `org_choices` lists them all
+    [{'id', 'name', 'tier'}], the default `org_id` first, for the caller to
+    offer: a personal and a team org behind one login are two accounts
+    (#16). `org_id` is None only when the browser's last-active org is
+    unknown and none wins the ranking outright.
 
     Org selection strategy:
       1. List the user's orgs via /api/organizations.
@@ -3728,16 +3959,27 @@ def fetch_account_info(session_key):
     except Exception as e:
         wlog(f'BOOT   bootstrap fallback failed: {e}')
 
-    def result(org, org_id=None):
-        return {'org_id': org_id or _org_uuid(org or {}),
-                'email': email, 'name': name,
-                'plan': plan_label((org or {}).get('rate_limit_tier')),
-                'org_choices': None}
-
     # Only orgs exposing 'chat' have usage the widget can read; a pure
     # Console-API org would leave every bar at 0. Keep the full list as a
     # fallback so a missing capabilities field never yields nothing.
     trackable = [o for o in orgs if 'chat' in (o.get('capabilities') or [])] or orgs
+    ranked = sorted(trackable, key=_org_rank, reverse=True)
+
+    def choices(first=None):
+        """Every org the login can read, `first` at the top (stable sort)."""
+        ordered = sorted(ranked, key=lambda o: _org_uuid(o) != first)
+        return [{'id': _org_uuid(o), 'name': o.get('name') or _org_uuid(o),
+                 'tier': o.get('rate_limit_tier') or ''} for o in ordered]
+
+    def result(org, org_id=None):
+        # One login can belong to a personal and a team organization (#16):
+        # the default below is only a default, and the caller offers the
+        # others, since each is an account of its own.
+        oid = org_id or _org_uuid(org or {})
+        return {'org_id': oid,
+                'email': email, 'name': name,
+                'plan': plan_label((org or {}).get('rate_limit_tier')),
+                'org_choices': choices(oid) if len(trackable) > 1 else None}
 
     if len(trackable) == 1:
         return result(trackable[0])
@@ -3751,15 +3993,23 @@ def fetch_account_info(session_key):
         return result(None, org_id=active_id)
 
     # No active org from bootstrap: rank the trackable orgs.
-    ranked = sorted(trackable, key=_org_rank, reverse=True)
     if _org_rank(ranked[0]) == _org_rank(ranked[1]):
         wlog(f'ORG    ambiguous ({len(trackable)} orgs, no active) -> user picks')
-        choices = [{'id': _org_uuid(o), 'name': o.get('name') or _org_uuid(o),
-                    'tier': o.get('rate_limit_tier') or ''} for o in ranked]
         return {'org_id': None, 'email': email, 'name': name,
-                'plan': '', 'org_choices': choices}
+                'plan': '', 'org_choices': choices()}
     wlog(f'ORG    auto-picked by capability, 1 of {len(ranked)}')
     return result(ranked[0])
+
+
+def org_account_name(info):
+    """The name for a new account of a login that reads several orgs (#16):
+    a team org's own name. A personal org is named after its owner ("x@y's
+    Organization"), which says nothing the person's name does not, so it
+    gives way to that."""
+    org_name = (info or {}).get('org_name') or ''
+    if org_name and not org_name.endswith("'s Organization"):
+        return org_name
+    return ''
 
 
 def fetch_org_id(session_key):
@@ -6520,14 +6770,25 @@ class Widget:
             wlog('FETCH  refused a rotated key that does not look like one')
             return
         try:
-            for a in self.cfg.get('accounts', []):
+            accounts = self.cfg.get('accounts', [])
+            old = next((a.get('session_key') for a in accounts if a.get('id') == acct_id), None)
+            shared = 0
+            for a in accounts:
                 if a.get('id') == acct_id:
                     a['session_key'] = new_key
-                    break
-            if acct_id is None or self.cfg.get('active_account') == acct_id:
+                elif old and a.get('session_key') == old:
+                    # The key is the login's, not the org's: an account of
+                    # the same login in another org (a personal and a team
+                    # one, #16) held the old key too, and would be left with
+                    # one claude.ai has retired.
+                    a['session_key'] = new_key
+                    shared += 1
+            if (acct_id is None or self.cfg.get('active_account') == acct_id
+                    or (old and self.cfg.get('session_key') == old)):
                 self.cfg['session_key'] = new_key
             save_cfg(self.cfg)
-            wlog(f'FETCH  rotated session key persisted ({len(new_key)} chars)')
+            wlog(f'FETCH  rotated session key persisted ({len(new_key)} chars'
+                 + (f', {shared} more account(s) of the same login' if shared else '') + ')')
         except Exception as e:
             # A persist failure must not surface as a fetch error: the usage
             # data already arrived fine and the in-memory key stays valid.
@@ -9703,7 +9964,8 @@ class Widget:
     # ── Session renewal ──────────────────────────────
 
     def _renew_session(self):
-        self._session_key_dialog(t('dlg_renew_title'))
+        self._session_key_dialog(t('dlg_renew_title'),
+                                 keep_org=(active_account(self.cfg) or {}).get('org_id'))
 
     # ── Open session key guide ────────────────────────
 
@@ -9722,7 +9984,8 @@ class Widget:
 
     def _session_key_dialog(self, title, is_setup=False, on_success=None,
                             prefill=None, show_name=False, name_prefill='',
-                            on_done=None, offer_cc=True, start_cc=False):
+                            on_done=None, offer_cc=True, start_cc=False,
+                            keep_org=None):
         """Key entry dialog, shared by setup / renew / add / edit-key.
 
         on_success(key, info, name): when given, called with the verified key,
@@ -9731,6 +9994,8 @@ class Widget:
         the active account. prefill seeds the key entry; without it the dialog
         shows the active key (legacy renew flow). show_name adds an account
         name field (add / edit), so the key and name are set together.
+        keep_org: the org of the account whose key this is (renew, edit-key);
+        a login that reads several orgs keeps that one instead of asking.
         """
         # The Claude Code shortcut is offered on setup / renew (writes the
         # active account) and on add (on_done rebuilds the list); not on
@@ -9874,20 +10139,34 @@ class Widget:
                     return
                 dlg.after(0, lambda: resolve(info))
             def resolve(info):
-                # Ambiguous multi-org account: let the user pick which org to
-                # track, then finish through the same commit path.
-                if info.get('org_id') is None and info.get('org_choices'):
+                # A login that reads several orgs (a personal and a team one,
+                # #16): an account that already tracks one of them keeps it,
+                # since a new key is not a new account; otherwise the user
+                # picks, the browser's last-active org preselected. Taking
+                # that default silently gave a team account the personal
+                # org's numbers on a key renewal, and never let the second
+                # org be added at all.
+                choices = info.get('org_choices') or []
+                if len(choices) > 1:
+                    kept = next((c for c in choices if keep_org and c['id'] == keep_org), None)
                     nm = name_entry.get().strip() if name_entry else ''
                     def chosen(org_id, tier):
                         info['org_id'] = org_id
                         info['plan'] = plan_label(tier)
+                        info['org_name'] = next(
+                            (c['name'] for c in choices if c['id'] == org_id), '')
                         commit(info, nm)
+                    if kept is not None:
+                        chosen(kept['id'], kept['tier'])
+                        return
                     def pick_cancel():
                         self._hold(dlg)
                         build_connect(enabled=True)
                         status_lbl.config(text='')
-                    self._org_picker_dialog(info['org_choices'], chosen,
-                                            on_cancel=pick_cancel)
+                    tracked = {a.get('org_id') for a in self.cfg.get('accounts', [])
+                               if a.get('org_id')}
+                    self._org_picker_dialog(choices, chosen, on_cancel=pick_cancel,
+                                            preselect=info.get('org_id'), tracked=tracked)
                     return
                 commit(info, name_entry.get().strip() if name_entry else '')
             def commit(info, name):
@@ -9906,7 +10185,7 @@ class Widget:
                 org_before = (a or {}).get('org_id')
                 if a is None:
                     a = {'id': _new_id(),
-                         'name': info.get('name') or 'Account 1',
+                         'name': org_account_name(info) or info.get('name') or 'Account 1',
                          'session_key': key, 'org_id': info['org_id'],
                          'email': info.get('email', ''), 'plan': info.get('plan', '')}
                     self.cfg.setdefault('accounts', []).append(a)
@@ -10226,18 +10505,25 @@ class Widget:
     def _setup_dialog(self):
         self._session_key_dialog(t('dlg_setup_title'), is_setup=True)
 
-    def _org_picker_dialog(self, choices, on_choose, on_cancel=None):
-        """Pick which org to track when the choice is ambiguous.
+    def _org_picker_dialog(self, choices, on_choose, on_cancel=None,
+                           preselect=None, tracked=()):
+        """Pick which org to track, for a login that reads several.
 
         `choices` is [{'id', 'name', 'tier'}] (best first); on_choose(org_id,
         tier) runs with the selected org, on_cancel() if the user backs out.
-        Reached only for an account with several trackable orgs when the
-        browser's last-active org is unknown and none wins the ranking.
+        `preselect` starts on that org (the browser's last-active one);
+        `tracked` marks the orgs an account in the list already follows, so
+        the user can add the other one (#16).
         """
         dw, dh = self._dlg_size(420, 200)
         dlg, body = self._build_dialog_frame(t('dlg_pick_org_title'), dw, dh, key='org_picker')
 
-        choice = tk.StringVar(value=choices[0]['id'])
+        ids = [c['id'] for c in choices]
+        start = preselect if preselect in ids else choices[0]['id']
+        untracked = [i for i in ids if i not in tracked]
+        if start in tracked and untracked:
+            start = untracked[0]        # the one not in the list yet is the likely aim
+        choice = tk.StringVar(value=start)
         cancelled = {'v': True}
 
         def use():
@@ -10265,6 +10551,8 @@ class Widget:
             pl = plan_label(c.get('tier'))
             if pl:
                 label = f'{label}  ({pl})'
+            if c['id'] in tracked:
+                label = f"{label}  · {t('dlg_pick_org_added')}"
             tk.Radiobutton(
                 list_frame, text=label, value=c['id'], variable=choice,
                 font=FT_DLG_BODY, fg=FG, bg=BG, selectcolor=BAR_BG,
@@ -10476,6 +10764,168 @@ class Widget:
         tk.Label(row, text=value, font=FT_DLG_HINT, fg=FG, bg=BG, anchor='w',
                  justify='left').pack(side='left', fill='x', expand=True)
         return row
+
+    def _reset_card(self, parent, acc, inner_w, dlg, dw, dh):
+        """The account's limit resets on its page (#14): what claude.ai grants
+        it, until when, and the button to use one, after a confirmation.
+
+        claude.ai is asked off the main thread as the page opens; an answer
+        under a minute old is shown at once instead (pages are drawn again
+        after many gestures). The card is filled where it is, held still and
+        measured again like any other change on the page."""
+        cache = self.__dict__.setdefault('_reset_status', {})
+        # A reset being used, by account: the page can be drawn again while
+        # the request is out, and the new card must not offer it twice.
+        busy = self.__dict__.setdefault('_reset_busy', set())
+        acc_id = acc.get('id')
+        # A bench's credentials are fakes: nothing of theirs goes to claude.ai
+        # (as with cc_post), and a card that changed after the page showed
+        # moved every page a bench measures. A bench that wants the card at
+        # work sets _reset_bench_net and replaces fetch_resets/claim_reset.
+        quiet = cc_accounts.on_bench() and not getattr(self, '_reset_bench_net', False)
+        box = tk.Frame(parent, bg=BAR_BG)
+        box.pack(fill='x', pady=(0, self.dp(8)))
+        inner = tk.Frame(box, bg=BAR_BG)
+        inner.pack(fill='x', padx=self.dp(14), pady=self.dp(12))
+        top = tk.Frame(inner, bg=BAR_BG)
+        top.pack(fill='x')
+        tk.Label(top, text=t('reset_title'), font=FT_DLG_BTN_B, fg=FG, bg=BAR_BG,
+                 anchor='w').pack(side='left')
+        chip = tk.Label(top, text='', font=FT_DLG_HINT, fg=DIM, bg=BAR_BG, anchor='e')
+        chip.pack(side='right')
+        words = tk.Label(inner, text=t('reset_checking'), font=FT_DLG_HINT, fg=DIM,
+                         bg=BAR_BG, anchor='w', justify='left',
+                         wraplength=inner_w - self.dp(28))
+        words.pack(fill='x', pady=(6, 0))
+        row = tk.Frame(inner, bg=BAR_BG)
+        state = {'status': None}
+
+        def alive():
+            try:
+                return bool(dlg.winfo_exists())
+            except tk.TclError:
+                return False
+
+        def show(status, error=None, note=''):
+            if not alive():
+                return
+            state['status'] = status
+            self._hold(dlg)
+            for w_ in row.winfo_children():
+                w_.destroy()
+            lines, actions = [], []
+            usable = False
+            if note:
+                lines.append(note)
+            if error:
+                lines.append(t('reset_failed_check').format(why=error))
+            elif status is not None:
+                grants = status['grants']
+                pick = next((g for g in grants if g['id'] == status['next_grant']), None) \
+                    or next((g for g in grants if g['usable']), None)
+                for g in grants:
+                    lines.append(t('reset_grant_left').format(
+                        left=g['left'], total=g['total'], when=reset_when(g['ends_at']) or '?'))
+                if grants:
+                    lines.append(t('reset_full_what'))
+                    if pick is not None and pick['usable'] and acc_id not in busy:
+                        usable = True
+                        actions.append((t('reset_use'),
+                                        lambda g=pick: ask(RESET_PROGRAM_FULL, g)))
+                    elif pick is not None and pick['needs_limit']:
+                        lines.append(t('reset_needs_limit'))
+                    else:
+                        lines.append(t('reset_unusable'))
+                session = status['session']
+                if session and session['available']:
+                    usable = True
+                    lines.append(t('reset_session_ready').format(n=session['per_week']))
+                    if acc_id not in busy:
+                        actions.append((t('reset_session_use'),
+                                        lambda: ask(RESET_PROGRAM_SESSION)))
+                elif session and reset_when(session['next_at']):
+                    lines.append(t('reset_session_next').format(when=reset_when(session['next_at'])))
+                if not grants and not (session and session['available']) and not note:
+                    lines.append(t('reset_none'))
+            words.config(text='\n'.join(lines) or t('reset_checking'))
+            chip.config(text=('● ' + t('reset_available')) if usable and acc_id not in busy else '',
+                        fg=DOT_GREEN)
+            for label, cmd in actions:
+                self._small_pill(row, label, cmd).pack(side='left', padx=(0, self.dp(6)))
+            if actions:
+                row.pack(fill='x', pady=(self.dp(10), 0))
+            else:
+                row.pack_forget()
+            self._place_dialog(dlg, dw, dh_floor=dh)
+
+        def fetch(note=''):
+            if quiet:
+                return
+            key, org = acc.get('session_key'), acc.get('org_id')
+
+            def work():
+                try:
+                    status, error = fetch_resets(key, org), None
+                    cache[acc_id] = (time.monotonic(), status)
+                except Exception as e:
+                    status, error = None, str(e)
+                    wlog(f'RESET  status not read: {_redact(error)}')
+                try:
+                    self.root.after(0, lambda: show(status, error, note))
+                except (tk.TclError, RuntimeError):
+                    pass
+            threading.Thread(target=work, daemon=True).start()
+
+        def ask(program, grant=None):
+            name = acc.get('name') or '-'
+            if program == RESET_PROGRAM_FULL:
+                week = reset_when((state['status'] or {}).get('weekly_resets_at')) or '?'
+                msg = t('reset_confirm_full').format(name=name, week=week)
+            else:
+                msg = t('reset_confirm_session').format(name=name)
+            self._confirm_dialog(t('reset_confirm_title'), msg, lambda: use(program, grant),
+                                 label=t('reset_use') if program == RESET_PROGRAM_FULL
+                                 else t('reset_session_use'))
+
+        def use(program, grant=None):
+            if acc_id in busy or quiet:
+                return
+            busy.add(acc_id)
+            key, org = acc.get('session_key'), acc.get('org_id')
+            show(state['status'], note=t('reset_using'))
+            wlog(f'RESET  using a {"full" if program == RESET_PROGRAM_FULL else "5-hour"} reset')
+
+            def work():
+                try:
+                    answer = claim_reset(key, org, program, (grant or {}).get('id'))
+                except Exception as e:
+                    wlog(f'RESET  no answer: {_redact(str(e))}')
+                    answer = {'result': 'no_answer'}
+                try:
+                    self.root.after(0, lambda: done(answer))
+                except (tk.TclError, RuntimeError):
+                    pass
+            threading.Thread(target=work, daemon=True).start()
+
+        def done(answer):
+            busy.discard(acc_id)
+            result = answer.get('result')
+            cache.pop(acc_id, None)
+            if result == 'reset':
+                wlog('RESET  used: cleared ' + (','.join(answer.get('cleared') or []) or '-'))
+                note = t('reset_done')
+                if acc_id == self.cfg.get('active_account'):
+                    self.refresh()
+            else:
+                wlog(f'RESET  not used: {result} ({answer.get("reason") or "-"})')
+                note = t(RESET_OUTCOME_KEYS.get(result, 'reset_r_unavailable'))
+            fetch(note)
+
+        cached = cache.get(acc_id)
+        if cached and time.monotonic() - cached[0] < RESET_STATUS_REUSE_S:
+            show(cached[1])
+        else:
+            fetch()
 
     def _account_details_dialog(self, acc, rebuild, advanced=False):
         """One account, in the order a person looks for it.
@@ -10949,6 +11399,11 @@ class Widget:
              CLAUDE_TEXT if has_key else DIM,
              '' if has_key else t('acct_key_why'),
              key_actions, source == AUTH_KEY)
+
+        # Limit resets (#14): claude.ai lets only the session key use one,
+        # so the card is for an account that has it.
+        if has_key and acc.get('org_id'):
+            self._reset_card(body, acc, inner_w, dlg, dw, dh)
 
         # ── advanced: folded away, for the few who need it ──
         adv_head = tk.Label(body, text='', font=FT_DLG_HINT, fg=DIM, bg=BG,
@@ -12144,8 +12599,13 @@ class Widget:
                     return
                 if info.get('email'):
                     acc['email'] = info['email']
-                if info.get('plan'):
-                    acc['plan'] = info['plan']
+                # The plan of the account's own org: for a login that reads
+                # several, info['plan'] is the browser's last-active one (#16).
+                own = next((c for c in info.get('org_choices') or []
+                            if c['id'] == acc.get('org_id')), None)
+                plan = plan_label(own['tier']) if own else info.get('plan')
+                if plan:
+                    acc['plan'] = plan
                 # Replace only an auto-generated placeholder name.
                 if info.get('name') and re.match(r'^Account \d+$', acc.get('name', '')):
                     acc['name'] = info['name']
@@ -12226,7 +12686,7 @@ class Widget:
                 return
             n = len(self.cfg.get('accounts', [])) + 1
             acc = {'id': _new_id(),
-                   'name': name or info.get('name') or f'Account {n}',
+                   'name': name or org_account_name(info) or info.get('name') or f'Account {n}',
                    'session_key': key, 'org_id': info['org_id'],
                    'email': info.get('email', ''), 'plan': info.get('plan', '')}
             self.cfg.setdefault('accounts', []).append(acc)
@@ -12329,7 +12789,8 @@ class Widget:
             rebuild()
         self._session_key_dialog(t('dlg_update_key'), on_success=on_success,
                                  prefill=acc.get('session_key', ''),
-                                 show_name=True, name_prefill=acc.get('name', ''))
+                                 show_name=True, name_prefill=acc.get('name', ''),
+                                 keep_org=acc.get('org_id'))
 
     def _rename_account(self, acc, rebuild):
         def on_ok(name):
