@@ -130,6 +130,9 @@ _LOCK = threading.RLock()
 
 # ── the vocabulary of a judgement ──────────────────────────────────────────
 GOOD, BAD, UNKNOWN, WARN = 'good', 'bad', 'unknown', 'warn'
+# The refusals of a saved login that are our rule's, not the server's word
+# (_renew_held keeps them like a refusal): said in their own words.
+OWN_REFUSALS = ('cc_j_renew_same_signin', 'cc_j_renew_signin_unknown')
 
 PROFILE_NAME = re.compile(r'^[A-Za-z0-9][A-Za-z0-9 ._-]{0,40}$')
 RESERVED_NAMES = ('_backups',)
@@ -315,7 +318,12 @@ def health(prof):
         out.append(verdict(BAD, 'cc_j_no_org', {}, 'cc_r_resave_while_active'))
 
     refused = last_check(prof)
-    if refused and refused['kind'] == BAD:
+    if refused and refused['kind'] == BAD and refused.get('key') in OWN_REFUSALS:
+        # Not the server's word: our own rule refused this token (renew), and
+        # says why in its own words.
+        out.append(verdict(BAD, refused['key'], {'name': (prof or {}).get('name') or ''},
+                           'cc_r_resave_while_active'))
+    elif refused and refused['kind'] == BAD:
         # The server said so about this very token (renew): no date can
         # outweigh that, and asking it again would only spend a request.
         out.append(verdict(BAD, 'cc_j_renew_refused_before', {'when': refused['at']},
@@ -556,6 +564,25 @@ def profiles(live=None):
             if s_.get('readable') and s_.get('print') and s_.get('org')}
     shots = backups(held)
 
+    # A saved login holding the tokens of a saved login of ANOTHER account,
+    # one the server has confirmed, carries a wrong label (an older tool's):
+    # those are the other account's tokens. It never takes the mark and is
+    # judged unusable, so that the row, resolve() and a switch take the
+    # account's own saved login: elected as the newest twin, it had a switch
+    # onto Work answer "already active" while Claude Code was on Personal
+    # (review of 2026-09-30, fifth iteration).
+    confirmed = {}
+    for s_ in seen:
+        if (s_.get('readable') and s_.get('print') and s_.get('org')
+                and label_confirmed(s_['data'])):
+            confirmed.setdefault(s_['print'], s_)
+    for s_ in seen:
+        other = confirmed.get(s_.get('print')) if s_.get('readable') else None
+        if (other is not None and other['org'] != s_['org']
+                and not label_confirmed(s_['data'])):
+            s_['claim'] = None
+            s_['contradicted'] = other['name']
+
     winner = None
     for s_ in seen:
         if not s_.get('claim'):
@@ -563,9 +590,11 @@ def profiles(live=None):
         if winner is None:
             winner = s_
             continue
-        rank, best = s_['claim'][0], winner['claim'][0]
-        if rank > best or (rank == best
-                           and (s_['saved_at'] or 0) > (winner['saved_at'] or 0)):
+        # The strongest claim; between equals a label the server confirmed,
+        # then the newest snapshot.
+        if ((s_['claim'][0], label_confirmed(s_['data']), s_['saved_at'] or 0)
+                > (winner['claim'][0], label_confirmed(winner['data']),
+                   winner['saved_at'] or 0)):
             winner = s_
 
     out = []
@@ -601,6 +630,10 @@ def profiles(live=None):
             judgements = health(data)
             aligned, stale = _outdated(data, saved_at, shots, name)
             judgements += stale
+            if s_.get('contradicted'):
+                judgements.append(verdict(BAD, 'cc_j_label_contradicted',
+                                          {'other': s_['contradicted']},
+                                          'cc_r_resave_while_active'))
 
         judgements = judgements or [verdict(GOOD, 'cc_j_usable')]
         rt, _, _ = when((data.get('claudeAiOauth') or {}).get('refreshTokenExpiresAt'))
@@ -1097,19 +1130,34 @@ def reopen_renewals():
 # (the installer relaunches it), and it lapses by itself after a while if the
 # update never happened (review of 2026-09-30, fourth iteration).
 INSTALL_MARK = '.installing'
-INSTALL_MARK_S = 600
+# Before the installer starts, the mark lasts longer than the widget's longest
+# wait for the renewal lock (QUIT_RENEWAL_WAIT_S, 600 s): it lapsed with the
+# wait, a fraction of a second after the installer started (review of
+# 2026-09-30, fifth iteration). Once the installer runs, it lasts as long as
+# the installer's process does (mark_install with its pid).
+INSTALL_MARK_S = 900
 
 
-def mark_install():
+def mark_install(pid=None):
     """An update is about to start: no process starts a renewal, a switch or
     a check from now on. Without a store there is no saved login to renew,
     and an update must not create one for somebody who never used the
-    switch."""
+    switch.
+
+    `pid`: the process running the installer, once it has started. The mark
+    then lasts while that process does, however long its elevation prompt
+    waits for an answer: counted from the click, it lapsed under a prompt
+    left waiting, and a renewal started then was cut by the installer
+    (review of 2026-09-30, fifth iteration)."""
     if not os.path.isdir(store()):
         return
+    rec = {'at': datetime.now().astimezone().isoformat()}
+    created = _process_created(pid) if pid else None
+    if created:
+        rec['pid'], rec['created'] = int(pid), created
     try:
         with open(os.path.join(store(), INSTALL_MARK), 'w', encoding='utf-8') as f:
-            f.write(datetime.now().astimezone().isoformat())
+            json.dump(rec, f)
     except OSError:
         pass
 
@@ -1122,12 +1170,72 @@ def clear_install_mark():
         pass
 
 
+def clear_lapsed_install_mark():
+    """At a start of the widget: the mark goes only once the update it stands
+    for is over (its installer has ended, or the wait it was written for has
+    lapsed). Any start used to clear it, and a widget started again while
+    the installer still waited for its elevation prompt let renewals begin
+    that the installer then cut (review of 2026-09-30, fifth iteration)."""
+    if not _install_pending():
+        clear_install_mark()
+
+
 def _install_pending():
+    path = os.path.join(store(), INSTALL_MARK)
     try:
-        age = time.time() - os.path.getmtime(os.path.join(store(), INSTALL_MARK))
+        age = time.time() - os.path.getmtime(path)
     except OSError:
         return False
+    try:
+        with open(path, encoding='utf-8') as f:
+            rec = json.load(f)
+    except (OSError, ValueError):
+        rec = None          # a mark of 2.10/2.11.0, a bare date: by its age
+    if isinstance(rec, dict) and rec.get('pid'):
+        return _process_created(rec['pid']) == rec.get('created')
     return 0 <= age < INSTALL_MARK_S
+
+
+def _process_created(pid):
+    """When a process still running was started (its FILETIME, as an int), or
+    None when it has ended or cannot be asked. With the time, a PID the
+    system has since given to another process is not taken for it."""
+    try:
+        import ctypes
+        from ctypes import wintypes
+        k32 = ctypes.WinDLL('kernel32', use_last_error=True)
+    except (ImportError, OSError, AttributeError, ValueError):
+        return None
+    k32.OpenProcess.restype = wintypes.HANDLE
+    k32.OpenProcess.argtypes = (wintypes.DWORD, wintypes.BOOL, wintypes.DWORD)
+    k32.GetExitCodeProcess.argtypes = (wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD))
+    k32.GetProcessTimes.argtypes = (wintypes.HANDLE,) + (ctypes.POINTER(wintypes.FILETIME),) * 4
+    k32.CloseHandle.argtypes = (wintypes.HANDLE,)
+    try:
+        handle = k32.OpenProcess(0x1000, False, int(pid))    # QUERY_LIMITED_INFORMATION
+    except (TypeError, ValueError, OverflowError):
+        return None
+    if not handle:
+        return None
+    try:
+        code = wintypes.DWORD()
+        if not k32.GetExitCodeProcess(handle, ctypes.byref(code)) or code.value != 259:
+            return None                                         # 259: STILL_ACTIVE
+        times = [wintypes.FILETIME() for _ in range(4)]
+        if not k32.GetProcessTimes(handle, *(ctypes.byref(x) for x in times)):
+            return None
+        return (times[0].dwHighDateTime << 32) | times[0].dwLowDateTime
+    finally:
+        k32.CloseHandle(handle)
+
+
+def _busy_judgement(name):
+    """Why nothing was done when the renewal lock said no: an update about to
+    replace the program, or another renewal, switch or check. Both used to
+    read "another switch was under way", and a script told so looked for one
+    that did not exist (review of 2026-09-30, fifth iteration)."""
+    key = 'cc_j_renew_installing' if _install_pending() else 'cc_j_renew_busy'
+    return verdict(UNKNOWN, key, {'name': name}, 'cc_r_try_again')
 
 
 def renewal_busy():
@@ -1266,8 +1374,7 @@ def renew(name, post, wait_s=None, call=None, known=None):
     """
     with renewal_lock(wait_s) as held:
         if not held:
-            return {'judgement': verdict(UNKNOWN, 'cc_j_renew_busy', {'name': name},
-                                         'cc_r_try_again'),
+            return {'judgement': _busy_judgement(name),
                     'renewed': False, 'busy': True}
         res = _renew_held(name, post, call, known)
         # The token the answer is about, read while nothing of ours can move
@@ -1302,12 +1409,18 @@ def holds_no_login(live):
 SIGNIN_SLACK_MS = 20 * 1000
 
 
+def live_chain(live):
+    """The sign-in of the login in Claude Code's file (chain()), or None."""
+    return chain({'refreshTokenExpiresAt': live.get('refresh_expires')})
+
+
 def same_signin(oauth, live):
     """Whether a login's tokens are of the sign-in whose login is in Claude
     Code's file, by the renewal date all the tokens of a sign-in share
-    (chain()). Neither label nor key enters into it."""
+    (chain()). Neither label nor key enters into it. False when either date
+    is missing: the caller decides what an unknown sign-in is worth."""
     mine = chain(oauth)
-    theirs = chain({'refreshTokenExpiresAt': live.get('refresh_expires')})
+    theirs = live_chain(live)
     return bool(mine and theirs and abs(mine - theirs) <= SIGNIN_SLACK_MS)
 
 
@@ -1491,10 +1604,24 @@ def _renew_held(name, post, call=None, known=None):
         # whole sign-in. A wrong label (an older tool's) had exactly that
         # renewed, through the label of the login being renewed (review of
         # 2026-09-30, fourth iteration). Written live, it is dead: refused.
-        if not label_confirmed(data) and same_signin(oauth, live):
-            return {'judgement': verdict(BAD, 'cc_j_renew_same_signin', {'name': name},
-                                         'cc_r_resave_while_active'),
-                    'renewed': False, 'same_signin': True, 'proof': proof}
+        # A label the server never confirmed, with either date missing, is
+        # refused too: then the sign-in cannot be told, and the logins an
+        # older tool saved, the ones wrong labels come from, have no date
+        # (fifth iteration). The refusal is kept in the saved login for its
+        # token, so that the row and every choice of an account's login pass
+        # over it, and it says which live login it was about.
+        if not label_confirmed(data):
+            key = None
+            if same_signin(oauth, live):
+                key = 'cc_j_renew_same_signin'
+            elif not chain(oauth) or not live_chain(live):
+                key = 'cc_j_renew_signin_unknown'
+            if key:
+                _record_check(name, mine, BAD, key)
+                return {'judgement': verdict(BAD, key, {'name': name},
+                                             'cc_r_resave_while_active'),
+                        'renewed': False, 'same_signin': True, 'proof': proof,
+                        'about_live': live.get('refresh_print')}
 
     # The copy of the profile as it stands, taken BEFORE asking: once the
     # server answers, the old token is retired, and the first thing done with
@@ -1544,14 +1671,10 @@ def _ask_and_keep(name, post, data, oauth, token, mine, scopes):
             new['expiresAt'] = now_ms + SHORT_TOKEN_DEFAULT_S * 1000
         # The renewal date is the sign-in's (chain()), and stays: Claude Code
         # keeps it through its renewals (measured on 2026-09-27), and the rule
-        # that never renews a token of the live login's sign-in reads it.
-        # From the answer only when the login had none.
-        try:
-            left = float(answer.get('refresh_token_expires_in'))
-            if left > 0 and not new.get('refreshTokenExpiresAt'):
-                new['refreshTokenExpiresAt'] = now_ms + int(left * 1000)
-        except (TypeError, ValueError):
-            pass
+        # that never renews a token of the live login's sign-in reads it. A
+        # login that had none gets none: one made up from the answer named a
+        # sign-in that does not exist, and a dated copy of the real one then
+        # passed for another (review of 2026-09-30, fifth iteration).
         if isinstance(answer.get('scope'), str) and answer['scope'].split():
             new['scopes'] = answer['scope'].split()
         # A pair that could not be saved is a login lost, not a file to
@@ -1651,8 +1774,7 @@ def verify(name, call=None, post=None, wait_s=None):
     """
     with renewal_lock(wait_s) as held:
         if not held:
-            return {'judgement': verdict(UNKNOWN, 'cc_j_renew_busy', {'name': name},
-                                         'cc_r_try_again'),
+            return {'judgement': _busy_judgement(name),
                     'renewed': False, 'busy': True}
         return _verify_held(name, call, post)
 
@@ -2258,8 +2380,7 @@ def switch(name, *, knowingly=False, call=None, plan_check=None, name_for_org=No
     with renewal_lock(wait_s) as held:
         if not held:
             return {'done': False, 'asks': False,
-                    'judgement': verdict(UNKNOWN, 'cc_j_renew_busy', {'name': name},
-                                         'cc_r_try_again')}
+                    'judgement': _busy_judgement(name)}
         return _switch_held(name, knowingly=knowingly, call=call, plan_check=plan_check,
                             name_for_org=name_for_org, post=post)
 
@@ -2432,17 +2553,12 @@ def _switch_held(name, *, knowingly, call, plan_check, name_for_org, post):
         if proof.get('org') and proof.get('print') == live.get('refresh_print'):
             # Whose the live login is, as renew proved it (the server, or
             # saved logins whose labels the server confirmed): the outgoing
-            # login is saved by it, before any label (below).
+            # login is saved by it, before any label (below). It stayed inside
+            # renew, and a parking folder's wrong label had the switch answer
+            # "already on it" (review of 2026-09-30, third iteration).
             out_known = {'org': proof['org'],
                          'note': 'server' if proof.get('how') in ('server', 'known')
                          else 'confirmed'}
-        if (proof.get('how') == 'server' and proof.get('org')
-                and proof.get('print') == live.get('refresh_print')):
-            # The server's word renew heard about the live login: the save of
-            # the outgoing login below goes by it, not by a label. It stayed
-            # inside renew, and a parking folder's wrong label had the switch
-            # answer "already on it" (review of 2026-09-30, third iteration).
-            live = dict(live, org=proof['org'], org_source='server')
         if checked.get('moved'):
             # The saved login changed while it was being renewed: what it
             # holds now has not been looked at, and the token read before may

@@ -260,7 +260,7 @@ BAR_DEFAULT_FILL = {'session': BAR_FILL_SESSION,
 BAR_PRESETS = [BAR_FILL_SESSION, BAR_FILL_WEEKLY, BAR_FILL_HIGH, BAR_FILL_PURPLE]
 
 # ─── App ────────────────────────────────────────────
-APP_VERSION = '2.11.0'
+APP_VERSION = '2.11.1-test1'
 
 # ─── Auto-update ────────────────────────────────────
 UPDATE_REPO = 'niccolo-sabato/claude-usage-widget'
@@ -1737,6 +1737,9 @@ CC_LANG = {
         'cc_j_renew_busy': 'Another switch or check of a saved login was already under way on this computer, so I changed nothing.',
         'cc_j_renew_live_refused': 'The server refuses the login Claude Code is using right now, so I cannot tell whose it is, and I did not renew the saved login of {name}.',
         'cc_j_renew_same_signin': 'The saved login of {name} holds an earlier token of the login Claude Code is using now: it would sign Claude Code out, so it is not used.',
+        'cc_j_renew_signin_unknown': 'The saved login of {name} has no sign-in date and the server has never confirmed its account: it could be an earlier token of the login Claude Code is using, so it is not used.',
+        'cc_j_renew_installing': 'An update of the widget is being installed, so I changed nothing: try again once it is done.',
+        'cc_j_label_contradicted': 'This saved login holds the same tokens as the saved login {other}, whose account the server has confirmed: its own label is wrong, so it is not used.',
         'cc_j_renew_not_kept': 'The server renewed the saved login of {name}, but I could not make sure its new tokens were saved, and the old ones no longer work.',
         'cc_j_renew_other': 'The server refused the request ({error}, HTTP {code}), not the login.',
         'cc_j_in_use_renews': 'In use by Claude Code, which renews it at its next command: there is nothing to check it with right now.',
@@ -1884,6 +1887,9 @@ CC_LANG = {
         'cc_j_renew_busy': 'Su questo computer era già in corso un altro passaggio o una verifica di un accesso salvato, quindi non ho cambiato niente.',
         'cc_j_renew_live_refused': 'Il server rifiuta il login che Claude Code sta usando in questo momento, quindi non posso capire di chi sia, e non ho rinnovato l’accesso salvato di {name}.',
         'cc_j_renew_same_signin': 'L’accesso salvato di {name} contiene un token precedente del login che Claude Code sta usando: farebbe uscire Claude Code, quindi non lo uso.',
+        'cc_j_renew_signin_unknown': 'L’accesso salvato di {name} non ha la data di accesso e il server non ne ha mai confermato l’account: potrebbe essere un token precedente del login che Claude Code sta usando, quindi non lo uso.',
+        'cc_j_renew_installing': 'Si sta installando un aggiornamento del widget, quindi non ho cambiato niente: riprova quando ha finito.',
+        'cc_j_label_contradicted': 'Questo accesso salvato contiene gli stessi token dell’accesso salvato {other}, il cui account è stato confermato dal server: la sua etichetta è sbagliata, quindi non lo uso.',
         'cc_j_renew_not_kept': 'Il server ha rinnovato l’accesso salvato di {name}, ma non ho potuto assicurarmi che i token nuovi fossero salvati, e quelli vecchi non funzionano più.',
         'cc_j_renew_other': 'Il server ha rifiutato la richiesta ({error}, HTTP {code}), non l’accesso.',
         'cc_j_in_use_renews': 'In uso da Claude Code, che lo rinnova al prossimo comando: adesso non c’è niente con cui verificarlo.',
@@ -2031,6 +2037,9 @@ CC_LANG = {
         'cc_j_renew_busy': 'このPCで別の切り替えか保存済みログインの確認がすでに進行中だったため、何も変更していません。',
         'cc_j_renew_live_refused': 'サーバーは Claude Code が今使用中のログインを拒否しているため、どのアカウントのものか確認できず、{name} の保存済みログインは更新していません。',
         'cc_j_renew_same_signin': '{name} の保存済みログインには、Claude Code が今使っているログインの以前のトークンが入っています。使うと Claude Code がサインアウトされるため、使いません。',
+        'cc_j_renew_signin_unknown': '{name} の保存済みログインにはサインイン日がなく、アカウントもサーバーで確認されていません。Claude Code が今使っているログインの以前のトークンかもしれないため、使用しません。',
+        'cc_j_renew_installing': 'ウィジェットの更新をインストールしているため、何も変更していません。完了してからもう一度お試しください。',
+        'cc_j_label_contradicted': 'この保存済みログインには、サーバーでアカウントが確認された保存済みログイン {other} と同じトークンが入っています。ラベルが間違っているため、使用しません。',
         'cc_j_renew_not_kept': 'サーバーは {name} の保存済みログインを更新しましたが、新しいトークンが保存されたか確認できませんでした。古いトークンはもう使えません。',
         'cc_j_renew_other': 'サーバーが拒否したのはリクエスト（{error}、HTTP {code}）で、ログインではありません。',
         'cc_j_in_use_renews': 'Claude Code が使用中で、次のコマンドで更新されます。今は確認に使えるものがありません。',
@@ -9763,7 +9772,7 @@ class Widget:
         chain = (f'""{path}" /VERYSILENT /SUPPRESSMSGBOXES /NORESTART "/LOG={log}"'
                  f' & if not errorlevel 0 ({run}) else if errorlevel 3 ({run})"')
         try:
-            subprocess.Popen(
+            proc = subprocess.Popen(
                 f'cmd /c {chain}',
                 creationflags=(subprocess.DETACHED_PROCESS
                                | subprocess.CREATE_NEW_PROCESS_GROUP
@@ -9775,6 +9784,11 @@ class Widget:
             cc_accounts.clear_install_mark()
             cc_accounts.reopen_renewals()
             return
+        # The mark now lasts as long as the installer's chain runs, however
+        # long its elevation prompt waits: counted from the click it lapsed
+        # under a prompt left waiting (review of 2026-09-30, fifth
+        # iteration). Outside the try: the installer has started either way.
+        cc_accounts.mark_install(pid=getattr(proc, 'pid', None))
         wlog('UPDATE  installer launched (/VERYSILENT), exiting widget')
         self._save_geometry()
         # Give the OS a beat to start the installer before we vanish - the
@@ -10793,12 +10807,40 @@ class Widget:
                  anchor='w').pack(side='left')
         chip = tk.Label(top, text='', font=FT_DLG_HINT, fg=DIM, bg=BAR_BG, anchor='e')
         chip.pack(side='right')
-        words = tk.Label(inner, text=t('reset_checking'), font=FT_DLG_HINT, fg=DIM,
-                         bg=BAR_BG, anchor='w', justify='left',
-                         wraplength=inner_w - self.dp(28))
-        words.pack(fill='x', pady=(6, 0))
-        row = tk.Frame(inner, bg=BAR_BG)
+        # What the card says, built again on every answer: a block for the
+        # full reset and one for the 5-hour reset, each with its sentence and
+        # its button right under it. One row of buttons under all the
+        # sentences left the reader to pair them (2026-10-15).
+        content = tk.Frame(inner, bg=BAR_BG)
+        content.pack(fill='x')
         state = {'status': None}
+
+        def say(parent_, text, gap, tip=''):
+            label = tk.Label(parent_, text=text, font=FT_DLG_HINT, fg=DIM, bg=BAR_BG,
+                             anchor='w', justify='left',
+                             wraplength=inner_w - self.dp(28))
+            label.pack(fill='x', pady=(gap, 0))
+            if tip:
+                self._tooltip(label, tip)
+
+        def block(lines, action, gap, tip=''):
+            # `tip`: what the block's reset does, on hover. On the card it
+            # was one more line, and with the advanced options open the page
+            # ran past a 1080p screen at 150% (measured 2026-10-18); the
+            # confirmation says it again before any use.
+            frame = tk.Frame(content, bg=BAR_BG)
+            frame.pack(fill='x')
+            for i, line in enumerate(lines):
+                say(frame, line, gap if i == 0 else 0, tip)
+            if action:
+                row = tk.Frame(frame, bg=BAR_BG)
+                row.pack(fill='x', pady=(self.dp(6), 0))
+                pill = self._small_pill(row, action[0], action[1])
+                pill.pack(side='left')
+                if tip:
+                    self._tooltip(pill, tip)
+
+        say(content, t('reset_checking'), 6)
 
         def alive():
             try:
@@ -10811,51 +10853,50 @@ class Widget:
                 return
             state['status'] = status
             self._hold(dlg)
-            for w_ in row.winfo_children():
+            for w_ in content.winfo_children():
                 w_.destroy()
-            lines, actions = [], []
             usable = False
+            first = 6           # the gap under the title, then between blocks
             if note:
-                lines.append(note)
+                block([note], None, first)
+                first = self.dp(8)
             if error:
-                lines.append(t('reset_failed_check').format(why=error))
+                block([t('reset_failed_check').format(why=error)], None, first)
             elif status is not None:
                 grants = status['grants']
                 pick = next((g for g in grants if g['id'] == status['next_grant']), None) \
                     or next((g for g in grants if g['usable']), None)
-                for g in grants:
-                    lines.append(t('reset_grant_left').format(
-                        left=g['left'], total=g['total'], when=reset_when(g['ends_at']) or '?'))
                 if grants:
-                    lines.append(t('reset_full_what'))
+                    lines = [t('reset_grant_left').format(
+                        left=g['left'], total=g['total'], when=reset_when(g['ends_at']) or '?')
+                        for g in grants]
+                    action = None
                     if pick is not None and pick['usable'] and acc_id not in busy:
                         usable = True
-                        actions.append((t('reset_use'),
-                                        lambda g=pick: ask(RESET_PROGRAM_FULL, g)))
+                        action = (t('reset_use'), lambda g=pick: ask(RESET_PROGRAM_FULL, g))
                     elif pick is not None and pick['needs_limit']:
                         lines.append(t('reset_needs_limit'))
                     else:
                         lines.append(t('reset_unusable'))
+                    block(lines, action, first, t('reset_full_what'))
+                    first = self.dp(8)
                 session = status['session']
                 if session and session['available']:
                     usable = True
-                    lines.append(t('reset_session_ready').format(n=session['per_week']))
-                    if acc_id not in busy:
-                        actions.append((t('reset_session_use'),
-                                        lambda: ask(RESET_PROGRAM_SESSION)))
+                    block([t('reset_session_ready').format(n=session['per_week'])],
+                          (t('reset_session_use'), lambda: ask(RESET_PROGRAM_SESSION))
+                          if acc_id not in busy else None, first)
+                    first = self.dp(8)
                 elif session and reset_when(session['next_at']):
-                    lines.append(t('reset_session_next').format(when=reset_when(session['next_at'])))
+                    block([t('reset_session_next').format(when=reset_when(session['next_at']))],
+                          None, first)
+                    first = self.dp(8)
                 if not grants and not (session and session['available']) and not note:
-                    lines.append(t('reset_none'))
-            words.config(text='\n'.join(lines) or t('reset_checking'))
+                    block([t('reset_none')], None, first)
+            elif not note:
+                block([t('reset_checking')], None, first)
             chip.config(text=('● ' + t('reset_available')) if usable and acc_id not in busy else '',
                         fg=DOT_GREEN)
-            for label, cmd in actions:
-                self._small_pill(row, label, cmd).pack(side='left', padx=(0, self.dp(6)))
-            if actions:
-                row.pack(fill='x', pady=(self.dp(10), 0))
-            else:
-                row.pack_forget()
             self._place_dialog(dlg, dw, dh_floor=dh)
 
         def fetch(note=''):
@@ -12181,7 +12222,10 @@ class Widget:
             # disk alone could only say "likely" (right after a sign-in).
             return BLUE, t('cc_ui_st_in_use_ok').format(when=cc_when(said[1])), '', ''
         if profile.get('verdict') == cc_accounts.BAD:
-            if check and check['kind'] == cc_accounts.BAD:
+            # A refusal kept by our own rule (an earlier token of the login in
+            # use) is not the server's: it falls through to its own words.
+            if (check and check['kind'] == cc_accounts.BAD
+                    and check.get('key') not in cc_accounts.OWN_REFUSALS):
                 j = next((x for x in profile.get('judgements') or []
                           if x.get('key') == 'cc_j_renew_refused_before'), None)
                 return RED, t('cc_ui_st_refused').format(when=cc_when(check['at'])), \
@@ -13196,6 +13240,11 @@ class Widget:
                     self._quit_poll = self.root.after(100, again)
                 return
             wlog('QUIT   a renewal is still at work: quitting anyway')
+        if getattr(self, '_install_waiting', None) is not None:
+            # Quit while an update waited for the lock: its installer never
+            # started, and the mark would have held every script off for
+            # nothing (review of 2026-09-30, fifth iteration).
+            cc_accounts.clear_install_mark()
         wlog('QUIT   _quit() called')
         self._close_menu()
         if not getattr(self, '_quit_geometry_saved', False):
@@ -13267,10 +13316,11 @@ if __name__ == '__main__':
             _code = 1
         sys.exit(_code)
     _mutex = None if os.environ.get('CLAUDE_USAGE_DEV') == '1' else _single_instance()
-    # Started again: an update that marked the store (mark_install) is over,
-    # or never happened. Renewals may start.
+    # Started again: the mark of an update (mark_install) goes once that
+    # update is over or never happened, not while its installer still runs
+    # (a widget started again under a waiting elevation prompt).
     if _mutex is not None:
-        cc_accounts.clear_install_mark()
+        cc_accounts.clear_lapsed_install_mark()
 
     # Catch unhandled exceptions globally (including tkinter callbacks)
     def _excepthook(exc_type, exc_value, exc_tb):

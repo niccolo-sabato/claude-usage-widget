@@ -56,7 +56,8 @@ ACTIONS = ('list', 'save', 'switch', 'verify', 'resolve', 'sync', 'doctor')
 # (that save may have added the organization to the file, next to the same
 # account's tokens, as with the old script's 3).
 _STOPPED = {'cc_j_live_unidentified', 'cc_j_live_moving', 'cc_j_outgoing_not_saved',
-            'cc_j_renew_moved', 'cc_j_renew_busy', 'cc_j_renew_live_refused'}
+            'cc_j_renew_moved', 'cc_j_renew_busy', 'cc_j_renew_installing',
+            'cc_j_renew_live_refused'}
 # The credentials file could not be read: before the write, or right after it
 # when the switch reads back what it wrote, and the answer does not say which.
 # So "unknown" (1), and the scripts look at the file themselves.
