@@ -472,6 +472,60 @@ def _saved_at(data, name):
     return saved_at
 
 
+def _sights(readable, held, shots=None):
+    """What a saved login is judged by (_outdated), newest by organization and
+    sign-in: the copies of the live file (backups) and the saved logins
+    themselves. `readable`: (name, profile) of every saved login that can be
+    read; `shots`: backups(held), when the caller has it already.
+
+    A saved login is a sight of its sign-in's token as a copy of the live
+    file is: one older than another saved login of the same account and
+    sign-in (chain()), holding another token, holds a token that sign-in has
+    rotated away since. Renewed, it sent a retired token, which may retire
+    the whole sign-in, the newer login's token with it: a twin a tool saved
+    after a rotation, with no confirmation, left the older and confirmed one
+    to be chosen (review of 2.11, after the third iteration). Not one whose
+    label is contradicted (an unconfirmed label on the tokens of another
+    account's confirmed login, profiles()): those tokens are another
+    account's. One function for the list, has_profile_for_org, a switch and
+    renew: the list alone knew, and a switch by name, Verify or the advice
+    under a row judged otherwise (review of the fixes after 2.11)."""
+    shots = backups(held) if shots is None else shots
+    confirmed = {}
+    for _name, data in readable:
+        p = fingerprint(((data or {}).get('claudeAiOauth') or {}).get('refreshToken'))
+        if p and data.get('organizationUuid') and label_confirmed(data):
+            confirmed.setdefault(p, data['organizationUuid'])
+    for name, data in readable:
+        oauth = (data or {}).get('claudeAiOauth') or {}
+        org, print_, chain_ = data.get('organizationUuid'), \
+            fingerprint(oauth.get('refreshToken')), chain(oauth)
+        if not (org and print_ and chain_ is not None):
+            continue
+        if confirmed.get(print_) not in (None, org) and not label_confirmed(data):
+            continue
+        sight = {'file': name, 'refresh_print': print_, 'at': _saved_at(data, name) or 0}
+        if (org, chain_) not in shots or sight['at'] > shots[(org, chain_)]['at']:
+            shots[(org, chain_)] = sight
+    return shots
+
+
+def _outdated_now(name, data):
+    """The BAD judgements every sight gives the saved login `name`, read from
+    the disk now (_sights): what the account list says about it."""
+    readable, held = [], {}
+    for other in profile_names():
+        d, failure = read_profile(other)
+        if failure or not isinstance(d, dict):
+            continue
+        readable.append((other, d))
+        p = fingerprint((d.get('claudeAiOauth') or {}).get('refreshToken'))
+        if p and d.get('organizationUuid'):
+            held[p] = d['organizationUuid']
+    return [j for j in _outdated(data, _saved_at(data, name), _sights(readable, held), name)[1]
+            if j['kind'] == BAD]
+
+
 def _outdated(data, saved_at, shots, name=None):
     """What the historic copies say about a saved profile: (aligned, judgements).
 
@@ -583,24 +637,8 @@ def profiles(live=None):
             s_['claim'] = None
             s_['contradicted'] = other['name']
 
-    # A saved login is a sight of its sign-in's token too, as a copy of the
-    # live file is (_outdated): one older than another saved login of the same
-    # account and sign-in (chain()), holding another token, holds a token that
-    # sign-in has rotated away since. Renewed, it sent a retired token, which
-    # may retire the whole sign-in, the newer login's token with it: a twin a
-    # tool saved after a rotation, with no confirmation, left the older and
-    # confirmed one to be chosen (review of 2.11, after the third iteration).
-    # Not one with a contradicted label: its tokens are another account's.
-    for s_ in seen:
-        if (not s_.get('readable') or s_.get('contradicted') or not s_.get('print')
-                or not s_.get('org')):
-            continue
-        chain_ = chain(s_['data'].get('claudeAiOauth'))
-        if chain_ is None:
-            continue
-        sight = {'file': s_['name'], 'refresh_print': s_['print'], 'at': s_['saved_at'] or 0}
-        if (s_['org'], chain_) not in shots or sight['at'] > shots[(s_['org'], chain_)]['at']:
-            shots[(s_['org'], chain_)] = sight
+    shots = _sights([(s_['name'], s_['data']) for s_ in seen if s_.get('readable')],
+                    held, shots)
 
     winner = None
     for s_ in seen:
@@ -853,11 +891,12 @@ def has_profile_for_org(org):
     message gives, not to decide anything."""
     if not org:
         return False
-    mine, held = [], {}
+    mine, held, readable = [], {}, []
     for name in profile_names():
         data, failure = read_profile(name)
-        if failure:
+        if failure or not isinstance(data, dict):
             continue
+        readable.append((name, data))
         print_ = fingerprint((data.get('claudeAiOauth') or {}).get('refreshToken'))
         if print_ and data.get('organizationUuid'):
             held[print_] = data['organizationUuid']
@@ -875,7 +914,7 @@ def has_profile_for_org(org):
         if any(j['kind'] == BAD for j in health(data)):
             continue
         if shots is None:
-            shots = backups(held)
+            shots = _sights(readable, held)
         if any(j['kind'] == BAD
                for j in _outdated(data, _saved_at(data, name), shots, name)[1]):
             continue
@@ -1682,6 +1721,16 @@ def _renew_held(name, post, call=None, known=None):
                                              'cc_r_resave_while_active'),
                         'renewed': False, 'same_signin': True, 'proof': proof,
                         'about_live': live.get('refresh_print')}
+
+    # 🔴 Nor a token a newer sight of its sign-in shows retired (_sights): a
+    # newer copy of the live file, or a newer saved login of the same
+    # sign-in, holding another token. Sent, a retired token may retire the
+    # whole sign-in. The list says so and hides the Switch, but a switch by
+    # name and Verify came through here unasked (review of the fixes after
+    # 2.11). Not kept in the saved login: the sights say it, and change.
+    stale = _outdated_now(name, data)
+    if stale:
+        return {'judgement': stale[0], 'renewed': False}
 
     # The copy of the profile as it stands, taken BEFORE asking: once the
     # server answers, the old token is retired, and the first thing done with
@@ -2550,13 +2599,11 @@ def _switch_held(name, *, knowingly, call, plan_check, name_for_org, post):
                                          {'name': name, 'behind': True},
                                          'cc_r_save_now')}
 
-    # Judged as the list judges it: a newer copy of the live file carrying
-    # another renewal token for this account means the one in the profile
-    # has been retired, and a switch would put a dead token live.
-    held = {p['refresh_print']: p['org'] for p in saved
-            if p.get('readable', True) and p.get('refresh_print') and p.get('org')}
-    judgements = health(target) + _outdated(target, _saved_at(target, name),
-                                            backups(held), name)[1]
+    # Judged as the list judges it: a newer copy of the live file, or a newer
+    # saved login of the same sign-in (_sights), carrying another renewal
+    # token for this account means the one in the profile has been retired,
+    # and a switch would put a dead token live.
+    judgements = health(target) + _outdated_now(name, target)
     bad = [j for j in judgements if j['kind'] == BAD]
     if bad:
         return {'done': False, 'asks': False, 'judgement': bad[0]}

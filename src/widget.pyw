@@ -8169,8 +8169,17 @@ class Widget:
                     else (mb - mt) - 2 * SCREEN_MARGIN)
             need = min(max(dh_floor, dlg.winfo_reqheight()), room)
             x = max(ml + SCREEN_MARGIN, min(x, mr - dw - SCREEN_MARGIN))
-            top = self._keep_clear(x, top, dw, need, mt + SCREEN_MARGIN,
-                                   mb - TASKBAR_GAP - need)
+            if work:
+                # Down to the taskbar's edge, not under it, and clear of
+                # the widget: a margin of its own above the edge moved the
+                # top of a page growing downward (test_showing 3e), and a
+                # clamp after the search for a clear place could put the
+                # page back over the widget (review of the fixes after 2.11).
+                top = self._keep_clear(x, top, dw, need, work[1] + SCREEN_MARGIN,
+                                       work[3] - need)
+            else:
+                top = self._keep_clear(x, top, dw, need, mt + SCREEN_MARGIN,
+                                       mb - TASKBAR_GAP - need)
         else:
             ml, mt, mr, mb = self._widget_monitor_area()
             if scrolls:
@@ -8193,24 +8202,24 @@ class Widget:
                 x, top = self._place_popup(dw, need)
                 if reserve and self._dialog_seat(x, top, dw, need) == 'above':
                     top = max(mt + SCREEN_MARGIN, top - reserve)
-        if work:
-            # Down to the taskbar's edge, not under it: a margin of its
-            # own there moved the top of a page growing downward, which
-            # stays where it was seen as long as it has room (test_showing
-            # 3e, 2026-10-18).
-            top = max(work[1] + SCREEN_MARGIN, min(top, work[3] - need))
+            if work:
+                # The place found, held to the work area and still clear
+                # of the widget (_keep_clear), as in the branch above.
+                top = self._keep_clear(x, top, dw, need, work[1] + SCREEN_MARGIN,
+                                       work[3] - need)
         dlg.geometry(f'{dw}x{need}+{x}+{top}')
         # What _present compares the next placement with, whoever asked
         # for this one.
         dlg._geo = (dw, need, x, top)
         return dlg._geo
 
-    def _scroll_area(self, dlg, parent):
+    def _scroll_area(self, dlg, parent, start=0.0):
         """The middle of a dialog, in a frame that scrolls when the dialog is
         held to its screen (dlg._scrolls, _place_dialog). Returns the frame to
         build the middle in; what was packed in `parent` before (the bottom
         row, first by the layout contract of _build_dialog_frame) stays where
-        it is, always in view.
+        it is, always in view. `start`: where it was scrolled to, for a page
+        drawn again in the place of one that scrolled (dlg._scroll_canvas).
 
         The account page with a limit reset, an outcome above it and its
         advanced options open ran past a 1080p screen at 150% (measured on
@@ -8228,31 +8237,53 @@ class Widget:
         canvas.pack(fill='both', expand=True)
         inner = tk.Frame(canvas, bg=BG)
         item = canvas.create_window(0, 0, window=inner, anchor='nw')
+        dlg._scroll_canvas = canvas
         bar = tk.Canvas(dlg, bg=BG, highlightthickness=0, bd=0, width=self.dp(6))
-        state = {'shown': False, 'drag': None}
+        state = {'shown': False, 'drag': None, 'start': start or None, 'drawing': False}
 
-        def draw_bar():
-            total = max(1, inner.winfo_reqheight())
-            seen = canvas.winfo_height()
-            if seen <= 1 or total <= seen + 1:
-                if state['shown']:
-                    bar.place_forget()
-                    state['shown'] = False
-                canvas.yview_moveto(0)
+        def draw_bar(*_view):
+            # Also the canvas's yscrollcommand: every change of its view comes
+            # here, one made by code too, not only the wheel and the bar. Not
+            # again from inside itself (the yview_moveto calls below).
+            if state['drawing']:
                 return
-            if not state['shown']:
-                bar.place(in_=canvas, relx=1.0, x=(DLG_PAD_X - self.dp(6)) // 2,
-                          rely=0, relheight=1.0, width=self.dp(6))
-                state['shown'] = True
-            top, bottom = canvas.yview()
-            h = max(1, bar.winfo_height() if bar.winfo_height() > 1 else seen)
-            y0 = int(top * h)
-            y1 = max(y0 + self.dp(24), int(bottom * h))
-            r = self.dp(3)
-            bar.delete('all')
-            bar.create_rectangle(0, y0 + r, self.dp(6), y1 - r, fill=DIM, outline='')
-            bar.create_oval(0, y0, self.dp(6), y0 + 2 * r, fill=DIM, outline='')
-            bar.create_oval(0, y1 - 2 * r, self.dp(6), y1, fill=DIM, outline='')
+            state['drawing'] = True
+            try:
+                if state['start'] is not None and getattr(dlg, '_revealed', False):
+                    state['start'] = None       # on show: the user scrolls now
+                total = max(1, inner.winfo_reqheight())
+                seen = canvas.winfo_height()
+                if seen <= 1 or total <= seen + 1:
+                    if state['shown']:
+                        bar.place_forget()
+                        state['shown'] = False
+                    canvas.yview_moveto(0)
+                    return
+                if state['start'] is not None:
+                    # Drawn again (reopen): the line just used stays in view,
+                    # where it was, not at the top; held until the page shows,
+                    # as it is built, measured and placed: dropped the first
+                    # time the half-built content fitted, it came back at the
+                    # top (review of the fixes after 2.11).
+                    canvas.yview_moveto(state['start'])
+                if not state['shown']:
+                    bar.place(in_=canvas, relx=1.0, x=(DLG_PAD_X - self.dp(6)) // 2,
+                              rely=0, relheight=1.0, width=self.dp(6))
+                    state['shown'] = True
+                top, bottom = canvas.yview()
+                # The canvas's height, which the bar always has (relheight=1.0):
+                # the bar's own was the one before the placer had resized it, and
+                # the first thumb of a page came out a third of its length.
+                h = max(1, seen)
+                y0 = int(top * h)
+                y1 = max(y0 + self.dp(24), int(bottom * h))
+                r = self.dp(3)
+                bar.delete('all')
+                bar.create_rectangle(0, y0 + r, self.dp(6), y1 - r, fill=DIM, outline='')
+                bar.create_oval(0, y0, self.dp(6), y0 + 2 * r, fill=DIM, outline='')
+                bar.create_oval(0, y1 - 2 * r, self.dp(6), y1, fill=DIM, outline='')
+            finally:
+                state['drawing'] = False
 
         def on_inner(_e=None):
             # The canvas asks for the whole content: the dialog takes it when
@@ -8267,8 +8298,11 @@ class Widget:
             draw_bar()
 
         def on_wheel(e):
-            if state['shown']:
-                canvas.yview_scroll(int(-e.delta / 120) * 3, 'units')
+            # By its sign, whatever its size: a precision touchpad sends
+            # deltas well under a notch, and dividing them by one rounded
+            # every scroll away, as the diagnostics window already knew.
+            if state['shown'] and e.delta:
+                canvas.yview_scroll(-3 if e.delta > 0 else 3, 'units')
                 draw_bar()
 
         def drag_start(e):
@@ -8281,6 +8315,7 @@ class Widget:
             canvas.yview_moveto(top + (e.y - y) / max(1, bar.winfo_height()))
             draw_bar()
 
+        canvas.configure(yscrollcommand=draw_bar)
         inner.bind('<Configure>', on_inner)
         canvas.bind('<Configure>', on_canvas)
         dlg.bind('<MouseWheel>', on_wheel, add='+')
@@ -11354,7 +11389,7 @@ class Widget:
                 show(None)
             fetch()
 
-    def _account_details_dialog(self, acc, rebuild, advanced=False):
+    def _account_details_dialog(self, acc, rebuild, advanced=False, scroll=0.0):
         """One account, in the order a person looks for it.
 
         🔴 Rebuilt on 2026-09-26 from the user's verdict, "too
@@ -11394,6 +11429,11 @@ class Widget:
             # came back with the advanced options folded, under the finger of
             # someone who had just used one of them.
             kw.setdefault('advanced', st['advanced'])
+            # And scrolled as it was, when its middle scrolls (_scroll_area).
+            try:
+                kw.setdefault('scroll', dlg._scroll_canvas.yview()[0])
+            except (AttributeError, tk.TclError):
+                pass
             rebuild()
             self._account_details_dialog(acc, rebuild, **kw)
 
@@ -11425,7 +11465,7 @@ class Widget:
         # Everything above the bottom row scrolls when the page is taller than
         # its screen's work area (_scroll_area): from here on, `body` is that
         # middle.
-        body = self._scroll_area(dlg, body)
+        body = self._scroll_area(dlg, body, start=scroll)
 
         # ── who it is: the picture with its pencil, the name you can edit ──
         head = tk.Frame(body, bg=BG)
