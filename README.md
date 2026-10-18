@@ -155,7 +155,9 @@ The widget connects to Claude.ai using the same browser session you are already 
 - Each row shows the **name, email, plan and how that account is read**, next to an avatar of your own: its initials, a short text of up to three characters, or one of thirty monochrome icons, over a background and a symbol colour you pick
 - The accounts window also says **which account Claude Code is signed in as on that machine**, which is not necessarily the account the widget is showing
 - **One page per account**: open it with Manage to see the plan, the subscription status, the organisation and the extra-usage state, rename it, pick its colour, and manage both credentials in one place
+- **Limit resets**: when Anthropic grants an account a usage-limit reset, its page shows how many are left and until when, and uses one after a confirmation. Resets can only be redeemed from claude.ai, so this needs the account's session key
 - Adding an account that is **already in the list** updates it instead of creating a duplicate: the organisation decides, with the email as a fallback, so the same account is recognised however it was added
+- A login that belongs to **more than one organization**, such as a personal and a team one, can be added once for each: the widget asks which organization to track and marks the ones already in the list
 
 ![The accounts window](docs/images/accounts.png)
 
@@ -182,7 +184,7 @@ The account page, behind **Manage**, and the avatar picker behind the circle:
 - Built-in setup guide with manual fallback (browser settings or DevTools) if you would rather not install the extension
 - **Multiple accounts**: save more than one Claude login and switch between them in a click; each keeps its own credentials, name, email and plan
 - **Two ways in**: a session key from the browser, or the Claude Code login already on the machine. Adding an account starts by choosing between them
-- **Multi-organization support**: if an account belongs to more than one Claude org (personal + work), the widget uses `/api/bootstrap` to track the org Claude.ai itself routes to, not just the first one in the API response
+- **Multi-organization support**: if a login belongs to more than one Claude org (personal + team), the widget asks which one to track, with the one Claude.ai used last preselected. Renewing an account's key keeps its organization
 
 ### Localization
 - Three languages: **English, Italian (Italiano), Japanese (日本語)**
@@ -194,7 +196,7 @@ The account page, behind **Manage**, and the avatar picker behind the circle:
 - Crash-resilient: structured logs in `%LOCALAPPDATA%\Claude Usage\widget.log`, separate `crash.log` capped at 256 KB, geometry auto-saved every refresh
 
 ### Privacy
-- Your data goes **only** to Anthropic: `claude.ai/api/organizations/*/usage` with a session key, the exact endpoint Claude.ai itself uses, `api.anthropic.com` with a Claude Code token, and `platform.claude.com` to renew a saved login before a switch or on Verify. The only other request is the update check to GitHub, which carries no credential and nothing about you (`"update_check_enabled": false` turns it off)
+- Your data goes **only** to Anthropic: `claude.ai/api/organizations/*/usage` with a session key, the exact endpoint Claude.ai itself uses (and `.../reset_rate_limits` when you use a limit reset), `api.anthropic.com` with a Claude Code token, and `platform.claude.com` to renew a saved login before a switch or on Verify. The only other request is the update check to GitHub, which carries no credential and nothing about you (`"update_check_enabled": false` turns it off)
 - No analytics, no telemetry, no third-party services, no phoning home
 - Session key stored locally in `%LOCALAPPDATA%\Claude Usage\config.json`; saved Claude Code logins in `%USERPROFILE%\.claude-accounts\`. The details are in [PRIVACY.md](PRIVACY.md)
 - 100 % open source: every line of code is auditable

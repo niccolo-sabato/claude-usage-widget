@@ -2,7 +2,7 @@
 
 **Claude Session Key** (Chrome extension) and **Claude Usage Widget** (desktop application).
 
-Last updated: 2026-10-15
+Last updated: 2026-10-18
 
 ## Summary
 
@@ -31,6 +31,7 @@ The "Claude Usage Widget" desktop application:
 
 - Reads the credentials of the selected account from a local config file: a `sessionKey` and `org_id`, the Claude Code login described below, or both.
 - Makes authenticated HTTPS requests to `claude.ai/api/organizations/{org_id}/usage` with the session key - the same endpoint `claude.ai` itself uses to show usage data in the user's browser - and to `api.anthropic.com/api/oauth/usage` and `api.anthropic.com/api/oauth/profile` with the Claude Code token, which is what that token is issued for. To renew a saved login, described below, it also sends that login's refresh token to `platform.claude.com/v1/oauth/token`, Anthropic's sign-in server, the same request Claude Code makes to renew its own.
+- Reads, from the same usage endpoint, the usage-limit resets Anthropic has granted an account. When the user chooses to use one on an account's page, and confirms, it sends that request to `claude.ai/api/organizations/{org_id}/reset_rate_limits` with the session key, as claude.ai's own Usage page does. Nothing is redeemed without that confirmation.
 - Stores configuration locally in `%LOCALAPPDATA%\Claude Usage\config.json`: position, size, language, theme, the session key, and for each account the identity the profile endpoint returns (e-mail address, organisation, plan), which is how the widget knows whose numbers it is showing.
 - Keeps a copy of Claude Code's login for each account it can switch Claude Code to, as described below.
 - Writes diagnostic logs locally to `%LOCALAPPDATA%\Claude Usage\widget.log`. No credential is ever written to them, and text arriving from outside the program (the output of `curl`, for instance) has session keys, tokens, organisation ids, e-mail addresses and the Windows account name stripped out before it is stored.
