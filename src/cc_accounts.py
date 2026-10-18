@@ -583,6 +583,25 @@ def profiles(live=None):
             s_['claim'] = None
             s_['contradicted'] = other['name']
 
+    # A saved login is a sight of its sign-in's token too, as a copy of the
+    # live file is (_outdated): one older than another saved login of the same
+    # account and sign-in (chain()), holding another token, holds a token that
+    # sign-in has rotated away since. Renewed, it sent a retired token, which
+    # may retire the whole sign-in, the newer login's token with it: a twin a
+    # tool saved after a rotation, with no confirmation, left the older and
+    # confirmed one to be chosen (review of 2.11, after the third iteration).
+    # Not one with a contradicted label: its tokens are another account's.
+    for s_ in seen:
+        if (not s_.get('readable') or s_.get('contradicted') or not s_.get('print')
+                or not s_.get('org')):
+            continue
+        chain_ = chain(s_['data'].get('claudeAiOauth'))
+        if chain_ is None:
+            continue
+        sight = {'file': s_['name'], 'refresh_print': s_['print'], 'at': s_['saved_at'] or 0}
+        if (s_['org'], chain_) not in shots or sight['at'] > shots[(s_['org'], chain_)]['at']:
+            shots[(s_['org'], chain_)] = sight
+
     winner = None
     for s_ in seen:
         if not s_.get('claim'):

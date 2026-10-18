@@ -260,7 +260,7 @@ BAR_DEFAULT_FILL = {'session': BAR_FILL_SESSION,
 BAR_PRESETS = [BAR_FILL_SESSION, BAR_FILL_WEEKLY, BAR_FILL_HIGH, BAR_FILL_PURPLE]
 
 # ─── App ────────────────────────────────────────────
-APP_VERSION = '2.11.1-test1'
+APP_VERSION = '2.11.1-test2'
 
 # ─── Auto-update ────────────────────────────────────
 UPDATE_REPO = 'niccolo-sabato/claude-usage-widget'
@@ -8141,13 +8141,19 @@ class Widget:
 
         dh_floor sets a minimum height (for dialogs that look better with some
         breathing room than shrink-wrapped); the content still wins when
-        larger, and the screen caps both. Returns the geometry applied."""
+        larger, and the screen caps both. Returns the geometry applied.
+
+        A dialog whose middle scrolls (dlg._scrolls, _scroll_area) is held to
+        its screen's work area instead, the taskbar left out: the whole of it
+        is then always in reach, and the middle scrolls."""
         shown = getattr(dlg, '_revealed', False)
         if shown:
             self._hold(dlg)
         dlg._place_args = (dw, dh_floor)
         dlg.update_idletasks()
         anchor = getattr(dlg, '_anchor', None)
+        scrolls = getattr(dlg, '_scrolls', False)
+        work = None
         if shown or anchor:
             if shown:
                 x, top = dlg.winfo_x(), dlg.winfo_y()
@@ -8157,13 +8163,24 @@ class Widget:
             info = _monitor_of(x, top, dw, max(1, seen_bottom - top),
                                _MONITOR_DEFAULTTONEAREST)
             ml, mt, mr, mb = info[1] if info else self._widget_monitor_area()
-            need = min(max(dh_floor, dlg.winfo_reqheight()), (mb - mt) - 2 * SCREEN_MARGIN)
+            if scrolls and info:
+                work = info[2]
+            room = ((work[3] - work[1]) - SCREEN_MARGIN if work
+                    else (mb - mt) - 2 * SCREEN_MARGIN)
+            need = min(max(dh_floor, dlg.winfo_reqheight()), room)
             x = max(ml + SCREEN_MARGIN, min(x, mr - dw - SCREEN_MARGIN))
             top = self._keep_clear(x, top, dw, need, mt + SCREEN_MARGIN,
                                    mb - TASKBAR_GAP - need)
         else:
             ml, mt, mr, mb = self._widget_monitor_area()
-            room = (mb - mt) - 2 * SCREEN_MARGIN
+            if scrolls:
+                info = _monitor_of(self.root.winfo_x(), self.root.winfo_y(),
+                                   max(1, self.root.winfo_width()),
+                                   max(1, self.root.winfo_height()),
+                                   _MONITOR_DEFAULTTONEAREST)
+                work = info[2] if info else None
+            room = ((work[3] - work[1]) - SCREEN_MARGIN if work
+                    else (mb - mt) - 2 * SCREEN_MARGIN)
             need = min(max(dh_floor, dlg.winfo_reqheight()), room)
             reserve = getattr(dlg, '_reserve', 0)
             whole = min(room, need + reserve)
@@ -8176,11 +8193,101 @@ class Widget:
                 x, top = self._place_popup(dw, need)
                 if reserve and self._dialog_seat(x, top, dw, need) == 'above':
                     top = max(mt + SCREEN_MARGIN, top - reserve)
+        if work:
+            # Down to the taskbar's edge, not under it: a margin of its
+            # own there moved the top of a page growing downward, which
+            # stays where it was seen as long as it has room (test_showing
+            # 3e, 2026-10-18).
+            top = max(work[1] + SCREEN_MARGIN, min(top, work[3] - need))
         dlg.geometry(f'{dw}x{need}+{x}+{top}')
         # What _present compares the next placement with, whoever asked
         # for this one.
         dlg._geo = (dw, need, x, top)
         return dlg._geo
+
+    def _scroll_area(self, dlg, parent):
+        """The middle of a dialog, in a frame that scrolls when the dialog is
+        held to its screen (dlg._scrolls, _place_dialog). Returns the frame to
+        build the middle in; what was packed in `parent` before (the bottom
+        row, first by the layout contract of _build_dialog_frame) stays where
+        it is, always in view.
+
+        The account page with a limit reset, an outcome above it and its
+        advanced options open ran past a 1080p screen at 150% (measured on
+        2026-10-18: 1064 px for 1032), its buttons under the taskbar. The bar
+        sits in the dialog's right margin, so the content keeps its width
+        whether it shows or not; the wheel scrolls from anywhere on the page,
+        and the bar can be dragged."""
+        dlg._scrolls = True
+        area = tk.Frame(parent, bg=BG)
+        area.pack(fill='both', expand=True)
+        # Height 1, not Tk's default of about 270: the dialog is measured from
+        # what the canvas asks for, which is the content's height.
+        canvas = tk.Canvas(area, bg=BG, highlightthickness=0, bd=0, height=1,
+                           yscrollincrement=self.dp(20))
+        canvas.pack(fill='both', expand=True)
+        inner = tk.Frame(canvas, bg=BG)
+        item = canvas.create_window(0, 0, window=inner, anchor='nw')
+        bar = tk.Canvas(dlg, bg=BG, highlightthickness=0, bd=0, width=self.dp(6))
+        state = {'shown': False, 'drag': None}
+
+        def draw_bar():
+            total = max(1, inner.winfo_reqheight())
+            seen = canvas.winfo_height()
+            if seen <= 1 or total <= seen + 1:
+                if state['shown']:
+                    bar.place_forget()
+                    state['shown'] = False
+                canvas.yview_moveto(0)
+                return
+            if not state['shown']:
+                bar.place(in_=canvas, relx=1.0, x=(DLG_PAD_X - self.dp(6)) // 2,
+                          rely=0, relheight=1.0, width=self.dp(6))
+                state['shown'] = True
+            top, bottom = canvas.yview()
+            h = max(1, bar.winfo_height() if bar.winfo_height() > 1 else seen)
+            y0 = int(top * h)
+            y1 = max(y0 + self.dp(24), int(bottom * h))
+            r = self.dp(3)
+            bar.delete('all')
+            bar.create_rectangle(0, y0 + r, self.dp(6), y1 - r, fill=DIM, outline='')
+            bar.create_oval(0, y0, self.dp(6), y0 + 2 * r, fill=DIM, outline='')
+            bar.create_oval(0, y1 - 2 * r, self.dp(6), y1, fill=DIM, outline='')
+
+        def on_inner(_e=None):
+            # The canvas asks for the whole content: the dialog takes it when
+            # the screen has room, and the rest scrolls when it does not.
+            canvas.configure(scrollregion=(0, 0, inner.winfo_reqwidth(),
+                                           inner.winfo_reqheight()),
+                             height=inner.winfo_reqheight())
+            draw_bar()
+
+        def on_canvas(e):
+            canvas.itemconfigure(item, width=e.width)
+            draw_bar()
+
+        def on_wheel(e):
+            if state['shown']:
+                canvas.yview_scroll(int(-e.delta / 120) * 3, 'units')
+                draw_bar()
+
+        def drag_start(e):
+            state['drag'] = (e.y, canvas.yview()[0])
+
+        def drag_move(e):
+            if state['drag'] is None:
+                return
+            y, top = state['drag']
+            canvas.yview_moveto(top + (e.y - y) / max(1, bar.winfo_height()))
+            draw_bar()
+
+        inner.bind('<Configure>', on_inner)
+        canvas.bind('<Configure>', on_canvas)
+        dlg.bind('<MouseWheel>', on_wheel, add='+')
+        bar.bind('<Button-1>', drag_start)
+        bar.bind('<B1-Motion>', drag_move)
+        bar.bind('<ButtonRelease-1>', lambda e: state.update(drag=None))
+        return inner
 
     # ── W11 Styled Menu ─────────────────────────────
 
@@ -10182,6 +10289,23 @@ class Widget:
 
         cancel_pill.pack(side='right', padx=(0, 8))
 
+        def pinned():
+            """The account the default behaviour writes, by the key or by the
+            Claude Code login: the one the renewal was opened for (target_id),
+            or the one on show when there is none; None once removed."""
+            if target_id is not None:
+                return next((x for x in self.cfg.get('accounts', [])
+                             if x.get('id') == target_id), None)
+            return active_account(self.cfg)
+
+        def renewal_gone():
+            """Whether the account the renewal was opened for was removed while
+            the dialog was open. Its login is not a new account: written as
+            one, the removed account came back as the account on show, by the
+            key (review of 2.11, second iteration) and by the Claude Code login
+            (after the third)."""
+            return on_success is None and target_id is not None and pinned() is None
+
         def save_key():
             self._hold(dlg)
             key = entry.get().strip().strip('"').strip("'")
@@ -10237,13 +10361,9 @@ class Widget:
                     return
                 commit(info, name_entry.get().strip() if name_entry else '')
             def commit(info, name):
-                if on_success is None and target_id is not None and not any(
-                        x.get('id') == target_id for x in self.cfg.get('accounts', [])):
-                    # The account the renewal was opened for was removed while
-                    # the dialog was open. Its key is not a new account: written
-                    # as one, the removed account came back as the account on
-                    # show, past the one door of a switch (review of 2.11,
-                    # second iteration).
+                if renewal_gone():
+                    # Past the one door of a switch, too: written as a new
+                    # account, it became the account on show directly.
                     wlog('RENEW  the account was removed meanwhile: nothing written')
                     try:
                         self._hold(dlg)
@@ -10261,15 +10381,10 @@ class Widget:
                 if on_success is not None:
                     on_success(key, info, name)
                     return
-                # Default: write the active account in place, creating the
-                # first account on initial setup.
-                if target_id is not None:
-                    # The account the renewal was opened for, not the one on
-                    # show now: keep_org is that account's org.
-                    a = next((x for x in self.cfg.get('accounts', [])
-                              if x.get('id') == target_id), None)
-                else:
-                    a = active_account(self.cfg)
+                # Default: write the account the renewal was opened for, not
+                # the one on show now (keep_org is that account's org), or
+                # the active one; the first account on initial setup.
+                a = pinned()
                 org_before = (a or {}).get('org_id')
                 if a is None:
                     a = {'id': _new_id(),
@@ -10381,7 +10496,10 @@ class Widget:
                 # Read first, that account's lapsed plan came out as advice to
                 # remove this one (review of 2026-09-27).
                 if on_success is None:
-                    target = active_account(self.cfg)
+                    # The account the renewal was opened for: the one on show
+                    # changes while the dialog is open (decide() says it when
+                    # that account is gone).
+                    target = pinned()
                     if (target is not None and target.get('org_id') and prof.get('org_id')
                             and target['org_id'] != prof['org_id']):
                         dlg.after(0, lambda: fail(t('dlg_login_other_account')))
@@ -10423,11 +10541,17 @@ class Widget:
                     wlog('CC     the login check ended after its window was '
                          'closed: nothing added')
                     return
+                if renewal_gone():
+                    wlog('RENEW  the account was removed meanwhile: nothing linked')
+                    fail(t('dlg_renew_gone'), 'final')
+                    if not mode['login']:
+                        build_connect(enabled=False)
+                    return
                 # The identity decides where this login belongs: on the account
                 # that already is this account, or on a new one. Two rows for
                 # one Claude account would count the same usage twice and put
                 # the user in front of a choice that has no right answer.
-                target = active_account(self.cfg) if on_success is None else None
+                target = pinned() if on_success is None else None
                 # By organization only when that is all that is proven: the
                 # e-mail fallback matched the account the cache still named,
                 # and its organization was then replaced with this one.
@@ -10493,7 +10617,15 @@ class Widget:
                     acc['name'] = nm
                 elif not acc.get('name'):
                     acc['name'] = prof.get('name') or t('cc_account_name')
-                self._set_active_account(acc['id'], force=True)
+                if (on_success is None and target_id is not None
+                        and acc.get('id') == target_id
+                        and target_id != self.cfg.get('active_account')):
+                    # A renewal whose account is no longer the one on show
+                    # links its login without switching back to it, as the
+                    # key does (review of 2.11, after the third iteration).
+                    save_cfg(self.cfg)
+                else:
+                    self._set_active_account(acc['id'], force=True)
                 if is_setup:
                     self._schedule()
                 if on_done:
@@ -11289,6 +11421,11 @@ class Widget:
         self._outline_pill(row_btn, t('dlg_remove_account'),
                            lambda: close_and(
                                lambda: self._remove_account(acc, rebuild))).pack(side='left')
+
+        # Everything above the bottom row scrolls when the page is taller than
+        # its screen's work area (_scroll_area): from here on, `body` is that
+        # middle.
+        body = self._scroll_area(dlg, body)
 
         # ── who it is: the picture with its pencil, the name you can edit ──
         head = tk.Frame(body, bg=BG)
