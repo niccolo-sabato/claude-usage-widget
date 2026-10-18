@@ -1009,7 +1009,7 @@ LANG = {
         'reset_unusable': 'It cannot be used right now.',
         'reset_available': 'available',
         'reset_session_ready': 'A reset of the 5-hour limit is available ({n} a week).',
-        'reset_session_next': 'Next reset of the 5-hour limit: {when}.',
+        'reset_session_next': 'The 5-hour reset can be used again from {when}.',
         'reset_session_use': 'Reset 5-hour limit',
         'reset_confirm_title': 'Use the reset?',
         'reset_confirm_full': 'The 5-hour and weekly usage of {name} goes back to zero now. This cannot be undone, and the week still restarts at its usual time ({week}).',
@@ -1291,7 +1291,7 @@ LANG = {
         'reset_unusable': 'Non si pu\u00f2 usare in questo momento.',
         'reset_available': 'disponibile',
         'reset_session_ready': '\u00c8 disponibile un reset del limite di 5 ore ({n} a settimana).',
-        'reset_session_next': 'Prossimo reset del limite di 5 ore: {when}.',
+        'reset_session_next': 'Il reset del limite di 5 ore torna disponibile dal {when}.',
         'reset_session_use': 'Azzera il limite di 5 ore',
         'reset_confirm_title': 'Usare il reset?',
         'reset_confirm_full': 'L\u2019uso di 5 ore e settimanale di {name} torna a zero adesso. Non si pu\u00f2 annullare, e la settimana riparte comunque alla solita ora ({week}).',
@@ -1574,7 +1574,7 @@ LANG = {
         'reset_unusable': '\u4eca\u306f\u4f7f\u3048\u307e\u305b\u3093\u3002',
         'reset_available': '\u5229\u7528\u53ef\u80fd',
         'reset_session_ready': '5 \u6642\u9593\u306e\u5236\u9650\u306e\u30ea\u30bb\u30c3\u30c8\u304c\u4f7f\u3048\u307e\u3059\uff08\u9031 {n} \u56de\uff09\u3002',
-        'reset_session_next': '\u6b21\u306e 5 \u6642\u9593\u306e\u5236\u9650\u306e\u30ea\u30bb\u30c3\u30c8: {when}',
+        'reset_session_next': '5 \u6642\u9593\u306e\u5236\u9650\u306e\u30ea\u30bb\u30c3\u30c8\u306f {when} \u304b\u3089\u518d\u3073\u4f7f\u3048\u307e\u3059\u3002',
         'reset_session_use': '5 \u6642\u9593\u306e\u5236\u9650\u3092\u30ea\u30bb\u30c3\u30c8',
         'reset_confirm_title': '\u30ea\u30bb\u30c3\u30c8\u3092\u4f7f\u3044\u307e\u3059\u304b\uff1f',
         'reset_confirm_full': '{name} \u306e 5 \u6642\u9593\u3068\u9031\u9593\u306e\u4f7f\u7528\u91cf\u304c\u4eca\u3059\u3050\u30bc\u30ed\u306b\u623b\u308a\u307e\u3059\u3002\u53d6\u308a\u6d88\u3057\u306f\u3067\u304d\u307e\u305b\u3093\u3002\u9031\u306e\u30ea\u30bb\u30c3\u30c8\u306f\u3044\u3064\u3082\u306e\u6642\u523b\uff08{week}\uff09\u306e\u307e\u307e\u3067\u3059\u3002',
@@ -1738,6 +1738,7 @@ CC_LANG = {
         'cc_j_renew_live_refused': 'The server refuses the login Claude Code is using right now, so I cannot tell whose it is, and I did not renew the saved login of {name}.',
         'cc_j_renew_same_signin': 'The saved login of {name} holds an earlier token of the login Claude Code is using now: it would sign Claude Code out, so it is not used.',
         'cc_j_renew_signin_unknown': 'The saved login of {name} has no sign-in date and the server has never confirmed its account: it could be an earlier token of the login Claude Code is using, so it is not used.',
+        'cc_j_renew_live_undated': 'The login Claude Code is using has no sign-in date, and the server has never confirmed the account of the saved login of {name}: I cannot tell whether it is an earlier token of that login, so it is not used.',
         'cc_j_renew_installing': 'An update of the widget is being installed, so I changed nothing: try again once it is done.',
         'cc_j_label_contradicted': 'This saved login holds the same tokens as the saved login {other}, whose account the server has confirmed: its own label is wrong, so it is not used.',
         'cc_j_renew_not_kept': 'The server renewed the saved login of {name}, but I could not make sure its new tokens were saved, and the old ones no longer work.',
@@ -1888,6 +1889,7 @@ CC_LANG = {
         'cc_j_renew_live_refused': 'Il server rifiuta il login che Claude Code sta usando in questo momento, quindi non posso capire di chi sia, e non ho rinnovato l’accesso salvato di {name}.',
         'cc_j_renew_same_signin': 'L’accesso salvato di {name} contiene un token precedente del login che Claude Code sta usando: farebbe uscire Claude Code, quindi non lo uso.',
         'cc_j_renew_signin_unknown': 'L’accesso salvato di {name} non ha la data di accesso e il server non ne ha mai confermato l’account: potrebbe essere un token precedente del login che Claude Code sta usando, quindi non lo uso.',
+        'cc_j_renew_live_undated': 'Il login che Claude Code sta usando non ha la data di accesso, e il server non ha mai confermato l’account dell’accesso salvato di {name}: non posso escludere che sia un token precedente di quel login, quindi non lo uso.',
         'cc_j_renew_installing': 'Si sta installando un aggiornamento del widget, quindi non ho cambiato niente: riprova quando ha finito.',
         'cc_j_label_contradicted': 'Questo accesso salvato contiene gli stessi token dell’accesso salvato {other}, il cui account è stato confermato dal server: la sua etichetta è sbagliata, quindi non lo uso.',
         'cc_j_renew_not_kept': 'Il server ha rinnovato l’accesso salvato di {name}, ma non ho potuto assicurarmi che i token nuovi fossero salvati, e quelli vecchi non funzionano più.',
@@ -2038,6 +2040,7 @@ CC_LANG = {
         'cc_j_renew_live_refused': 'サーバーは Claude Code が今使用中のログインを拒否しているため、どのアカウントのものか確認できず、{name} の保存済みログインは更新していません。',
         'cc_j_renew_same_signin': '{name} の保存済みログインには、Claude Code が今使っているログインの以前のトークンが入っています。使うと Claude Code がサインアウトされるため、使いません。',
         'cc_j_renew_signin_unknown': '{name} の保存済みログインにはサインイン日がなく、アカウントもサーバーで確認されていません。Claude Code が今使っているログインの以前のトークンかもしれないため、使用しません。',
+        'cc_j_renew_live_undated': 'Claude Code が今使っているログインにはサインイン日がなく、{name} の保存済みログインのアカウントもサーバーで確認されていません。そのログインの以前のトークンでないとは言えないため、使用しません。',
         'cc_j_renew_installing': 'ウィジェットの更新をインストールしているため、何も変更していません。完了してからもう一度お試しください。',
         'cc_j_label_contradicted': 'この保存済みログインには、サーバーでアカウントが確認された保存済みログイン {other} と同じトークンが入っています。ラベルが間違っているため、使用しません。',
         'cc_j_renew_not_kept': 'サーバーは {name} の保存済みログインを更新しましたが、新しいトークンが保存されたか確認できませんでした。古いトークンはもう使えません。',
@@ -3753,6 +3756,9 @@ RESET_PROGRAM_SESSION = 'juniper_tide'
 RESET_RESULTS = ('reset', 'already_used', 'not_limited', 'cooldown', 'ineligible',
                  'unavailable')
 RESET_STATUS_REUSE_S = 60
+# How long the outcome of a reset used stays on its card, through redraws and
+# a page opened again.
+RESET_NOTE_S = 300
 _GRANT_ID = re.compile(r'^[a-z0-9_-]{1,40}$')      # what the server takes
 # A reset that was not used, and the sentence that says why.
 RESET_OUTCOME_KEYS = {
@@ -3838,9 +3844,10 @@ def fetch_resets(session_key, org_id):
 
 def claim_reset(session_key, org_id, program, grant_id=None):
     """Use a reset. Returns {'result', 'reason', 'left', 'cleared',
-    'weekly_resets_at', 'next_at'}: `result` is one of RESET_RESULTS, or
-    'rate_limited' / 'auth' when claude.ai said so by its status. Raises when
-    nothing came back, and then nobody knows whether the reset was used.
+    'weekly_resets_at', 'next_at'}: `result` is one of RESET_RESULTS,
+    'rate_limited' / 'auth' when claude.ai said so by its status, or
+    'no_answer' when the outcome cannot be known (a server error, a result
+    nobody knows). Raises when nothing came back: nobody knows either.
 
     One attempt only (see _curl_call). A full reset names its grant and
     carries a request id of its own, which is how the server tells a repeat
@@ -3863,17 +3870,23 @@ def claim_reset(session_key, org_id, program, grant_id=None):
         return {'result': 'rate_limited'}
     if code in (401, 403):
         return {'result': 'auth'}
+    if code is not None and code >= 400:
+        # A server error on a request that changes something says nothing
+        # about whether it was done (a gateway timeout after the backend
+        # committed): nobody knows. Its JSON error body was read as "not
+        # available, nothing was used", which invited a second use (review of
+        # 2.11, first iteration).
+        return {'result': 'no_answer'}
     try:
         answer = json.loads(text)
     except ValueError:
         answer = None
     if not isinstance(answer, dict):
-        if code is not None and code >= 400:
-            raise RuntimeError(f'HTTP {code}')
         raise RuntimeError(t('empty_response'))
     result = answer.get('result')
     left = answer.get('resets_left')
-    return {'result': result if result in RESET_RESULTS else 'unavailable',
+    # An outcome nobody knows (a new value, or none) is not "nothing was used".
+    return {'result': result if result in RESET_RESULTS else 'no_answer',
             'reason': answer.get('reason'),
             'left': left if isinstance(left, int) and not isinstance(left, bool) else None,
             'cleared': [c for c in answer.get('cleared') or [] if isinstance(c, str)],
@@ -4544,7 +4557,9 @@ def _fetch_usage_key(src):
     rotation = None
     new_key = _rotated_key(headers, src.get('session_key'))
     if new_key:
-        rotation = (src.get('id'), new_key)
+        # With the key the request carried: only accounts still holding it
+        # take the new one (_apply_rotated_key).
+        rotation = (src.get('id'), new_key, src.get('session_key'))
     try:
         data = json.loads(body)
     except json.JSONDecodeError as e:
@@ -4557,7 +4572,8 @@ def _fetch_usage_key(src):
 def fetch_usage(cfg):
     """Fetch usage data for the active account. See fetch_org_id for why curl.
 
-    Returns (data, rotation): rotation is None, or (account_id, new_key) when
+    Returns (data, rotation): rotation is None, or (account_id, new_key,
+    used_key) when
     Claude.ai rotated the session key. The persist is deliberately NOT done
     here: this runs on the refresh worker thread, and writing cfg off-thread
     could (a) serialise the dict while the UI thread mutates it and (b) land
@@ -6658,7 +6674,7 @@ class Widget:
             if rotation:
                 # By account id, so it lands on the account it was issued for
                 # whatever is on show by then.
-                self.root.after(0, self._apply_rotated_key, rotation[0], rotation[1])
+                self.root.after(0, self._apply_rotated_key, *rotation)
         except CCLoginElsewhere as e:
             wlog('FETCH  claude code is signed in as another account')
             self._after_fetch(gen, lambda em=e.email: self._error(
@@ -6764,7 +6780,7 @@ class Widget:
         self.btn_r.config(fg=DIM)
         self._start_countdown()
 
-    def _apply_rotated_key(self, acct_id, new_key):
+    def _apply_rotated_key(self, acct_id, new_key, used_key=None):
         """Persist a key Claude.ai rotated during a fetch. Runs on the main
         thread. Writes the key onto the exact account it was issued for (by id),
         never onto 'whatever account is active now' - the user may have switched
@@ -6780,7 +6796,18 @@ class Widget:
             return
         try:
             accounts = self.cfg.get('accounts', [])
-            old = next((a.get('session_key') for a in accounts if a.get('id') == acct_id), None)
+            if acct_id is None:          # a config of before the accounts: the mirror
+                old = self.cfg.get('session_key')
+            else:
+                old = next((a.get('session_key') for a in accounts
+                            if a.get('id') == acct_id), None)
+            if used_key is not None and old != used_key:
+                # The account's key changed while the request was out (a key
+                # updated by hand): the rotation is about a key it no longer
+                # holds, and spread from the new one it reached accounts of
+                # another login (review of 2.11, first iteration).
+                wlog('FETCH  rotated key dropped: the account holds another key now')
+                return
             shared = 0
             for a in accounts:
                 if a.get('id') == acct_id:
@@ -9978,8 +10005,12 @@ class Widget:
     # ── Session renewal ──────────────────────────────
 
     def _renew_session(self):
-        self._session_key_dialog(t('dlg_renew_title'),
-                                 keep_org=(active_account(self.cfg) or {}).get('org_id'))
+        # The account and its org are fixed as the dialog opens: the dialog
+        # stays open while a key is copied, and the account on show can
+        # change meanwhile (review of 2.11, first iteration).
+        acc = active_account(self.cfg) or {}
+        self._session_key_dialog(t('dlg_renew_title'), keep_org=acc.get('org_id'),
+                                 target_id=acc.get('id'))
 
     # ── Open session key guide ────────────────────────
 
@@ -9999,7 +10030,7 @@ class Widget:
     def _session_key_dialog(self, title, is_setup=False, on_success=None,
                             prefill=None, show_name=False, name_prefill='',
                             on_done=None, offer_cc=True, start_cc=False,
-                            keep_org=None):
+                            keep_org=None, target_id=None):
         """Key entry dialog, shared by setup / renew / add / edit-key.
 
         on_success(key, info, name): when given, called with the verified key,
@@ -10010,6 +10041,8 @@ class Widget:
         name field (add / edit), so the key and name are set together.
         keep_org: the org of the account whose key this is (renew, edit-key);
         a login that reads several orgs keeps that one instead of asking.
+        target_id: the account the default behaviour writes (renew), fixed
+        when the dialog opens; without it, the active account.
         """
         # The Claude Code shortcut is offered on setup / renew (writes the
         # active account) and on add (on_done rebuilds the list); not on
@@ -10195,7 +10228,13 @@ class Widget:
                     return
                 # Default: write the active account in place, creating the
                 # first account on initial setup.
-                a = active_account(self.cfg)
+                if target_id is not None:
+                    # The account the renewal was opened for, not the one on
+                    # show now: keep_org is that account's org.
+                    a = next((x for x in self.cfg.get('accounts', [])
+                              if x.get('id') == target_id), None)
+                else:
+                    a = active_account(self.cfg)
                 org_before = (a or {}).get('org_id')
                 if a is None:
                     a = {'id': _new_id(),
@@ -10567,11 +10606,14 @@ class Widget:
                 label = f'{label}  ({pl})'
             if c['id'] in tracked:
                 label = f"{label}  · {t('dlg_pick_org_added')}"
+            # Wrapped: a long team name ran past the edge, and what it cut was
+            # the "already in the list" mark (review of 2.11, first iteration).
             tk.Radiobutton(
                 list_frame, text=label, value=c['id'], variable=choice,
                 font=FT_DLG_BODY, fg=FG, bg=BG, selectcolor=BAR_BG,
                 activebackground=BG, activeforeground=FG,
-                highlightthickness=0, bd=0, anchor='w').pack(fill='x', pady=2)
+                highlightthickness=0, bd=0, anchor='w', justify='left',
+                wraplength=dw - 2 * DLG_PAD_X - self.dp(32)).pack(fill='x', pady=2)
 
         # Fire on_cancel on any close path (Cancel pill, title-bar X, Escape)
         # except an explicit choice, so the session dialog behind can re-enable
@@ -10788,9 +10830,14 @@ class Widget:
         after many gestures). The card is filled where it is, held still and
         measured again like any other change on the page."""
         cache = self.__dict__.setdefault('_reset_status', {})
-        # A reset being used, by account: the page can be drawn again while
-        # the request is out, and the new card must not offer it twice.
-        busy = self.__dict__.setdefault('_reset_busy', set())
+        # The use of a reset, by account and outside any card: the page can be
+        # drawn again, or closed and opened, while the request is out, and the
+        # card then on screen must neither offer it again nor lose its outcome
+        # (review of 2.11, first iteration). {'busy', 'note', 'at'}
+        claims = self.__dict__.setdefault('_reset_claims', {})
+        # The card on screen for each account: an answer goes to it, whichever
+        # card asked.
+        cards = self.__dict__.setdefault('_reset_cards', {})
         acc_id = acc.get('id')
         # A bench's credentials are fakes: nothing of theirs goes to claude.ai
         # (as with cc_post), and a card that changed after the page showed
@@ -10813,7 +10860,7 @@ class Widget:
         # sentences left the reader to pair them (2026-10-15).
         content = tk.Frame(inner, bg=BAR_BG)
         content.pack(fill='x')
-        state = {'status': None}
+        state = {'status': None, 'error': None}
 
         def say(parent_, text, gap, tip=''):
             label = tk.Label(parent_, text=text, font=FT_DLG_HINT, fg=DIM, bg=BAR_BG,
@@ -10848,13 +10895,24 @@ class Widget:
             except tk.TclError:
                 return False
 
-        def show(status, error=None, note=''):
+        def claim():
+            """This account's use of a reset: under way, and the outcome of the
+            last one while it is recent."""
+            c = dict(claims.get(acc_id) or {})
+            if c.get('note') and time.monotonic() - c.get('at', 0) > RESET_NOTE_S:
+                c['note'] = ''
+            return c
+
+        def show(status, error=None):
             if not alive():
                 return
-            state['status'] = status
+            state['status'], state['error'] = status, error
             self._hold(dlg)
             for w_ in content.winfo_children():
                 w_.destroy()
+            c = claim()
+            using = bool(c.get('busy'))
+            note = t('reset_using') if using else c.get('note') or ''
             usable = False
             first = 6           # the gap under the title, then between blocks
             if note:
@@ -10871,9 +10929,12 @@ class Widget:
                         left=g['left'], total=g['total'], when=reset_when(g['ends_at']) or '?')
                         for g in grants]
                     action = None
-                    if pick is not None and pick['usable'] and acc_id not in busy:
-                        usable = True
-                        action = (t('reset_use'), lambda g=pick: ask(RESET_PROGRAM_FULL, g))
+                    if pick is not None and pick['usable']:
+                        # Being used: no button, and nothing that says it
+                        # cannot be (review of 2.11, first iteration).
+                        if not using:
+                            usable = True
+                            action = (t('reset_use'), lambda g=pick: ask(RESET_PROGRAM_FULL, g))
                     elif pick is not None and pick['needs_limit']:
                         lines.append(t('reset_needs_limit'))
                     else:
@@ -10881,38 +10942,50 @@ class Widget:
                     block(lines, action, first, t('reset_full_what'))
                     first = self.dp(8)
                 session = status['session']
+                said_session = False
                 if session and session['available']:
-                    usable = True
+                    said_session = True
+                    usable = usable or not using
                     block([t('reset_session_ready').format(n=session['per_week'])],
-                          (t('reset_session_use'), lambda: ask(RESET_PROGRAM_SESSION))
-                          if acc_id not in busy else None, first)
+                          None if using else
+                          (t('reset_session_use'), lambda: ask(RESET_PROGRAM_SESSION)),
+                          first)
                     first = self.dp(8)
                 elif session and reset_when(session['next_at']):
+                    said_session = True
                     block([t('reset_session_next').format(when=reset_when(session['next_at']))],
                           None, first)
                     first = self.dp(8)
-                if not grants and not (session and session['available']) and not note:
+                if not grants and not said_session and not note:
                     block([t('reset_none')], None, first)
             elif not note:
                 block([t('reset_checking')], None, first)
-            chip.config(text=('● ' + t('reset_available')) if usable and acc_id not in busy else '',
-                        fg=DOT_GREEN)
+            chip.config(text=('● ' + t('reset_available')) if usable else '', fg=DOT_GREEN)
             self._place_dialog(dlg, dw, dh_floor=dh)
 
-        def fetch(note=''):
+        def fetch():
             if quiet:
                 return
             key, org = acc.get('session_key'), acc.get('org_id')
+            kprint = cc_accounts.fingerprint(key)
 
             def work():
                 try:
                     status, error = fetch_resets(key, org), None
-                    cache[acc_id] = (time.monotonic(), status)
+                    # With the org and the key it is about: an answer about
+                    # another org was shown after a key change, and its grant
+                    # sent with the new org (review of 2.11, first iteration).
+                    cache[acc_id] = (time.monotonic(), status, org, kprint)
                 except Exception as e:
                     status, error = None, str(e)
                     wlog(f'RESET  status not read: {_redact(error)}')
+
+                def deliver():
+                    current = cards.get(acc_id)
+                    if current is not None and current['alive']():
+                        current['show'](status, error)
                 try:
-                    self.root.after(0, lambda: show(status, error, note))
+                    self.root.after(0, deliver)
                 except (tk.TclError, RuntimeError):
                     pass
             threading.Thread(target=work, daemon=True).start()
@@ -10928,12 +11001,17 @@ class Widget:
                                  label=t('reset_use') if program == RESET_PROGRAM_FULL
                                  else t('reset_session_use'))
 
+        def redraw_current():
+            current = cards.get(acc_id)
+            if current is not None and current['alive']():
+                current['show'](current['state']['status'], current['state']['error'])
+
         def use(program, grant=None):
-            if acc_id in busy or quiet:
+            if (claims.get(acc_id) or {}).get('busy') or quiet:
                 return
-            busy.add(acc_id)
+            claims[acc_id] = {'busy': True, 'note': '', 'at': time.monotonic()}
             key, org = acc.get('session_key'), acc.get('org_id')
-            show(state['status'], note=t('reset_using'))
+            redraw_current()
             wlog(f'RESET  using a {"full" if program == RESET_PROGRAM_FULL else "5-hour"} reset')
 
             def work():
@@ -10949,7 +11027,6 @@ class Widget:
             threading.Thread(target=work, daemon=True).start()
 
         def done(answer):
-            busy.discard(acc_id)
             result = answer.get('result')
             cache.pop(acc_id, None)
             if result == 'reset':
@@ -10959,12 +11036,21 @@ class Widget:
                     self.refresh()
             else:
                 wlog(f'RESET  not used: {result} ({answer.get("reason") or "-"})')
-                note = t(RESET_OUTCOME_KEYS.get(result, 'reset_r_unavailable'))
-            fetch(note)
+                note = t(RESET_OUTCOME_KEYS.get(result, 'reset_r_no_answer'))
+            claims[acc_id] = {'busy': False, 'note': note, 'at': time.monotonic()}
+            # The card on screen now, whichever card asked: it shows the
+            # outcome and asks claude.ai again.
+            redraw_current()
+            current = cards.get(acc_id)
+            if current is not None and current['alive']():
+                current['fetch']()
 
-        cached = cache.get(acc_id)
-        if cached and time.monotonic() - cached[0] < RESET_STATUS_REUSE_S:
-            show(cached[1])
+        cards[acc_id] = {'show': show, 'fetch': fetch, 'state': state, 'alive': alive}
+        entry = cache.get(acc_id)
+        if (entry and len(entry) == 4 and time.monotonic() - entry[0] < RESET_STATUS_REUSE_S
+                and entry[2] == acc.get('org_id')
+                and entry[3] == cc_accounts.fingerprint(acc.get('session_key'))):
+            show(entry[1])
         else:
             fetch()
 
@@ -12192,10 +12278,17 @@ class Widget:
             # kept in its saved login, or the one made in this session, which
             # is not kept there when the saved login lags behind the live one
             # (cc_accounts.verify checks the live one all the same).
+            # A refusal of our own rule keeps its own remedy, and is then said
+            # as what it is, not "refused by the server" (review of 2.11,
+            # first iteration).
+            remedy = ''
+            if check and check['kind'] == cc_accounts.BAD:
+                remedy = ('cc_r_resave_while_active'
+                          if check.get('key') in cc_accounts.OWN_REFUSALS
+                          else 'cc_r_login_again')
             words = [(check['at'], check['kind'],
                       cc_accounts.verdict(check['kind'], check.get('key') or '', {'name': name},
-                                          'cc_r_login_again'
-                                          if check['kind'] == cc_accounts.BAD else ''))
+                                          remedy))
                      ] if check else []
             if said:
                 words.append((said[1], said[0].get('kind'), said[0]))

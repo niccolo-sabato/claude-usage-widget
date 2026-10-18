@@ -1171,13 +1171,24 @@ def clear_install_mark():
 
 
 def clear_lapsed_install_mark():
-    """At a start of the widget: the mark goes only once the update it stands
-    for is over (its installer has ended, or the wait it was written for has
-    lapsed). Any start used to clear it, and a widget started again while
-    the installer still waited for its elevation prompt let renewals begin
-    that the installer then cut (review of 2026-09-30, fifth iteration)."""
-    if not _install_pending():
-        clear_install_mark()
+    """At a start of the widget: the mark stays only while the installer it
+    stands for still runs. Any start used to clear it, and a widget started
+    again under a waiting elevation prompt let renewals begin that the
+    installer then cut (review of 2026-09-30, fifth iteration). A mark with
+    no installer's pid was written during the wait of a widget that is gone
+    now (this start holds the single-instance lock), or by 2.10/2.11.0
+    before its own update: kept by its age, it refused every switch for a
+    quarter of an hour after an update (review of 2.11, first iteration)."""
+    path = os.path.join(store(), INSTALL_MARK)
+    try:
+        with open(path, encoding='utf-8') as f:
+            rec = json.load(f)
+    except (OSError, ValueError):
+        rec = None
+    if (isinstance(rec, dict) and rec.get('pid')
+            and _process_created(rec['pid']) == rec.get('created')):
+        return
+    clear_install_mark()
 
 
 def _install_pending():
@@ -1614,8 +1625,18 @@ def _renew_held(name, post, call=None, known=None):
             key = None
             if same_signin(oauth, live):
                 key = 'cc_j_renew_same_signin'
-            elif not chain(oauth) or not live_chain(live):
+            elif not chain(oauth):
                 key = 'cc_j_renew_signin_unknown'
+            elif not live_chain(live):
+                # The date missing is the live login's: nothing is wrong with
+                # this saved login, so the refusal is not kept on it, and says
+                # whose date it is. Kept, it blamed the saved login and stayed
+                # after Claude Code signed in again (review of 2.11, first
+                # iteration).
+                return {'judgement': verdict(BAD, 'cc_j_renew_live_undated', {'name': name},
+                                             'cc_r_resave_while_active'),
+                        'renewed': False, 'same_signin': True, 'proof': proof,
+                        'about_live': live.get('refresh_print')}
             if key:
                 _record_check(name, mine, BAD, key)
                 return {'judgement': verdict(BAD, key, {'name': name},
@@ -2427,6 +2448,17 @@ def _switch_held(name, *, knowingly, call, plan_check, name_for_org, post):
     holder = next((p for p in usable_holders if p.get('active')),
                   usable_holders[0] if usable_holders else None)
     proof_holder = holder or (holders[0] if holders else None)
+
+    # A saved login whose label another account's confirmed saved login
+    # contradicts holds that account's tokens (profiles()): never "already on
+    # it", and never written live under this name. With no correct twin to
+    # elect, a switch by name still answered "already active" while Claude
+    # Code was on the other account (review of 2.11, first iteration).
+    wrong = next((j for p in saved if p.get('name') == name
+                  for j in p.get('judgements') or []
+                  if j.get('key') == 'cc_j_label_contradicted'), None)
+    if wrong:
+        return {'done': False, 'asks': False, 'judgement': wrong}
 
     # Already on this account? The fingerprint proves it. The organization
     # would too, but only when it is really the tokens' own: see below.
