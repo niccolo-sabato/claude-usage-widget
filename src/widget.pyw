@@ -951,6 +951,7 @@ LANG = {
         'dlg_invalid_prefix': 'The value must start with sk-ant-',
         'dlg_verifying': 'Verifying\u2026',
         'dlg_error_prefix': 'Error',
+        'dlg_renew_gone': 'This account was removed while the window was open: the key was not saved.',
         'dlg_connect': 'Connect',
         'dlg_cancel': 'Cancel',
         'key_invalid_or_expired': 'Invalid or expired session key',
@@ -1025,6 +1026,7 @@ LANG = {
         'reset_r_rate_limited': 'Too many requests: try again in a minute.',
         'reset_r_auth': 'The session key was refused: update it, then try again.',
         'reset_r_no_answer': 'No answer from claude.ai. Check Settings > Usage on claude.ai before trying again.',
+        'reset_r_changed': 'Nothing was used: the account changed in the meantime, and its resets are being checked again.',
         # Kept for legacy references - consolidated into dlg_step_* above
     },
     'it': {
@@ -1233,6 +1235,7 @@ LANG = {
         'dlg_invalid_prefix': 'Il valore deve iniziare con sk-ant-',
         'dlg_verifying': 'Verifica in corso\u2026',
         'dlg_error_prefix': 'Errore',
+        'dlg_renew_gone': 'Questo account \u00e8 stato rimosso mentre la finestra era aperta: la chiave non \u00e8 stata salvata.',
         'dlg_connect': 'Connetti',
         'dlg_cancel': 'Annulla',
         'key_invalid_or_expired': 'Chiave di sessione non valida o scaduta',
@@ -1307,6 +1310,7 @@ LANG = {
         'reset_r_rate_limited': 'Troppe richieste: riprova fra un minuto.',
         'reset_r_auth': 'La chiave di sessione \u00e8 stata rifiutata: aggiornala e riprova.',
         'reset_r_no_answer': 'Nessuna risposta da claude.ai. Controlla Impostazioni > Utilizzo su claude.ai prima di riprovare.',
+        'reset_r_changed': 'Non \u00e8 stato usato niente: nel frattempo l\u2019account \u00e8 cambiato, e i suoi reset vengono controllati di nuovo.',
     },
     'ja': {
         'current_session': '\u73fe\u5728\u306e\u30bb\u30c3\u30b7\u30e7\u30f3',
@@ -1516,6 +1520,7 @@ LANG = {
         'dlg_invalid_prefix': '\u5024\u306f sk-ant- \u3067\u59cb\u307e\u308b\u5fc5\u8981\u304c\u3042\u308a\u307e\u3059',
         'dlg_verifying': '\u78ba\u8a8d\u4e2d\u2026',
         'dlg_error_prefix': '\u30a8\u30e9\u30fc',
+        'dlg_renew_gone': '\u3053\u306e\u30a6\u30a3\u30f3\u30c9\u30a6\u3092\u958b\u3044\u3066\u3044\u308b\u9593\u306b\u30a2\u30ab\u30a6\u30f3\u30c8\u304c\u524a\u9664\u3055\u308c\u305f\u305f\u3081\u3001\u30ad\u30fc\u306f\u4fdd\u5b58\u3055\u308c\u3066\u3044\u307e\u305b\u3093\u3002',
         'dlg_connect': '\u63a5\u7d9a',
         'dlg_cancel': '\u30ad\u30e3\u30f3\u30bb\u30eb',
         'key_invalid_or_expired': '\u30bb\u30c3\u30b7\u30e7\u30f3\u30ad\u30fc\u304c\u7121\u52b9\u307e\u305f\u306f\u671f\u9650\u5207\u308c\u3067\u3059',
@@ -1590,6 +1595,7 @@ LANG = {
         'reset_r_rate_limited': '\u30ea\u30af\u30a8\u30b9\u30c8\u304c\u591a\u3059\u304e\u307e\u3059\u30021 \u5206\u307b\u3069\u5f85\u3063\u3066\u304b\u3089\u3082\u3046\u4e00\u5ea6\u304a\u8a66\u3057\u304f\u3060\u3055\u3044\u3002',
         'reset_r_auth': '\u30bb\u30c3\u30b7\u30e7\u30f3\u30ad\u30fc\u304c\u62d2\u5426\u3055\u308c\u307e\u3057\u305f\u3002\u66f4\u65b0\u3057\u3066\u304b\u3089\u3082\u3046\u4e00\u5ea6\u304a\u8a66\u3057\u304f\u3060\u3055\u3044\u3002',
         'reset_r_no_answer': 'claude.ai \u304b\u3089\u5fdc\u7b54\u304c\u3042\u308a\u307e\u305b\u3093\u3002\u3082\u3046\u4e00\u5ea6\u8a66\u3059\u524d\u306b\u3001claude.ai \u306e\u8a2d\u5b9a > \u4f7f\u7528\u72b6\u6cc1\u3092\u78ba\u8a8d\u3057\u3066\u304f\u3060\u3055\u3044\u3002',
+        'reset_r_changed': '\u4f7f\u7528\u3055\u308c\u3066\u3044\u307e\u305b\u3093: \u305d\u306e\u9593\u306b\u30a2\u30ab\u30a6\u30f3\u30c8\u304c\u5909\u308f\u3063\u305f\u306e\u3067\u3001\u30ea\u30bb\u30c3\u30c8\u3092\u78ba\u8a8d\u3057\u76f4\u3057\u3066\u3044\u307e\u3059\u3002',
     },
 }
 
@@ -4542,9 +4548,16 @@ _SAVED_TOKEN_ORG = {}
 
 def _fetch_usage_key(src):
     """The session-key read. `src` is the active account, or the config itself
-    for a layout old enough not to have one."""
-    url = API_URL.format(src['org_id'])
-    cookie = f"sessionKey={src['session_key']}; lastActiveOrg={src['org_id']}"
+    for a layout old enough not to have one.
+
+    The key is read once, before the request: `src` is the account's own
+    dict, and a key saved by hand while the request was out was read after
+    it as the key the request had used, so a rotation of the old key reached
+    the new one and the accounts holding it (review of 2.11, second
+    iteration)."""
+    key, org, acct_id = src['session_key'], src['org_id'], src.get('id')
+    url = API_URL.format(org)
+    cookie = f"sessionKey={key}; lastActiveOrg={org}"
     headers, body = _curl_call(url, cookie)
     if not body:
         raise RuntimeError(t('empty_response'))
@@ -4555,11 +4568,11 @@ def _fetch_usage_key(src):
         if code >= 400:
             raise RuntimeError(f'HTTP {code}')
     rotation = None
-    new_key = _rotated_key(headers, src.get('session_key'))
+    new_key = _rotated_key(headers, key)
     if new_key:
         # With the key the request carried: only accounts still holding it
         # take the new one (_apply_rotated_key).
-        rotation = (src.get('id'), new_key, src.get('session_key'))
+        rotation = (acct_id, new_key, key)
     try:
         data = json.loads(body)
     except json.JSONDecodeError as e:
@@ -6822,6 +6835,13 @@ class Widget:
             if (acct_id is None or self.cfg.get('active_account') == acct_id
                     or (old and self.cfg.get('session_key') == old)):
                 self.cfg['session_key'] = new_key
+            if old:
+                # The same login's key: what was read with the old one stays
+                # its own (the resets on an open page, _reset_card), or a
+                # rotation while the page was open turned the reset's button
+                # into "the account changed" (review of 2.11, second iteration).
+                self.__dict__.setdefault('_rotated_prints', {})[
+                    cc_accounts.fingerprint(old)] = cc_accounts.fingerprint(new_key)
             save_cfg(self.cfg)
             wlog(f'FETCH  rotated session key persisted ({len(new_key)} chars'
                  + (f', {shared} more account(s) of the same login' if shared else '') + ')')
@@ -10217,6 +10237,21 @@ class Widget:
                     return
                 commit(info, name_entry.get().strip() if name_entry else '')
             def commit(info, name):
+                if on_success is None and target_id is not None and not any(
+                        x.get('id') == target_id for x in self.cfg.get('accounts', [])):
+                    # The account the renewal was opened for was removed while
+                    # the dialog was open. Its key is not a new account: written
+                    # as one, the removed account came back as the account on
+                    # show, past the one door of a switch (review of 2.11,
+                    # second iteration).
+                    wlog('RENEW  the account was removed meanwhile: nothing written')
+                    try:
+                        self._hold(dlg)
+                        status_lbl.config(text=t('dlg_renew_gone'), fg=RED)
+                        build_connect(enabled=False)
+                    except tk.TclError:
+                        pass
+                    return
                 # Close the dialog first (guarded: the org-picker path may have
                 # let it go already) so the account write below always runs.
                 try:
@@ -10254,15 +10289,22 @@ class Widget:
                         a['email'] = info['email']
                     if info.get('plan'):
                         a['plan'] = info['plan']
-                if org_before and org_before != a.get('org_id'):
+                on_show = a.get('id') == self.cfg.get('active_account')
+                if org_before and org_before != a.get('org_id') and on_show:
                     # Another organization behind the account on show: its
                     # numbers are another account's, so they go.
                     self._set_active_account(a['id'], force=True)
                 else:
+                    # A renewal whose account is no longer the one on show
+                    # (another was chosen while the dialog was open) only
+                    # writes its key: it switched back to it, and cleared the
+                    # error of the account on show (review of 2.11, second
+                    # iteration).
                     mirror_active(self.cfg)
                     save_cfg(self.cfg)
-                    self._clear_error()
-                    self.refresh()
+                    if on_show:
+                        self._clear_error()
+                        self.refresh()
                 if is_setup:
                     self._schedule()
             def on_err(msg):
@@ -10828,16 +10870,27 @@ class Widget:
         claude.ai is asked off the main thread as the page opens; an answer
         under a minute old is shown at once instead (pages are drawn again
         after many gestures). The card is filled where it is, held still and
-        measured again like any other change on the page."""
+        measured again like any other change on the page.
+
+        A status is shown, kept and acted on only while it is about the
+        account as it stands: read after the last use of a reset ended, with
+        the org the account tracks now and its key (or the key claude.ai
+        rotated into it). One read before was shown again when the use
+        ended, with its button, and one about another org reached the card
+        of the new one, with that org's grant (review of 2.11, second
+        iteration)."""
         cache = self.__dict__.setdefault('_reset_status', {})
         # The use of a reset, by account and outside any card: the page can be
         # drawn again, or closed and opened, while the request is out, and the
         # card then on screen must neither offer it again nor lose its outcome
-        # (review of 2.11, first iteration). {'busy', 'note', 'at'}
+        # (review of 2.11, first iteration). {'busy', 'note', 'at', 'org'}
         claims = self.__dict__.setdefault('_reset_claims', {})
         # The card on screen for each account: an answer goes to it, whichever
         # card asked.
         cards = self.__dict__.setdefault('_reset_cards', {})
+        # One more each time a use of a reset ends: a read that went out
+        # before may be about the resets of before, and is dropped.
+        gens = self.__dict__.setdefault('_reset_gen', {})
         acc_id = acc.get('id')
         # A bench's credentials are fakes: nothing of theirs goes to claude.ai
         # (as with cc_post), and a card that changed after the page showed
@@ -10860,7 +10913,9 @@ class Widget:
         # sentences left the reader to pair them (2026-10-15).
         content = tk.Frame(inner, bg=BAR_BG)
         content.pack(fill='x')
-        state = {'status': None, 'error': None}
+        # 'read': what the status shown is about, (uses ended, org, key
+        # print); 'asked': the same for this card's last request.
+        state = {'status': None, 'error': None, 'read': None, 'asked': None}
 
         def say(parent_, text, gap, tip=''):
             label = tk.Label(parent_, text=text, font=FT_DLG_HINT, fg=DIM, bg=BAR_BG,
@@ -10895,24 +10950,63 @@ class Widget:
             except tk.TclError:
                 return False
 
+        def holder():
+            """The account as the config holds it now; None once removed."""
+            if acc_id is None:
+                return acc
+            return next((a for a in self.cfg.get('accounts', [])
+                         if a.get('id') == acc_id), None)
+
+        def want():
+            """What a status has to be about to be shown, kept or used: (uses
+            ended, org, key print) of the account now; None once removed."""
+            a = holder()
+            if a is None:
+                return None
+            return (gens.get(acc_id, 0), a.get('org_id'),
+                    cc_accounts.fingerprint(a.get('session_key')))
+
+        def same(tag, now):
+            """Whether a read with `tag` is about the account as `now` says:
+            the same uses ended and org, and the key it holds or one it held
+            before claude.ai rotated it, which is the same login's
+            (_apply_rotated_key)."""
+            if tag is None or now is None or tag[:2] != now[:2]:
+                return False
+            moves = self.__dict__.get('_rotated_prints') or {}
+            kprint, seen = tag[2], set()
+            while kprint != now[2]:
+                if kprint in seen or kprint not in moves:
+                    return False
+                seen.add(kprint)
+                kprint = moves[kprint]
+            return True
+
         def claim():
             """This account's use of a reset: under way, and the outcome of the
-            last one while it is recent."""
+            last one while it is recent and about the org the account tracks
+            now (a note about another org stayed on the new org's card)."""
             c = dict(claims.get(acc_id) or {})
-            if c.get('note') and time.monotonic() - c.get('at', 0) > RESET_NOTE_S:
+            a = holder()
+            if c.get('note') and (time.monotonic() - c.get('at', 0) > RESET_NOTE_S
+                                  or a is None or c.get('org') != a.get('org_id')):
                 c['note'] = ''
             return c
 
-        def show(status, error=None):
+        def show(status, error=None, tag=None):
             if not alive():
                 return
-            state['status'], state['error'] = status, error
+            state['status'], state['error'], state['read'] = status, error, tag
             self._hold(dlg)
             for w_ in content.winfo_children():
                 w_.destroy()
             c = claim()
             using = bool(c.get('busy'))
             note = t('reset_using') if using else c.get('note') or ''
+            if not same(tag, want()):
+                # Read before the last use ended, or about another org or
+                # key: neither said nor offered (see the docstring).
+                status, error = None, None
             usable = False
             first = 6           # the gap under the title, then between blocks
             if note:
@@ -10934,7 +11028,8 @@ class Widget:
                         # cannot be (review of 2.11, first iteration).
                         if not using:
                             usable = True
-                            action = (t('reset_use'), lambda g=pick: ask(RESET_PROGRAM_FULL, g))
+                            action = (t('reset_use'),
+                                      lambda g=pick, tg=tag: ask(RESET_PROGRAM_FULL, g, tg))
                     elif pick is not None and pick['needs_limit']:
                         lines.append(t('reset_needs_limit'))
                     else:
@@ -10948,7 +11043,8 @@ class Widget:
                     usable = usable or not using
                     block([t('reset_session_ready').format(n=session['per_week'])],
                           None if using else
-                          (t('reset_session_use'), lambda: ask(RESET_PROGRAM_SESSION)),
+                          (t('reset_session_use'),
+                           lambda tg=tag: ask(RESET_PROGRAM_SESSION, None, tg)),
                           first)
                     first = self.dp(8)
                 elif session and reset_when(session['next_at']):
@@ -10958,7 +11054,9 @@ class Widget:
                     first = self.dp(8)
                 if not grants and not said_session and not note:
                     block([t('reset_none')], None, first)
-            elif not note:
+            elif not using:
+                # Under an outcome too: the status of after the use is on
+                # its way.
                 block([t('reset_checking')], None, first)
             chip.config(text=('● ' + t('reset_available')) if usable else '', fg=DOT_GREEN)
             self._place_dialog(dlg, dw, dh_floor=dh)
@@ -10966,51 +11064,104 @@ class Widget:
         def fetch():
             if quiet:
                 return
-            key, org = acc.get('session_key'), acc.get('org_id')
-            kprint = cc_accounts.fingerprint(key)
+            a = holder()
+            if a is None:
+                return
+            key, org = a.get('session_key'), a.get('org_id')
+            tag = (gens.get(acc_id, 0), org, cc_accounts.fingerprint(key))
+            state['asked'] = tag
 
             def work():
                 try:
                     status, error = fetch_resets(key, org), None
-                    # With the org and the key it is about: an answer about
-                    # another org was shown after a key change, and its grant
-                    # sent with the new org (review of 2.11, first iteration).
-                    cache[acc_id] = (time.monotonic(), status, org, kprint)
                 except Exception as e:
                     status, error = None, str(e)
                     wlog(f'RESET  status not read: {_redact(error)}')
-
-                def deliver():
-                    current = cards.get(acc_id)
-                    if current is not None and current['alive']():
-                        current['show'](status, error)
                 try:
-                    self.root.after(0, deliver)
+                    self.root.after(0, lambda: take(tag, status, error))
                 except (tk.TclError, RuntimeError):
                     pass
             threading.Thread(target=work, daemon=True).start()
 
-        def ask(program, grant=None):
-            name = acc.get('name') or '-'
+        def take(tag, status, error):
+            """An answer, on the main thread. Kept, with what it is about, and
+            shown on the card on screen, whichever card asked: only while it
+            is about the account as it stands."""
+            now = want()
+            if now is None or tag[0] != now[0]:
+                # A use of a reset ended since it went out, and asked again.
+                return
+            current = cards.get(acc_id)
+            if not same(tag, now):
+                # About an org or a key the account no longer holds: the card
+                # on screen asks for its own.
+                if current is not None and current['alive']():
+                    current['ensure']()
+                return
+            # Under the key the account holds now, should it have rotated.
+            if status is not None:
+                cache[acc_id] = (time.monotonic(), status, now[1], now[2])
+            if current is not None and current['alive']():
+                current['show'](status, error, now)
+
+        def ensure():
+            """Ask for the account as it stands, unless this card shows it or
+            has asked for it already."""
+            now = want()
+            if now is None or same(state['read'], now) or same(state['asked'], now):
+                return
+            fetch()
+
+        def changed(tag):
+            """Whether the account changed since the resets the card offered
+            were read (its org or key, or a use that ended): then nothing is
+            used, the card says so and asks again. The page stays open while
+            a renewal moves the account to another org, and its button sent
+            the old org's grant with the new org (review of 2.11, second
+            iteration)."""
+            if same(tag, want()):
+                return False
+            wlog('RESET  not used: the account changed since its resets were read')
+            a = holder()
+            if a is not None and not (claims.get(acc_id) or {}).get('busy'):
+                claims[acc_id] = {'busy': False, 'note': t('reset_r_changed'),
+                                  'at': time.monotonic(), 'org': a.get('org_id')}
+                redraw_current()
+                current = cards.get(acc_id)
+                if current is not None and current['alive']():
+                    current['ensure']()
+            return True
+
+        def ask(program, grant=None, tag=None):
+            if changed(tag):
+                return
+            name = (holder() or acc).get('name') or '-'
             if program == RESET_PROGRAM_FULL:
                 week = reset_when((state['status'] or {}).get('weekly_resets_at')) or '?'
                 msg = t('reset_confirm_full').format(name=name, week=week)
             else:
                 msg = t('reset_confirm_session').format(name=name)
-            self._confirm_dialog(t('reset_confirm_title'), msg, lambda: use(program, grant),
+            self._confirm_dialog(t('reset_confirm_title'), msg,
+                                 lambda: use(program, grant, tag),
                                  label=t('reset_use') if program == RESET_PROGRAM_FULL
                                  else t('reset_session_use'))
 
         def redraw_current():
             current = cards.get(acc_id)
             if current is not None and current['alive']():
-                current['show'](current['state']['status'], current['state']['error'])
+                st = current['state']
+                current['show'](st['status'], st['error'], st['read'])
 
-        def use(program, grant=None):
+        def use(program, grant=None, tag=None):
             if (claims.get(acc_id) or {}).get('busy') or quiet:
                 return
-            claims[acc_id] = {'busy': True, 'note': '', 'at': time.monotonic()}
-            key, org = acc.get('session_key'), acc.get('org_id')
+            # Checked again at the confirmation: it stays open as long as
+            # the user wants.
+            if changed(tag):
+                return
+            a = holder()
+            key, org = a.get('session_key'), a.get('org_id')
+            claims[acc_id] = {'busy': True, 'note': '', 'at': time.monotonic(), 'org': org}
             redraw_current()
             wlog(f'RESET  using a {"full" if program == RESET_PROGRAM_FULL else "5-hour"} reset')
 
@@ -11021,13 +11172,17 @@ class Widget:
                     wlog(f'RESET  no answer: {_redact(str(e))}')
                     answer = {'result': 'no_answer'}
                 try:
-                    self.root.after(0, lambda: done(answer))
+                    self.root.after(0, lambda: done(answer, org))
                 except (tk.TclError, RuntimeError):
                     pass
             threading.Thread(target=work, daemon=True).start()
 
-        def done(answer):
+        def done(answer, org):
             result = answer.get('result')
+            # Every status read until now may be about the resets of before
+            # this use: none of them is shown, kept or used any more (take,
+            # show), and the one in the cache goes.
+            gens[acc_id] = gens.get(acc_id, 0) + 1
             cache.pop(acc_id, None)
             if result == 'reset':
                 wlog('RESET  used: cleared ' + (','.join(answer.get('cleared') or []) or '-'))
@@ -11037,21 +11192,30 @@ class Widget:
             else:
                 wlog(f'RESET  not used: {result} ({answer.get("reason") or "-"})')
                 note = t(RESET_OUTCOME_KEYS.get(result, 'reset_r_no_answer'))
-            claims[acc_id] = {'busy': False, 'note': note, 'at': time.monotonic()}
+            claims[acc_id] = {'busy': False, 'note': note, 'at': time.monotonic(), 'org': org}
             # The card on screen now, whichever card asked: it shows the
-            # outcome and asks claude.ai again.
+            # outcome, without the status of before, and asks claude.ai again.
             redraw_current()
             current = cards.get(acc_id)
             if current is not None and current['alive']():
                 current['fetch']()
 
-        cards[acc_id] = {'show': show, 'fetch': fetch, 'state': state, 'alive': alive}
+        cards[acc_id] = {'show': show, 'fetch': fetch, 'ensure': ensure,
+                         'state': state, 'alive': alive}
+        now = want()
         entry = cache.get(acc_id)
-        if (entry and len(entry) == 4 and time.monotonic() - entry[0] < RESET_STATUS_REUSE_S
-                and entry[2] == acc.get('org_id')
-                and entry[3] == cc_accounts.fingerprint(acc.get('session_key'))):
-            show(entry[1])
+        # An entry in the cache is always of after the last use (done() takes
+        # it out, take() puts in only what is about the account as it stands):
+        # its org and key are what is left to compare.
+        if (now is not None and entry and len(entry) == 4
+                and time.monotonic() - entry[0] < RESET_STATUS_REUSE_S
+                and same((now[0],) + tuple(entry[2:4]), now)):
+            show(entry[1], None, now)
         else:
+            if claim().get('busy') or claim().get('note'):
+                # A use under way, or its outcome, said before claude.ai
+                # answers: a page opened then said only "Checking".
+                show(None)
             fetch()
 
     def _account_details_dialog(self, acc, rebuild, advanced=False):
@@ -12920,8 +13084,11 @@ class Widget:
                 if is_active:
                     mirror_active(self.cfg)
                 save_cfg(self.cfg)
-                self._clear_error()
                 if is_active:
+                    # Only the account on show has its error on show: cleared
+                    # for another account's key, it was gone until the next
+                    # refresh (review of 2.11, second iteration).
+                    self._clear_error()
                     self.refresh()
             rebuild()
         self._session_key_dialog(t('dlg_update_key'), on_success=on_success,

@@ -647,8 +647,23 @@ def profiles(live=None):
             'certainty': certainty, 'why_active': why_active,
             'judgements': judgements, 'verdict': worst(judgements),
             'check': last_check(data),
+            'waits_live_date': not is_active and _waits_live_date(data, live),
         })
     return out
+
+
+def _waits_live_date(data, live):
+    """Whether renew refuses this saved login only for the date missing from
+    the login in Claude Code's file (_renew_held, cc_j_renew_live_undated): a
+    label the server never confirmed, while the live login's sign-in cannot
+    be told. Nothing is wrong with the saved login, so the refusal is not
+    kept in it; the choice of an account's login passes over it instead
+    (find_profile_for_org). Elected all the same, it had every switch onto
+    its account refused while a confirmed twin would have gone through
+    (review of 2.11, second iteration)."""
+    oauth = (data or {}).get('claudeAiOauth') or {}
+    return bool(holds_login(live) and not label_confirmed(data)
+                and chain(oauth) and not live_chain(live))
 
 
 def unrecognised(live, saved):
@@ -778,11 +793,13 @@ def find_profile_for_org(org, saved=None):
     """The ONE saved profile of an organization, chosen as profiles() elects.
 
     The profile Claude Code is using, when it is among them; otherwise one not
-    judged unusable, the newest snapshot first (the latest sight of that
-    account's login), then the longest renewal. Never a name valid_name
-    refuses, since nothing could switch to it. The newest snapshot, not the
-    longest renewal: the renewal's date belongs to the sign-in (chain()),
-    and the longest one is only the latest sign-in, not the token seen last.
+    judged unusable, then one that renew does not refuse for the live login's
+    missing date alone (_waits_live_date), the newest snapshot first (the
+    latest sight of that account's login), then the longest renewal. Never a
+    name valid_name refuses, since nothing could switch to it. The newest
+    snapshot, not the longest renewal: the renewal's date belongs to the
+    sign-in (chain()), and the longest one is only the latest sign-in, not
+    the token seen last.
 
     🔴 It used to be the first profile of the organization in name order. With
     two snapshots of one account (a parked twin, or the `_auto-` copy another
@@ -802,6 +819,7 @@ def find_profile_for_org(org, saved=None):
         if p.get('active'):
             return p
     return max(mine, key=lambda p: (p.get('verdict') != BAD,
+                                    not p.get('waits_live_date'),
                                     p.get('saved_at') or 0,
                                     p.get('refresh_expires') or datetime.min))
 
