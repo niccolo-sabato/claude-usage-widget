@@ -1026,7 +1026,7 @@ LANG = {
         'reset_r_rate_limited': 'Too many requests: try again in a minute.',
         'reset_r_auth': 'The session key was refused: update it, then try again.',
         'reset_r_no_answer': 'No answer from claude.ai. Check Settings > Usage on claude.ai before trying again.',
-        'reset_r_changed': 'Nothing was used: the account changed in the meantime, and its resets are being checked again.',
+        'reset_r_changed': 'Nothing was used: the account changed in the meantime.',
         # Kept for legacy references - consolidated into dlg_step_* above
     },
     'it': {
@@ -1310,7 +1310,7 @@ LANG = {
         'reset_r_rate_limited': 'Troppe richieste: riprova fra un minuto.',
         'reset_r_auth': 'La chiave di sessione \u00e8 stata rifiutata: aggiornala e riprova.',
         'reset_r_no_answer': 'Nessuna risposta da claude.ai. Controlla Impostazioni > Utilizzo su claude.ai prima di riprovare.',
-        'reset_r_changed': 'Non \u00e8 stato usato niente: nel frattempo l\u2019account \u00e8 cambiato, e i suoi reset vengono controllati di nuovo.',
+        'reset_r_changed': 'Non \u00e8 stato usato niente: nel frattempo l\u2019account \u00e8 cambiato.',
     },
     'ja': {
         'current_session': '\u73fe\u5728\u306e\u30bb\u30c3\u30b7\u30e7\u30f3',
@@ -1595,7 +1595,7 @@ LANG = {
         'reset_r_rate_limited': '\u30ea\u30af\u30a8\u30b9\u30c8\u304c\u591a\u3059\u304e\u307e\u3059\u30021 \u5206\u307b\u3069\u5f85\u3063\u3066\u304b\u3089\u3082\u3046\u4e00\u5ea6\u304a\u8a66\u3057\u304f\u3060\u3055\u3044\u3002',
         'reset_r_auth': '\u30bb\u30c3\u30b7\u30e7\u30f3\u30ad\u30fc\u304c\u62d2\u5426\u3055\u308c\u307e\u3057\u305f\u3002\u66f4\u65b0\u3057\u3066\u304b\u3089\u3082\u3046\u4e00\u5ea6\u304a\u8a66\u3057\u304f\u3060\u3055\u3044\u3002',
         'reset_r_no_answer': 'claude.ai \u304b\u3089\u5fdc\u7b54\u304c\u3042\u308a\u307e\u305b\u3093\u3002\u3082\u3046\u4e00\u5ea6\u8a66\u3059\u524d\u306b\u3001claude.ai \u306e\u8a2d\u5b9a > \u4f7f\u7528\u72b6\u6cc1\u3092\u78ba\u8a8d\u3057\u3066\u304f\u3060\u3055\u3044\u3002',
-        'reset_r_changed': '\u4f7f\u7528\u3055\u308c\u3066\u3044\u307e\u305b\u3093: \u305d\u306e\u9593\u306b\u30a2\u30ab\u30a6\u30f3\u30c8\u304c\u5909\u308f\u3063\u305f\u306e\u3067\u3001\u30ea\u30bb\u30c3\u30c8\u3092\u78ba\u8a8d\u3057\u76f4\u3057\u3066\u3044\u307e\u3059\u3002',
+        'reset_r_changed': '\u4f7f\u7528\u3055\u308c\u3066\u3044\u307e\u305b\u3093: \u305d\u306e\u9593\u306b\u30a2\u30ab\u30a6\u30f3\u30c8\u304c\u5909\u308f\u308a\u307e\u3057\u305f\u3002',
     },
 }
 
@@ -11052,7 +11052,10 @@ class Widget:
                     block([t('reset_session_next').format(when=reset_when(session['next_at']))],
                           None, first)
                     first = self.dp(8)
-                if not grants and not said_session and not note:
+                # Under an outcome, "none available" would only repeat it;
+                # under "the account changed" it is the news (review of 2.11,
+                # third iteration).
+                if not grants and not said_session and (not note or c.get('changed')):
                     block([t('reset_none')], None, first)
             elif not using:
                 # Under an outcome too: the status of after the use is on
@@ -11125,7 +11128,8 @@ class Widget:
             a = holder()
             if a is not None and not (claims.get(acc_id) or {}).get('busy'):
                 claims[acc_id] = {'busy': False, 'note': t('reset_r_changed'),
-                                  'at': time.monotonic(), 'org': a.get('org_id')}
+                                  'at': time.monotonic(), 'org': a.get('org_id'),
+                                  'changed': True}
                 redraw_current()
                 current = cards.get(acc_id)
                 if current is not None and current['alive']():
