@@ -18,7 +18,7 @@ To get a new sessionKey when it expires:
   4. Paste via ≡ menu → Renew session
 
 To start at Windows login:
-  Win+R -> shell:startup -> create shortcut to the installed exe.
+  Hamburger menu -> General -> Start with Windows.
 """
 
 import sys
@@ -829,6 +829,8 @@ LANG = {
         'menu_open_repo': 'Open GitHub repo',
         'menu_notifications_on': 'Notifications: ON',
         'menu_notifications_off': 'Notifications: OFF',
+        'menu_autostart_on': 'Start with Windows: ON',
+        'menu_autostart_off': 'Start with Windows: OFF',
         'menu_taskbar_on': 'Taskbar icon: ON',
         'menu_taskbar_off': 'Taskbar icon: OFF',
         'menu_countdown': 'Countdown',
@@ -914,6 +916,7 @@ LANG = {
         'split_remove': 'Remove split',
         'tip_split': 'Splits the weekly bar into equal parts.',
         'tip_notifications': 'Windows notification when session usage crosses a threshold.',
+        'tip_autostart': 'Launch the widget automatically when you sign in to Windows.',
         'tip_taskbar': 'Show a taskbar button with a usage progress overlay.',
         'menu_refresh_interval': 'Refresh interval\u2026',
         'dlg_interval_title': 'Refresh interval',
@@ -1100,6 +1103,8 @@ LANG = {
         'menu_open_repo': 'Apri repo GitHub',
         'menu_notifications_on': 'Notifiche: attive',
         'menu_notifications_off': 'Notifiche: disattive',
+        'menu_autostart_on': 'Avvia con Windows: attivo',
+        'menu_autostart_off': 'Avvia con Windows: disattivo',
         'menu_taskbar_on': 'Icona taskbar: visibile',
         'menu_taskbar_off': 'Icona taskbar: nascosta',
         'menu_countdown': 'Conto alla rovescia',
@@ -1200,6 +1205,7 @@ LANG = {
         'split_remove': 'Rimuovi suddivisione',
         'tip_split': 'Divide la barra settimanale in parti uguali.',
         'tip_notifications': 'Notifica di Windows quando il consumo della sessione supera una soglia.',
+        'tip_autostart': 'Avvia il widget automaticamente quando accedi a Windows.',
         'tip_taskbar': 'Mostra un pulsante nella taskbar con la barra di avanzamento del consumo.',
         'menu_refresh_interval': 'Intervallo aggiornamento\u2026',
         'dlg_interval_title': 'Intervallo aggiornamento',
@@ -1385,6 +1391,8 @@ LANG = {
         'menu_open_repo': 'GitHub\u30ea\u30dd\u30b8\u30c8\u30ea\u3092\u958b\u304f',
         'menu_notifications_on': '\u901a\u77e5: \u30aa\u30f3',
         'menu_notifications_off': '\u901a\u77e5: \u30aa\u30d5',
+        'menu_autostart_on': 'Windows\u8d77\u52d5\u6642\u306b\u958b\u59cb: \u30aa\u30f3',
+        'menu_autostart_off': 'Windows\u8d77\u52d5\u6642\u306b\u958b\u59cb: \u30aa\u30d5',
         'menu_taskbar_on': '\u30bf\u30b9\u30af\u30d0\u30fc\u30a2\u30a4\u30b3\u30f3: \u8868\u793a',
         'menu_taskbar_off': '\u30bf\u30b9\u30af\u30d0\u30fc\u30a2\u30a4\u30b3\u30f3: \u975e\u8868\u793a',
         'menu_countdown': '\u30ab\u30a6\u30f3\u30c8\u30c0\u30a6\u30f3',
@@ -1485,6 +1493,7 @@ LANG = {
         'split_remove': '\u5206\u5272\u3092\u89e3\u9664',
         'tip_split': '\u9031\u9593\u30d0\u30fc\u3092\u7b49\u5206\u3057\u307e\u3059\u3002',
         'tip_notifications': '\u30bb\u30c3\u30b7\u30e7\u30f3\u4f7f\u7528\u91cf\u304c\u3057\u304d\u3044\u5024\u3092\u8d85\u3048\u308b\u3068Windows\u901a\u77e5\u3092\u8868\u793a\u3057\u307e\u3059\u3002',
+        'tip_autostart': 'Windows\u306b\u30b5\u30a4\u30f3\u30a4\u30f3\u3059\u308b\u3068\u81ea\u52d5\u7684\u306b\u30a6\u30a3\u30b8\u30a7\u30c3\u30c8\u3092\u8d77\u52d5\u3057\u307e\u3059\u3002',
         'tip_taskbar': '\u30bf\u30b9\u30af\u30d0\u30fc\u306b\u4f7f\u7528\u72b6\u6cc1\u3092\u91cd\u306d\u305f\u30dc\u30bf\u30f3\u3092\u8868\u793a\u3057\u307e\u3059\u3002',
         'menu_refresh_interval': '\u66f4\u65b0\u9593\u9694\u2026',
         'dlg_interval_title': '\u66f4\u65b0\u9593\u9694',
@@ -8683,6 +8692,11 @@ class Widget:
                                marker=('●' if code == _current_lang else '○'),
                                text_ft=ft)
             self._menu_sep(m)
+            self._menu_sep(m)
+            auto = self._autostart_enabled()
+            self._menu_row(m, (t('menu_autostart_on') if auto else t('menu_autostart_off')),
+                           lambda: self._flyout_set(self._toggle_autostart),
+                           icon='\U0001F680︎', icon_ft=FT_EMOJI, tip=t('tip_autostart'))
             self._menu_row(m, t('menu_check_updates'),
                            lambda: self._menu_do(self._check_updates_manual),
                            icon='⬆︎', icon_ft=FT_EMOJI)
@@ -10139,6 +10153,47 @@ class Widget:
     def _open_repo(self):
         """Open the project's GitHub repo in the default browser."""
         webbrowser.open(f'https://github.com/{UPDATE_REPO}')
+
+    AUTOSTART_KEY = r'Software\Microsoft\Windows\CurrentVersion\Run'
+    AUTOSTART_NAME = 'ClaudeUsageWidget'
+
+    @staticmethod
+    def _autostart_command():
+        """Command line Windows runs at sign-in: the installed exe, or
+        pythonw + this script when running from source."""
+        if getattr(sys, 'frozen', False):
+            return f'"{sys.executable}"'
+        exe = sys.executable
+        pyw = os.path.join(os.path.dirname(exe), 'pythonw.exe')
+        if os.path.exists(pyw):
+            exe = pyw
+        return f'"{exe}" "{os.path.abspath(__file__)}"'
+
+    def _autostart_enabled(self):
+        """True when the HKCU Run entry exists. The registry is the source
+        of truth, so the menu stays right if the entry is edited elsewhere."""
+        try:
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, self.AUTOSTART_KEY) as k:
+                winreg.QueryValueEx(k, self.AUTOSTART_NAME)
+            return True
+        except OSError:
+            return False
+
+    def _toggle_autostart(self):
+        """Add or remove the widget from the current user's Windows startup."""
+        enable = not self._autostart_enabled()
+        try:
+            if enable:
+                with winreg.CreateKey(winreg.HKEY_CURRENT_USER, self.AUTOSTART_KEY) as k:
+                    winreg.SetValueEx(k, self.AUTOSTART_NAME, 0, winreg.REG_SZ,
+                                      self._autostart_command())
+            else:
+                with winreg.OpenKey(winreg.HKEY_CURRENT_USER, self.AUTOSTART_KEY,
+                                    0, winreg.KEY_SET_VALUE) as k:
+                    winreg.DeleteValue(k, self.AUTOSTART_NAME)
+            wlog(f'AUTOSTART start_with_windows -> {enable}')
+        except OSError as e:
+            wlog(f'AUTOSTART toggle failed: {e}')
 
     def _toggle_notifications(self):
         """Toggle Windows toast notifications for session-usage thresholds."""
