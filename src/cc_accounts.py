@@ -491,23 +491,39 @@ def _sights(readable, held, shots=None):
     renew: the list alone knew, and a switch by name, Verify or the advice
     under a row judged otherwise (review of the fixes after 2.11)."""
     shots = backups(held) if shots is None else shots
-    confirmed = {}
-    for _name, data in readable:
-        p = fingerprint(((data or {}).get('claudeAiOauth') or {}).get('refreshToken'))
-        if p and data.get('organizationUuid') and label_confirmed(data):
-            confirmed.setdefault(p, data['organizationUuid'])
+    confirmed = _confirmed_orgs(readable)
     for name, data in readable:
         oauth = (data or {}).get('claudeAiOauth') or {}
         org, print_, chain_ = data.get('organizationUuid'), \
             fingerprint(oauth.get('refreshToken')), chain(oauth)
         if not (org and print_ and chain_ is not None):
             continue
-        if confirmed.get(print_) not in (None, org) and not label_confirmed(data):
+        if _label_contradicted(data, confirmed):
             continue
         sight = {'file': name, 'refresh_print': print_, 'at': _saved_at(data, name) or 0}
         if (org, chain_) not in shots or sight['at'] > shots[(org, chain_)]['at']:
             shots[(org, chain_)] = sight
     return shots
+
+
+def _confirmed_orgs(readable):
+    """{renewal fingerprint: organization} of the saved logins whose label
+    the server confirmed (label_confirmed), among (name, profile) pairs."""
+    out = {}
+    for _name, data in readable:
+        p = fingerprint(((data or {}).get('claudeAiOauth') or {}).get('refreshToken'))
+        if p and data.get('organizationUuid') and label_confirmed(data):
+            out.setdefault(p, data['organizationUuid'])
+    return out
+
+
+def _label_contradicted(data, confirmed):
+    """Whether a saved login's label is contradicted, as profiles() judges
+    it: an unconfirmed label on the tokens a confirmed saved login of
+    another account holds (`confirmed`: _confirmed_orgs)."""
+    p = fingerprint(((data or {}).get('claudeAiOauth') or {}).get('refreshToken'))
+    return (confirmed.get(p) not in (None, (data or {}).get('organizationUuid'))
+            and not label_confirmed(data))
 
 
 def _outdated_now(name, data):
@@ -905,7 +921,14 @@ def has_profile_for_org(org):
     if not mine:
         return False
     shots = None
+    confirmed = _confirmed_orgs(readable)
     for name, data in mine:
+        # Nor one whose label is contradicted: the list holds its tokens for
+        # another account's and hides its Switch, and a switch onto it is
+        # refused, while the advice named the way back (review of the
+        # fixes after 2.11, second iteration).
+        if _label_contradicted(data, confirmed):
+            continue
         # One that can still be switched to: an expired renewal is no way
         # back, and "switch Claude Code back to it" sent the user to a
         # switch that could only be refused (review of 2026-09-26). Nor is one

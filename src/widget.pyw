@@ -8248,7 +8248,8 @@ class Widget:
         item = canvas.create_window(0, 0, window=inner, anchor='nw')
         dlg._scroll_canvas = canvas
         bar = tk.Canvas(dlg, bg=BG, highlightthickness=0, bd=0, width=self.dp(6))
-        state = {'shown': False, 'drag': None, 'start': start or None, 'drawing': False}
+        state = {'shown': False, 'drag': None, 'start': start or None, 'drawing': False,
+                 'wheel': 0}
 
         def draw_bar(*_view):
             # Also the canvas's yscrollcommand: every change of its view comes
@@ -8307,11 +8308,18 @@ class Widget:
             draw_bar()
 
         def on_wheel(e):
-            # By its sign, whatever its size: a precision touchpad sends
-            # deltas well under a notch, and dividing them by one rounded
-            # every scroll away, as the diagnostics window already knew.
-            if state['shown'] and e.delta:
-                canvas.yview_scroll(-3 if e.delta > 0 else 3, 'units')
+            # A mouse notch (120) scrolls 3 units, and the small deltas of a
+            # precision touchpad add up to the same distance: divided one by
+            # one, they rounded every scroll away; taken by their sign, each
+            # scrolled a whole notch and the page ran from end to end at the
+            # slightest swipe (review of the fixes after 2.11).
+            if not state['shown'] or not e.delta:
+                return
+            state['wheel'] += e.delta
+            units = int(state['wheel'] / 40)
+            if units:
+                state['wheel'] -= units * 40
+                canvas.yview_scroll(-units, 'units')
                 draw_bar()
 
         def drag_start(e):
@@ -10155,6 +10163,10 @@ class Widget:
         webbrowser.open(f'https://github.com/{UPDATE_REPO}')
 
     AUTOSTART_KEY = r'Software\Microsoft\Windows\CurrentVersion\Run'
+    # Where Task Manager (Startup apps) keeps its switch for each entry: a
+    # value of the same name, whose first byte is odd when disabled.
+    AUTOSTART_APPROVED = (r'Software\Microsoft\Windows\CurrentVersion\Explorer'
+                          r'\StartupApproved\Run')
     AUTOSTART_NAME = 'ClaudeUsageWidget'
 
     @staticmethod
@@ -10170,14 +10182,27 @@ class Widget:
         return f'"{exe}" "{os.path.abspath(__file__)}"'
 
     def _autostart_enabled(self):
-        """True when the HKCU Run entry exists. The registry is the source
-        of truth, so the menu stays right if the entry is edited elsewhere."""
+        """True when Windows will start this copy at sign-in: the HKCU Run
+        entry holds this copy's command, and Task Manager has not disabled
+        it. The registry is the source of truth, so the menu stays right if
+        the entry is changed elsewhere. An entry Task Manager disabled, or
+        one that starts another copy or a path that is gone, reads as off,
+        and a click puts this copy's back: read as on, the menu said ON
+        while nothing started, and could never turn it back on (review of
+        #17)."""
         try:
             with winreg.OpenKey(winreg.HKEY_CURRENT_USER, self.AUTOSTART_KEY) as k:
-                winreg.QueryValueEx(k, self.AUTOSTART_NAME)
-            return True
+                command = winreg.QueryValueEx(k, self.AUTOSTART_NAME)[0]
         except OSError:
             return False
+        if str(command).strip().lower() != self._autostart_command().lower():
+            return False
+        try:
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, self.AUTOSTART_APPROVED) as k:
+                flag = winreg.QueryValueEx(k, self.AUTOSTART_NAME)[0]
+        except OSError:
+            return True
+        return not (isinstance(flag, (bytes, bytearray)) and flag and flag[0] & 1)
 
     def _toggle_autostart(self):
         """Add or remove the widget from the current user's Windows startup."""
@@ -10191,6 +10216,15 @@ class Widget:
                 with winreg.OpenKey(winreg.HKEY_CURRENT_USER, self.AUTOSTART_KEY,
                                     0, winreg.KEY_SET_VALUE) as k:
                     winreg.DeleteValue(k, self.AUTOSTART_NAME)
+            # Task Manager's switch for the entry goes with it: left set to
+            # disabled, turning the option on again changed nothing at
+            # sign-in. The menu's choice is the latest one, and it wins.
+            try:
+                with winreg.OpenKey(winreg.HKEY_CURRENT_USER, self.AUTOSTART_APPROVED,
+                                    0, winreg.KEY_SET_VALUE) as k:
+                    winreg.DeleteValue(k, self.AUTOSTART_NAME)
+            except OSError:
+                pass
             wlog(f'AUTOSTART start_with_windows -> {enable}')
         except OSError as e:
             wlog(f'AUTOSTART toggle failed: {e}')
