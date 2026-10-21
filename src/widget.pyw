@@ -8692,11 +8692,11 @@ class Widget:
                                marker=('●' if code == _current_lang else '○'),
                                text_ft=ft)
             self._menu_sep(m)
-            self._menu_sep(m)
             auto = self._autostart_enabled()
             self._menu_row(m, (t('menu_autostart_on') if auto else t('menu_autostart_off')),
                            lambda: self._flyout_set(self._toggle_autostart),
                            icon='\U0001F680︎', icon_ft=FT_EMOJI, tip=t('tip_autostart'))
+            self._menu_sep(m)
             self._menu_row(m, t('menu_check_updates'),
                            lambda: self._menu_do(self._check_updates_manual),
                            icon='⬆︎', icon_ft=FT_EMOJI)

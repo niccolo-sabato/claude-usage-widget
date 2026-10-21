@@ -147,7 +147,7 @@ The widget connects to Claude.ai using the same browser session you are already 
 - **Countdown as a pulsing green dot** (default) or as a numeric value, your choice
 - **Sync time** display toggle for the last-update timestamp
 - Native Windows 11 design language: DWM rounded corners, translucent background, anti-aliased pill buttons rendered with a 4x supersample
-- DPI-aware: tested at 100 %, 125 %, 150 %, 175 % and 200 % scaling; dialogs auto-size so nothing is clipped on high-DPI displays
+- DPI-aware: tested at 100 %, 125 %, 150 %, 175 % and 200 % scaling; dialogs auto-size so nothing is clipped on high-DPI displays, and an account page taller than the screen scrolls, with its buttons always in view
 
 ![The widget in the light theme](docs/images/normal-light.png)
 
@@ -156,7 +156,7 @@ The widget connects to Claude.ai using the same browser session you are already 
 - Each row shows the **name, email, plan and how that account is read**, next to an avatar of your own: its initials, a short text of up to three characters, or one of thirty monochrome icons, over a background and a symbol colour you pick
 - The accounts window also says **which account Claude Code is signed in as on that machine**, which is not necessarily the account the widget is showing
 - **One page per account**: open it with Manage to see the plan, the subscription status, the organisation and the extra-usage state, rename it, pick its colour, and manage both credentials in one place
-- **Limit resets**: when Anthropic grants an account a usage-limit reset, its page shows how many are left and until when, and uses one after a confirmation. Resets can only be redeemed from claude.ai, so this needs the account's session key
+- **Limit resets**: when Anthropic grants an account a usage-limit reset, its page shows how many are left and until when, and uses one after a confirmation. A full reset and a 5-hour reset each have their own line and their own button. Resets can only be redeemed from claude.ai, so this needs the account's session key
 - Adding an account that is **already in the list** updates it instead of creating a duplicate: the organisation decides, with the email as a fallback, so the same account is recognised however it was added
 - A login that belongs to **more than one organization**, such as a personal and a team one, can be added once for each: the widget asks which organization to track and marks the ones already in the list
 
@@ -234,7 +234,7 @@ Open it with **≡**, the **☰** button, or by right-clicking the bar in essent
   beside it, the taskbar icon and its Win11 progress overlay, what the line **under the bars** carries (the reset time, the time left, both or neither), the weekly split, and which bars to show (each with a colour swatch). Hover any option for a short explanation.
 - **Data & alerts**: refresh interval (10 to 3600 s) and threshold notifications
 - **Accounts**: opens the accounts window directly (add, switch, rename, remove, update each session key), with a link to the Claude.ai usage page
-- **General**: language (EN / IT / JA), check for updates, open the GitHub repo, open `config.json`, run the connection self-test
+- **General**: language (EN / IT / JA), start with Windows, check for updates, open the GitHub repo, open `config.json`, run the connection self-test
 - **Quit** (top level)
 
 ## Configuration

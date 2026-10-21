@@ -2,7 +2,7 @@
 
 **Claude Session Key** (Chrome extension) and **Claude Usage Widget** (desktop application).
 
-Last updated: 2026-10-18
+Last updated: 2026-10-21
 
 ## Summary
 
@@ -35,6 +35,7 @@ The "Claude Usage Widget" desktop application:
 - Stores configuration locally in `%LOCALAPPDATA%\Claude Usage\config.json`: position, size, language, theme, the session key, and for each account the identity the profile endpoint returns (e-mail address, organisation, plan), which is how the widget knows whose numbers it is showing.
 - Keeps a copy of Claude Code's login for each account it can switch Claude Code to, as described below.
 - Writes diagnostic logs locally to `%LOCALAPPDATA%\Claude Usage\widget.log`. No credential is ever written to them, and text arriving from outside the program (the output of `curl`, for instance) has session keys, tokens, organisation ids, e-mail addresses and the Windows account name stripped out before it is stored.
+- When the user turns on **Start with Windows**, writes one value, `ClaudeUsageWidget`, under `HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run`, holding the path of the widget. Turning the option off removes it, and so does uninstalling the widget.
 
 No data leaves the user's computer except those authenticated requests, both to services the user's own Claude account is already signed in to. The only other request is the update check described under Third parties, and it carries nothing about the user.
 

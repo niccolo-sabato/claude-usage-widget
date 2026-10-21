@@ -93,6 +93,14 @@ Filename: "{app}\{#MyAppExeName}"; Flags: nowait runasoriginaluser
 Filename: "{cmd}"; Parameters: "/c ping -n 9 127.0.0.1 >nul"; Flags: runhidden waituntilterminated
 Filename: "{app}\{#MyAppExeName}"; Flags: nowait runasoriginaluser
 
+[Registry]
+; The "Start with Windows" entry the menu writes (General), taken away with
+; the program: left behind, Windows tried at every sign-in to start a widget
+; that was no longer there. ValueType none: setup never writes it, so an
+; update keeps the user's choice; only the uninstaller deletes it. In the
+; hive of the user who runs the uninstaller, as for the config folder below.
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: none; ValueName: "ClaudeUsageWidget"; Flags: uninsdeletevalue dontcreatekey
+
 [UninstallDelete]
 ; Clean up AppData config/log on uninstall
 Type: filesandordirs; Name: "{localappdata}\Claude Usage"
