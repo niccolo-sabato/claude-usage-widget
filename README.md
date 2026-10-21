@@ -25,6 +25,7 @@ A lightweight desktop tool that shows your **Claude.ai session limit, weekly lim
 - **Bar colours your way:** a fixed colour per bar (with an in-app picker), or a dynamic palette that tracks the usage level
 - **Refresh countdown** shown as a quiet pulsing dot or as a numeric value, your choice
 - **Threshold toast notifications** when session usage crosses 25 / 50 / 75 / 90 / 95 / 100 %
+- **Start with Windows:** one toggle in the menu (General) to launch the widget at sign-in
 - **Win11 taskbar progress overlay** under the app icon, colour-coded by usage
 - **Always on top, never steals focus,** position remembered across restarts and updates
 - **One-click setup** with the companion browser extension, or a manual fallback
