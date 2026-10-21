@@ -923,7 +923,7 @@ def has_profile_for_org(org):
     shots = None
     confirmed = _confirmed_orgs(readable)
     for name, data in mine:
-        # Nor one whose label is contradicted: the list holds its tokens for
+        # Not one whose label is contradicted: the list holds its tokens for
         # another account's and hides its Switch, and a switch onto it is
         # refused, while the advice named the way back (review of the
         # fixes after 2.11, second iteration).
