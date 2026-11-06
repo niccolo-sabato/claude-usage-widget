@@ -3171,6 +3171,14 @@ def _enum_monitors():
     return mons
 
 
+def _primary_bounds():
+    """(l, t, r, b) of the primary monitor, or None. Windows always puts the
+    primary's top-left corner at the virtual-desktop origin, so the monitor
+    holding (0, 0) is the primary one."""
+    info = _monitor_of(0, 0, 1, 1, _MONITOR_DEFAULTTOPRIMARY)
+    return info[1] if info else None
+
+
 def _monitor_signature():
     """A hashable snapshot of the connected monitors (device + bounds) so a
     live layout or resolution change can be detected between polls."""
@@ -7409,14 +7417,20 @@ class Widget:
         """True if the widget currently sits on its anchor's monitor, or has no
         anchor yet. False when it is displaced onto a different monitor (a
         temporary off-screen rescue), so the home anchor is kept and the widget
-        can return home once its monitor is back."""
+        can return home once its monitor is back.
+
+        The anchor's monitor is located the way the launch does it
+        (_find_anchor_monitor), not by device name alone: the \\\\.\\DISPLAYn
+        names can swap between boots, and then the widget sitting on its own
+        home would be taken for displaced and the anchor never refreshed."""
         a = self.cfg.get('anchor')
         if not isinstance(a, dict):
             return True
         cur = _monitor_of(self.cfg['x'], self.cfg['y'],
                           self.cfg['width'], self.cfg['height'],
                           _MONITOR_DEFAULTTONULL)
-        return cur is not None and cur[0] == a.get('device')
+        home = self._find_anchor_monitor(a)
+        return cur is not None and home is not None and tuple(cur[1]) == tuple(home)
 
     def _save_geometry(self, e=None, update_anchor=None, user=False):
         """Save current position, size and mode. The 'home' anchor is refreshed
@@ -7550,19 +7564,49 @@ class Widget:
                 'dx': dx, 'dy': dy}
 
     def _find_anchor_monitor(self, a):
-        """Locate the saved anchor monitor among the connected ones: by device
-        name first, then by identical bounds. Returns (l, t, r, b) or None."""
-        mons = _enum_monitors()
+        """Locate the saved anchor monitor among the connected ones. Returns
+        (l, t, r, b) or None.
+
+        The \\\\.\\DISPLAYn device names are not stable across boots (docks,
+        USB-C/DisplayPort adapters, GPU enumeration order): after a restart the
+        same two screens can come back with their names swapped. Matched by name
+        first, the widget pinned on the primary opened on the secondary at the
+        same corner offset (seen on 2026-11-06: anchor DISPLAY1 at
+        [0,0,1920,1080], DISPLAY1 now the left screen). So, most reliable first:
+          1. same name and same bounds: nothing changed;
+          2. same bounds: the layout is the same, the names moved;
+          3. the role: the anchor was on the primary (its bounds start at the
+             origin, where Windows always puts the primary) -> today's primary;
+             a secondary -> today's only secondary, when there is just one;
+          4. same name, only when the role agrees (a resolution change on a
+             secondary with more than two screens).
+        """
+        mons = [(d, tuple(m)) for d, m in _enum_monitors()]
+        if not mons:
+            return None
         dev = a.get('device')
+        bounds = tuple(a.get('mon') or ())
+        if bounds:
+            for device, mon in mons:
+                if mon == bounds and device == dev:
+                    return mon
+            for _device, mon in mons:
+                if mon == bounds:
+                    return mon
+        primary = _primary_bounds()
+        if bounds and primary:
+            was_primary = bounds[:2] == (0, 0)
+            if was_primary:
+                return primary
+            others = [mon for _d, mon in mons if mon != primary]
+            if len(others) == 1:
+                return others[0]
         if dev:
             for device, mon in mons:
                 if device == dev:
-                    return mon
-        bounds = tuple(a.get('mon') or ())
-        if bounds:
-            for _device, mon in mons:
-                if tuple(mon) == bounds:
-                    return mon
+                    if (not bounds or not primary
+                            or (mon == primary) == (bounds[:2] == (0, 0))):
+                        return mon
         return None
 
     def _resolve_anchor(self, w, h):
