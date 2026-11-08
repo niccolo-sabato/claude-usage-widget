@@ -3112,6 +3112,13 @@ class _MONITORINFOEXW(ctypes.Structure):
                 ('szDevice', ctypes.c_wchar * 32)]
 
 
+class _DISPLAY_DEVICEW(ctypes.Structure):
+    _fields_ = [('cb', ctypes.c_ulong), ('DeviceName', ctypes.c_wchar * 32),
+                ('DeviceString', ctypes.c_wchar * 128), ('StateFlags', ctypes.c_ulong),
+                ('DeviceID', ctypes.c_wchar * 128), ('DeviceKey', ctypes.c_wchar * 128)]
+
+
+_EDD_GET_DEVICE_INTERFACE_NAME = 0x1
 _MONITOR_DEFAULTTONULL = 0
 _MONITOR_DEFAULTTOPRIMARY = 1
 _MONITOR_DEFAULTTONEAREST = 2
@@ -3122,6 +3129,9 @@ try:
     ctypes.windll.user32.MonitorFromRect.argtypes = [ctypes.c_void_p, ctypes.c_uint]
     ctypes.windll.user32.GetMonitorInfoW.restype = ctypes.c_int
     ctypes.windll.user32.GetMonitorInfoW.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+    ctypes.windll.user32.EnumDisplayDevicesW.restype = ctypes.c_int
+    ctypes.windll.user32.EnumDisplayDevicesW.argtypes = [
+        ctypes.c_wchar_p, ctypes.c_ulong, ctypes.c_void_p, ctypes.c_ulong]
 except Exception:
     pass
 
@@ -3177,6 +3187,25 @@ def _primary_bounds():
     holding (0, 0) is the primary one."""
     info = _monitor_of(0, 0, 1, 1, _MONITOR_DEFAULTTOPRIMARY)
     return info[1] if info else None
+
+
+def _monitor_id(device):
+    """The hardware identity of the monitor on a \\\\.\\DISPLAYn device, or ''
+    when Windows gives none: its interface path, which holds the model read
+    from its EDID and the port it is plugged into
+    (\\\\?\\DISPLAY#SAM0E41#5&2b25e848&0&UID4353#{...}). Unlike the DISPLAYn
+    name it stays the same between boots, and when another screen is made the
+    primary, which nothing else here can tell apart from a swap of the names
+    (review of #18)."""
+    try:
+        dd = _DISPLAY_DEVICEW()
+        dd.cb = ctypes.sizeof(_DISPLAY_DEVICEW)
+        if ctypes.windll.user32.EnumDisplayDevicesW(
+                device, 0, ctypes.byref(dd), _EDD_GET_DEVICE_INTERFACE_NAME):
+            return dd.DeviceID or ''
+    except Exception:
+        pass
+    return ''
 
 
 def _monitor_signature():
@@ -7419,10 +7448,13 @@ class Widget:
         temporary off-screen rescue), so the home anchor is kept and the widget
         can return home once its monitor is back.
 
-        Only a monitor that is surely the anchor's counts: the same bounds (the
-        same place in the layout, whatever its \\\\.\\DISPLAYn name today: the
-        names can swap between boots), or the same name in the same role (its
-        resolution changed). Where _find_anchor_monitor only guesses, to give
+        When the anchor holds the hardware identity of its screen (_monitor_id)
+        and Windows gives the one the widget is on, that alone decides: the
+        very screen, or not. Without it, only a monitor that is surely the
+        anchor's counts: the same bounds (the same place in the layout,
+        whatever its \\\\.\\DISPLAYn name today: the names can swap between
+        boots), or the same name in the same role (its resolution changed).
+        Where _find_anchor_monitor only guesses, to give
         the widget a sensible place (the primary for an anchor that was on the
         primary, the only secondary for one that was on a secondary, a name now
         worn by a screen in another role), the widget is only lent that screen:
@@ -7436,6 +7468,11 @@ class Widget:
                           _MONITOR_DEFAULTTONULL)
         if cur is None:
             return False
+        mid = a.get('id')
+        if mid:
+            here = _monitor_id(cur[0])
+            if here:
+                return here == mid
         bounds = tuple(a.get('mon') or ())
         if bounds and tuple(cur[1]) == bounds:
             return True
@@ -7564,7 +7601,8 @@ class Widget:
         """Describe the position relative to the nearest corner of the monitor
         it sits on, so it can be reproduced after a resolution or layout change.
         Uses monitor bounds (taskbar area included) so a widget parked on the
-        taskbar keeps its edge placement."""
+        taskbar keeps its edge placement. The monitor is kept three ways, for
+        _find_anchor_monitor: its hardware identity, its name and its bounds."""
         info = _monitor_of(x, y, w, h, _MONITOR_DEFAULTTONEAREST)
         if not info:
             return None
@@ -7573,7 +7611,7 @@ class Widget:
         top = (y + h / 2) < (mt + mb) / 2
         dx = int(x - ml) if left else int(mr - (x + w))
         dy = int(y - mt) if top else int(mb - (y + h))
-        return {'device': device, 'mon': [ml, mt, mr, mb],
+        return {'device': device, 'id': _monitor_id(device), 'mon': [ml, mt, mr, mb],
                 'corner': ('t' if top else 'b') + ('l' if left else 'r'),
                 'dx': dx, 'dy': dy}
 
@@ -7587,6 +7625,10 @@ class Widget:
         first, the widget pinned on the primary opened on the secondary at the
         same corner offset (seen on 2026-11-06: anchor DISPLAY1 at
         [0,0,1920,1080], DISPLAY1 now the left screen). So, most reliable first:
+          0. its hardware identity (_monitor_id), when the anchor has one and
+             exactly one connected screen gives it: the screen itself, wherever
+             it is and whatever its name or role today (another screen made the
+             primary looks, by name and bounds, exactly like swapped names);
           1. same name and same bounds: nothing changed;
           2. same bounds: the layout is the same, the names moved;
           3. the role: the anchor was on the primary (its bounds start at the
@@ -7603,6 +7645,11 @@ class Widget:
         mons = [(d, tuple(m)) for d, m in _enum_monitors()]
         if not mons:
             return None
+        mid = a.get('id')
+        if mid:
+            same = [mon for d, mon in mons if _monitor_id(d) == mid]
+            if len(same) == 1:
+                return same[0]
         dev = a.get('device')
         bounds = tuple(a.get('mon') or ())
         if bounds:
