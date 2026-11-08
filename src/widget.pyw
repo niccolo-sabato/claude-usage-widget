@@ -3202,9 +3202,9 @@ def _monitor_id(device):
     lets it take the new one), and two monitors of one model with their cables
     swapped trade paths. The first active monitor of the device is read: a
     mirrored device lists more than one, and a driver may list an inactive
-    one first."""
+    one first, which can be a monitor no longer there; with none active,
+    none, and the rules decide."""
     try:
-        first = ''
         for child in range(8):
             dd = _DISPLAY_DEVICEW()
             dd.cb = ctypes.sizeof(_DISPLAY_DEVICEW)
@@ -3213,10 +3213,9 @@ def _monitor_id(device):
                 break
             if dd.DeviceID and dd.StateFlags & _DISPLAY_DEVICE_ACTIVE:
                 return dd.DeviceID
-            first = first or dd.DeviceID
-        return first
     except Exception:
-        return ''
+        pass
+    return ''
 
 
 def _monitor_model(path):
@@ -7467,26 +7466,27 @@ class Widget:
         temporary off-screen rescue), so the home anchor is kept and the widget
         can return home once its monitor is back.
 
-        When the anchor holds the hardware identity of its screen (_monitor_id)
-        and Windows gives the one the widget is on, the identity decides while
-        its screen is connected: the very screen, or one only lent. With its
-        screen nowhere today, a screen of another model, or in another place,
-        is lent; the same model in the same place is the same monitor given a
-        new path by another port or dock, so the rules below decide and a sure
-        match takes the new identity: held to the old one, it was never home
-        again (third review of #18). An identity two screens give is not
-        trusted, as in _find_anchor_monitor.
+        When the anchor holds the hardware identity of its screen (_monitor_id),
+        the identity decides while that screen is connected: the widget is on
+        it, or only lent another one. With its screen nowhere today, a screen
+        of another model, or in another place, or one the anchor saw beside
+        its own ('others': a twin of the same model, put in its place when it
+        was switched off), is lent; the same model in the same place is the
+        same monitor given a new path by another port or dock, so the rules
+        below decide and a sure match takes the new identity: held to the old
+        one, it was never home again (third and fourth reviews of #18). An
+        identity two screens give is not trusted, as in _find_anchor_monitor.
 
         Without an identity, only a monitor that is surely the anchor's
-        counts: the same bounds (the same place in the layout,
-        whatever its \\\\.\\DISPLAYn name today: the names can swap between
-        boots), or the same name in the same role (its resolution changed).
-        Where _find_anchor_monitor only guesses, to give
-        the widget a sensible place (the primary for an anchor that was on the
-        primary, the only secondary for one that was on a secondary, a name now
-        worn by a screen in another role), the widget is only lent that screen:
-        counted as home, the anchor was rewritten there and the widget never
-        went back to its own (review of #18)."""
+        counts: the same bounds (the same place in the layout, whatever its
+        \\\\.\\DISPLAYn name today: the names can swap between boots), or the
+        same name in the same role (its resolution changed). Where
+        _find_anchor_monitor only guesses, to give the widget a sensible place
+        (the primary for an anchor that was on the primary, the only secondary
+        for one that was on a secondary, a name now worn by a screen in another
+        role), the widget is only lent that screen: counted as home, the anchor
+        was rewritten there and the widget never went back to its own (review
+        of #18)."""
         a = self.cfg.get('anchor')
         if not isinstance(a, dict):
             return True
@@ -7497,15 +7497,16 @@ class Widget:
             return False
         mid = a.get('id')
         if mid:
-            here = _monitor_id(cur[0])
-            if here:
-                ids = [_monitor_id(d) for d, _m in _enum_monitors()]
-                if ids.count(mid) == 1:
-                    return here == mid
-                if mid not in ids and (
-                        _monitor_model(here) != _monitor_model(mid)
-                        or tuple(cur[1]) != tuple(a.get('mon') or ())):
-                    return False
+            known = {d: _monitor_id(d) for d, _m in _enum_monitors()}
+            ids = list(known.values())
+            here = known.get(cur[0], '')
+            if ids.count(mid) == 1:
+                return here == mid
+            if here and mid not in ids and (
+                    _monitor_model(here) != _monitor_model(mid)
+                    or tuple(cur[1]) != tuple(a.get('mon') or ())
+                    or here in (a.get('others') or ())):
+                return False
         bounds = tuple(a.get('mon') or ())
         if bounds and tuple(cur[1]) == bounds:
             return True
@@ -7583,6 +7584,7 @@ class Widget:
         old = self.cfg.get('anchor')
         if automatic and not anchor.get('id') and isinstance(old, dict) and old.get('id'):
             anchor['id'] = old['id']
+            anchor['others'] = anchor.get('others') or old.get('others') or []
         self.cfg['anchor'] = anchor
 
     def _save_geometry_user(self, e=None):
@@ -7647,7 +7649,9 @@ class Widget:
         it sits on, so it can be reproduced after a resolution or layout change.
         Uses monitor bounds (taskbar area included) so a widget parked on the
         taskbar keeps its edge placement. The monitor is kept three ways, for
-        _find_anchor_monitor: its hardware identity, its name and its bounds."""
+        _find_anchor_monitor: its hardware identity, its name and its bounds;
+        the identities of the other screens connected go with them, for
+        _on_anchor_monitor to know a twin of the same model."""
         info = _monitor_of(x, y, w, h, _MONITOR_DEFAULTTONEAREST)
         if not info:
             return None
@@ -7656,7 +7660,9 @@ class Widget:
         top = (y + h / 2) < (mt + mb) / 2
         dx = int(x - ml) if left else int(mr - (x + w))
         dy = int(y - mt) if top else int(mb - (y + h))
-        return {'device': device, 'id': _monitor_id(device), 'mon': [ml, mt, mr, mb],
+        others = [i for i in (_monitor_id(d) for d, _m in _enum_monitors() if d != device) if i]
+        return {'device': device, 'id': _monitor_id(device), 'others': others,
+                'mon': [ml, mt, mr, mb],
                 'corner': ('t' if top else 'b') + ('l' if left else 'r'),
                 'dx': dx, 'dy': dy}
 
