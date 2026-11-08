@@ -7419,18 +7419,31 @@ class Widget:
         temporary off-screen rescue), so the home anchor is kept and the widget
         can return home once its monitor is back.
 
-        The anchor's monitor is located the way the launch does it
-        (_find_anchor_monitor), not by device name alone: the \\\\.\\DISPLAYn
-        names can swap between boots, and then the widget sitting on its own
-        home would be taken for displaced and the anchor never refreshed."""
+        Only a monitor that is surely the anchor's counts: the same bounds (the
+        same place in the layout, whatever its \\\\.\\DISPLAYn name today: the
+        names can swap between boots), or the same name in the same role (its
+        resolution changed). Where _find_anchor_monitor only guesses, to give
+        the widget a sensible place (the primary for an anchor that was on the
+        primary, the only secondary for one that was on a secondary, a name now
+        worn by a screen in another role), the widget is only lent that screen:
+        counted as home, the anchor was rewritten there and the widget never
+        went back to its own (review of #18)."""
         a = self.cfg.get('anchor')
         if not isinstance(a, dict):
             return True
         cur = _monitor_of(self.cfg['x'], self.cfg['y'],
                           self.cfg['width'], self.cfg['height'],
                           _MONITOR_DEFAULTTONULL)
-        home = self._find_anchor_monitor(a)
-        return cur is not None and home is not None and tuple(cur[1]) == tuple(home)
+        if cur is None:
+            return False
+        bounds = tuple(a.get('mon') or ())
+        if bounds and tuple(cur[1]) == bounds:
+            return True
+        if cur[0] != a.get('device'):
+            return False
+        primary = _primary_bounds()
+        return (not bounds or not primary
+                or (tuple(cur[1]) == tuple(primary)) == (bounds[:2] == (0, 0)))
 
     def _save_geometry(self, e=None, update_anchor=None, user=False):
         """Save current position, size and mode. The 'home' anchor is refreshed
@@ -7515,8 +7528,9 @@ class Widget:
         return the widget to its anchored spot; if the home spot is now off every
         screen, rescue it onto the primary. Between layout changes only an
         all-off-screen safety net can act (which normal use never triggers).
-        Either way the home anchor is preserved (save with update_anchor=False),
-        so a temporary rescue never erases where the user placed it."""
+        Either way the save leaves the home anchor alone unless the widget is
+        surely back on its own monitor (_on_anchor_monitor), so a temporary
+        rescue never erases where the user placed it."""
         try:
             x, y = self.root.winfo_x(), self.root.winfo_y()
             w, h = self.root.winfo_width(), self.root.winfo_height()
@@ -7578,8 +7592,13 @@ class Widget:
           3. the role: the anchor was on the primary (its bounds start at the
              origin, where Windows always puts the primary) -> today's primary;
              a secondary -> today's only secondary, when there is just one;
-          4. same name, only when the role agrees (a resolution change on a
-             secondary with more than two screens).
+          4. same name, whatever its role today (a resolution change on a
+             secondary with more than two screens; a laptop booted with its lid
+             closed, the external that was the secondary now alone and primary).
+        Steps 3 and 4 only find the widget a sensible place. Whether that screen
+        is its home, which a save may write into the anchor, is for
+        _on_anchor_monitor to say, and a guess is not enough for it (review of
+        #18).
         """
         mons = [(d, tuple(m)) for d, m in _enum_monitors()]
         if not mons:
@@ -7604,9 +7623,7 @@ class Widget:
         if dev:
             for device, mon in mons:
                 if device == dev:
-                    if (not bounds or not primary
-                            or (mon == primary) == (bounds[:2] == (0, 0))):
-                        return mon
+                    return mon
         return None
 
     def _resolve_anchor(self, w, h):
