@@ -3119,6 +3119,7 @@ class _DISPLAY_DEVICEW(ctypes.Structure):
 
 
 _EDD_GET_DEVICE_INTERFACE_NAME = 0x1
+_DISPLAY_DEVICE_ACTIVE = 0x1
 _MONITOR_DEFAULTTONULL = 0
 _MONITOR_DEFAULTTOPRIMARY = 1
 _MONITOR_DEFAULTTONEAREST = 2
@@ -3196,16 +3197,34 @@ def _monitor_id(device):
     (\\\\?\\DISPLAY#SAM0E41#5&2b25e848&0&UID4353#{...}). Unlike the DISPLAYn
     name it stays the same between boots, and when another screen is made the
     primary, which nothing else here can tell apart from a swap of the names
-    (review of #18)."""
+    (review of #18). It belongs to the port, not to the unit: plugged into
+    another port or dock the same monitor gets a new path (_on_anchor_monitor
+    lets it take the new one), and two monitors of one model with their cables
+    swapped trade paths. The first active monitor of the device is read: a
+    mirrored device lists more than one, and a driver may list an inactive
+    one first."""
     try:
-        dd = _DISPLAY_DEVICEW()
-        dd.cb = ctypes.sizeof(_DISPLAY_DEVICEW)
-        if ctypes.windll.user32.EnumDisplayDevicesW(
-                device, 0, ctypes.byref(dd), _EDD_GET_DEVICE_INTERFACE_NAME):
-            return dd.DeviceID or ''
+        first = ''
+        for child in range(8):
+            dd = _DISPLAY_DEVICEW()
+            dd.cb = ctypes.sizeof(_DISPLAY_DEVICEW)
+            if not ctypes.windll.user32.EnumDisplayDevicesW(
+                    device, child, ctypes.byref(dd), _EDD_GET_DEVICE_INTERFACE_NAME):
+                break
+            if dd.DeviceID and dd.StateFlags & _DISPLAY_DEVICE_ACTIVE:
+                return dd.DeviceID
+            first = first or dd.DeviceID
+        return first
     except Exception:
-        pass
-    return ''
+        return ''
+
+
+def _monitor_model(path):
+    """The model in a monitor's interface path (_monitor_id): the maker and
+    product code its EDID gives, SAM0E41 in \\\\?\\DISPLAY#SAM0E41#5&...#{...};
+    the whole path when it has no such part."""
+    parts = (path or '').split('#')
+    return (parts[1] if len(parts) > 2 else path or '').upper()
 
 
 def _monitor_signature():
@@ -7449,9 +7468,17 @@ class Widget:
         can return home once its monitor is back.
 
         When the anchor holds the hardware identity of its screen (_monitor_id)
-        and Windows gives the one the widget is on, that alone decides: the
-        very screen, or not. Without it, only a monitor that is surely the
-        anchor's counts: the same bounds (the same place in the layout,
+        and Windows gives the one the widget is on, the identity decides while
+        its screen is connected: the very screen, or one only lent. With its
+        screen nowhere today, a screen of another model, or in another place,
+        is lent; the same model in the same place is the same monitor given a
+        new path by another port or dock, so the rules below decide and a sure
+        match takes the new identity: held to the old one, it was never home
+        again (third review of #18). An identity two screens give is not
+        trusted, as in _find_anchor_monitor.
+
+        Without an identity, only a monitor that is surely the anchor's
+        counts: the same bounds (the same place in the layout,
         whatever its \\\\.\\DISPLAYn name today: the names can swap between
         boots), or the same name in the same role (its resolution changed).
         Where _find_anchor_monitor only guesses, to give
@@ -7472,7 +7499,13 @@ class Widget:
         if mid:
             here = _monitor_id(cur[0])
             if here:
-                return here == mid
+                ids = [_monitor_id(d) for d, _m in _enum_monitors()]
+                if ids.count(mid) == 1:
+                    return here == mid
+                if mid not in ids and (
+                        _monitor_model(here) != _monitor_model(mid)
+                        or tuple(cur[1]) != tuple(a.get('mon') or ())):
+                    return False
         bounds = tuple(a.get('mon') or ())
         if bounds and tuple(cur[1]) == bounds:
             return True
@@ -7528,17 +7561,29 @@ class Widget:
                     store[n] = self.cfg['width']
                 elif n in store:
                     del store[n]
-            if update_anchor is None:
+            automatic = update_anchor is None
+            if automatic:
                 update_anchor = self._on_anchor_monitor()
             if update_anchor:
-                anchor = self._compute_anchor(
-                    self.cfg['x'], self.cfg['y'],
-                    self.cfg['width'], self.cfg['height'])
-                if anchor:
-                    self.cfg['anchor'] = anchor
+                self._refresh_anchor(automatic)
             save_cfg(self.cfg)
         except Exception as ex:
             wlog(f'SAVE   save_geometry error: {ex}')
+
+    def _refresh_anchor(self, automatic):
+        """Write the home anchor from the saved geometry. An automatic save
+        keeps the hardware identity the anchor holds when Windows gives none
+        at that moment (a screen enumerated again after sleep, a remote
+        session): written empty, it was lost until the next sure home. A
+        drag writes what it finds (third review of #18)."""
+        anchor = self._compute_anchor(self.cfg['x'], self.cfg['y'],
+                                      self.cfg['width'], self.cfg['height'])
+        if not anchor:
+            return
+        old = self.cfg.get('anchor')
+        if automatic and not anchor.get('id') and isinstance(old, dict) and old.get('id'):
+            anchor['id'] = old['id']
+        self.cfg['anchor'] = anchor
 
     def _save_geometry_user(self, e=None):
         """Move-drag release: persist geometry AND refresh the home anchor (the
