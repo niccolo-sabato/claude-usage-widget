@@ -288,6 +288,11 @@ ESS_CONTROLS_INSET = 18  # gap the close/refresh/time block is placed at (place 
 ESS_MENU_W = 62   # hamburger pill width; reserves >= the bottom-right controls'
                   # footprint so the per-bar reset text never collides with them
 REFRESH  = 180_000  # 3 minutes
+GLIDE_S  = 0.6      # a bar moves to a new reading over this long; 0 = jump
+LIVE_TICK_MS = 5000       # the reset text re-reads the clock this often
+ACTIVITY_POLL_S = 4       # how often Claude Code's activity files are looked at
+ACTIVITY_SETTLE_S = 3     # wait after activity, so the usage has been recorded
+ACTIVITY_MIN_GAP_S = 20   # never read the usage more often than this on activity
 GEOMETRY_WATCH_MS = 2000  # self-heal poll interval: detect live monitor-layout
                           # changes and reposition the widget (home / rescue)
 ICON_CELL_W = 34   # fixed icon-column width in menus so labels align across fonts
@@ -918,6 +923,9 @@ LANG = {
         'tip_notifications': 'Windows notification when session usage crosses a threshold.',
         'tip_autostart': 'Launch the widget automatically when you sign in to Windows.',
         'tip_taskbar': 'Show a taskbar button with a usage progress overlay.',
+        'menu_live_on': 'Live updates: ON',
+        'menu_live_off': 'Live updates: OFF',
+        'tip_live': 'Read the usage again soon after Claude Code is used, instead of waiting for the next refresh.',
         'menu_refresh_interval': 'Refresh interval\u2026',
         'dlg_interval_title': 'Refresh interval',
         'dlg_interval_label': 'Interval in seconds (minimum 10):',
@@ -1207,6 +1215,9 @@ LANG = {
         'tip_notifications': 'Notifica di Windows quando il consumo della sessione supera una soglia.',
         'tip_autostart': 'Avvia il widget automaticamente quando accedi a Windows.',
         'tip_taskbar': 'Mostra un pulsante nella taskbar con la barra di avanzamento del consumo.',
+        'menu_live_on': 'Aggiornamento in tempo reale: attivo',
+        'menu_live_off': 'Aggiornamento in tempo reale: spento',
+        'tip_live': "Rilegge il consumo subito dopo l'uso di Claude Code, senza aspettare il prossimo aggiornamento.",
         'menu_refresh_interval': 'Intervallo aggiornamento\u2026',
         'dlg_interval_title': 'Intervallo aggiornamento',
         'dlg_interval_label': 'Intervallo in secondi (minimo 10):',
@@ -1495,6 +1506,9 @@ LANG = {
         'tip_notifications': '\u30bb\u30c3\u30b7\u30e7\u30f3\u4f7f\u7528\u91cf\u304c\u3057\u304d\u3044\u5024\u3092\u8d85\u3048\u308b\u3068Windows\u901a\u77e5\u3092\u8868\u793a\u3057\u307e\u3059\u3002',
         'tip_autostart': 'Windows\u306b\u30b5\u30a4\u30f3\u30a4\u30f3\u3059\u308b\u3068\u81ea\u52d5\u7684\u306b\u30a6\u30a3\u30b8\u30a7\u30c3\u30c8\u3092\u8d77\u52d5\u3057\u307e\u3059\u3002',
         'tip_taskbar': '\u30bf\u30b9\u30af\u30d0\u30fc\u306b\u4f7f\u7528\u72b6\u6cc1\u3092\u91cd\u306d\u305f\u30dc\u30bf\u30f3\u3092\u8868\u793a\u3057\u307e\u3059\u3002',
+        'menu_live_on': '\u30ea\u30a2\u30eb\u30bf\u30a4\u30e0\u66f4\u65b0: \u30aa\u30f3',
+        'menu_live_off': '\u30ea\u30a2\u30eb\u30bf\u30a4\u30e0\u66f4\u65b0: \u30aa\u30d5',
+        'tip_live': 'Claude Code \u3092\u4f7f\u3063\u305f\u76f4\u5f8c\u306b\u4f7f\u7528\u72b6\u6cc1\u3092\u518d\u53d6\u5f97\u3057\u307e\u3059\u3002',
         'menu_refresh_interval': '\u66f4\u65b0\u9593\u9694\u2026',
         'dlg_interval_title': '\u66f4\u65b0\u9593\u9694',
         'dlg_interval_label': '\u79d2\u5358\u4f4d\u306e\u9593\u9694 (\u6700\u4f4e10):',
@@ -5204,6 +5218,10 @@ class Section:
         self._state = 'empty'            # 'empty' | 'missing' | 'ok' (see _render_reset)
         self._split = 0                  # 0 = whole; else the equal parts shown
         self._no_number = False          # a preview with no reading: no number drawn
+        self._disp = None                # percentage on screen while a glide runs; None = _pct
+        self._glide_job = None
+        self._color_now = None           # the colour on show while a glide runs
+        self._glide_from = None
 
         self.frame = tk.Frame(parent, bg=BG)
         self.frame.pack(fill='x', padx=PAD, pady=(3, 0))
@@ -5283,6 +5301,7 @@ class Section:
         not, they kept them for good, with "error" underneath: one account's
         usage under another account's name (2026-09-25).
         """
+        self._stop_glide()
         self._pct = 0
         self._resets_at = None
         self._state = 'empty'
@@ -5362,7 +5381,45 @@ class Section:
             return
         self.lbl_sub.config(text=self.reset_display())
 
+    def _stop_glide(self):
+        job, self._glide_job = self._glide_job, None
+        self._disp = None
+        self._color_now = None
+        if job:
+            try:
+                self.cv.after_cancel(job)
+            except (tk.TclError, ValueError):
+                pass
+
+    def _glide(self, start, from_color=None):
+        """Carry the bar from `start` to the real value over a moment, so a new
+        reading arrives as movement and not as a jump, and its colour with it.
+        Only what is drawn moves: _pct is already the true value for everything
+        else that reads it."""
+        self._stop_glide()
+        self._glide_from = from_color
+        end = self._pct
+        t0 = time.monotonic()
+        dur = GLIDE_S
+
+        def step():
+            self._glide_job = None
+            try:
+                k = min(1.0, (time.monotonic() - t0) / dur)
+                e = 1 - (1 - k) ** 3
+                self._disp = None if k >= 1 else start + (end - start) * e
+                self._color_now = (_lerp_hex(self._glide_from, self._color, e)
+                                   if (k < 1 and self._glide_from) else None)
+                self._draw(self.cv.winfo_width())
+                if k < 1:
+                    self._glide_job = self.cv.after(16, step)
+            except tk.TclError:
+                self._disp = None
+        step()
+
     def update(self, pct, resets_at):
+        was_ok, was_pct = self._state == 'ok', self._pct
+        self._stop_glide()
         self._resets_at = resets_at
         self._state = 'ok' if pct is not None else 'missing'
         if pct is None:
@@ -5371,6 +5428,7 @@ class Section:
             self._render_reset()
             self._draw(self.cv.winfo_width())
             return
+        prev_color = self._color
         self._pct = max(0, min(100, pct))
         if self._dynamic:
             self._color = dynamic_fill(self._pct)
@@ -5379,7 +5437,10 @@ class Section:
             self._color = self._fill
             self._trackc = self._track
         self._render_reset()
-        self._draw(self.cv.winfo_width())
+        if was_ok and was_pct != self._pct and GLIDE_S > 0:
+            self._glide(was_pct, prev_color if self._dynamic else None)
+        else:
+            self._draw(self.cv.winfo_width())
 
     def set_split(self, parts):
         """Show the bar in `parts` equal parts, 0 to show it whole.
@@ -5445,23 +5506,28 @@ class Section:
     def _draw(self, w):
         if w < 2:
             return
+        pct = self._pct if self._disp is None else self._disp     # what is on screen (see _glide)
+        col = self._color_now or self._color
         self.cv.delete('all')
         # Track: neutral gray while the bar is empty, its dark colour once used.
-        track = self._trackc if self._pct > 0 else BAR_BG
+        if pct > 0:
+            track = derive_track(col) if self._color_now else self._trackc
+        else:
+            track = BAR_BG
         pill(self.cv, 0, 0, w, BAR_H, track)
-        if self._pct > 0:
-            fw = max(BAR_H, w * self._pct / 100)
-            pill(self.cv, 0, 0, fw, BAR_H, self._color)
-        pct_str = f'{self._pct:.0f}%' if self._pct > 0 else '0%'
+        if pct > 0:
+            fw = max(BAR_H, w * pct / 100)
+            pill(self.cv, 0, 0, fw, BAR_H, col)
+        pct_str = f'{pct:.0f}%' if pct > 0 else '0%'
         if self._compact and self._cd_txt:
             txt = f'{pct_str}  {self._cd_txt}'
         else:
             txt = pct_str
         if self._split and self._state == 'ok':
-            self._draw_split(w, fw if self._pct > 0 else 0)
+            self._draw_split(w, fw if pct > 0 else 0)
         # The text is centred, so it sits on the fill once the bar is past
         # half and on the track before that. Ask the one it is actually on.
-        behind = self._color if (self._pct > 0 and fw >= w / 2) else track
+        behind = col if (pct > 0 and fw >= w / 2) else track
         if not self._no_number:
             self.cv.create_text(w / 2, BAR_H / 2 - 1, text=txt,
                                 fill=ink_on(behind), font=FT_BAR, anchor='center')
@@ -5473,8 +5539,8 @@ class Section:
         if self._dot_phase == 'on':
             cx = w - DOT_INSET
             cy = BAR_H / 2 - 1  # measured centre of the bar pill for this image
-            fill_w = max(BAR_H, w * self._pct / 100) if self._pct > 0 else 0
-            self._dot_bg = self._color if (self._pct > 0 and fill_w >= cx) else BAR_BG
+            fill_w = max(BAR_H, w * pct / 100) if pct > 0 else 0
+            self._dot_bg = col if (pct > 0 and fill_w >= cx) else BAR_BG
             q = round(self._dot_level * 12) / 12
             color = _lerp_hex(self._dot_bg, DOT_GREEN, q)
             self._dot_img = _dot_image(DOT_DIAM, color)
@@ -5549,6 +5615,8 @@ class Widget:
         self._last_width = 0          # last width seen, to skip idle <Configure>
         self._fetch_busy = False      # a fetch is in flight; do not start another
         self._fetch_pending = False   # a refresh asked for while one was running
+        self._last_fetch_t = 0.0      # when the last fetch started (monotonic)
+        self._activity_job = None     # a refresh waiting on Claude Code activity
         self._fetch_lock = threading.Lock()   # guards the two flags above
         self._topmost_job = None
         self._pulse_job = None
@@ -5717,6 +5785,11 @@ class Widget:
 
         self._update_banner = None
         self._schedule_update_check()
+
+        # Live view: the reset text follows the clock between fetches, and
+        # Claude Code's own activity asks for a fresh reading.
+        self.root.after(LIVE_TICK_MS, self._live_tick)
+        self._start_activity_watch()
 
         # Pre-warm the slow paths that the first menu open would trigger on
         # a cold start: a Toplevel creation + Segoe UI Emoji font lookup.
@@ -6705,6 +6778,7 @@ class Widget:
                 return
             self._fetch_busy = True
             self._fetch_pending = False
+        self._last_fetch_t = time.monotonic()
         if self._countdown_job:
             self.root.after_cancel(self._countdown_job)
             self._countdown_job = None
@@ -7314,6 +7388,95 @@ class Widget:
             self._apply_dot_phase('off')
             self._set_pulse(False)
             self._countdown_job = None
+
+    # ── Live view ───────────────────────────────────
+
+    def _live_tick(self):
+        """Keep "resets in 2h 05min" true between fetches. The text used to be
+        written when a reading arrived and left to go stale until the next one.
+        Only a change of the text costs anything: the floor is re-measured then,
+        as it is after a fetch."""
+        try:
+            if not self._reshaping:
+                changed = False
+                for sec in self._all_sections():
+                    if sec._state == 'ok' and not sec._err and sec._resets_at:
+                        before = sec.lbl_sub.cget('text')
+                        sec.redraw_reset()
+                        if sec.lbl_sub.cget('text') != before:
+                            changed = True
+                if changed:
+                    self._sync_ess_reset_mode()
+                    self._update_minsize()
+        except Exception as e:
+            wlog(f'LIVE   tick error: {e}')
+        finally:
+            self.root.after(LIVE_TICK_MS, self._live_tick)
+
+    def _start_activity_watch(self):
+        """Watch where Claude Code writes its transcripts. A change there means
+        usage just moved, so a reading is asked for soon after instead of at the
+        next poll. Off the Tk thread: it lists directories, and it only looks at
+        the modification times of the files, never at what is in them."""
+        base = os.environ.get('CLAUDE_CONFIG_DIR') or os.path.join(
+            os.path.expanduser('~'), '.claude')
+        folder = os.path.join(base, 'projects')
+
+        def newest():
+            top = 0.0
+            try:
+                with os.scandir(folder) as projects:
+                    for proj in projects:
+                        if not proj.is_dir():
+                            continue
+                        with os.scandir(proj.path) as files:
+                            for f in files:
+                                if f.name.endswith('.jsonl'):
+                                    top = max(top, f.stat().st_mtime)
+            except OSError:
+                pass
+            return top
+
+        def run():
+            seen = newest()
+            while True:
+                time.sleep(ACTIVITY_POLL_S)
+                if not self.cfg.get('live_updates', True):
+                    continue                  # switched off: the folder is not looked at
+                cur = newest()
+                if cur > seen:
+                    seen = cur
+                    try:
+                        self.root.after(0, self._on_activity)
+                    except (tk.TclError, RuntimeError):
+                        return
+
+        try:
+            threading.Thread(target=run, daemon=True).start()
+        except Exception as e:
+            wlog(f'LIVE   activity watch not started: {e}')
+
+    def _on_activity(self):
+        if self._activity_job is not None or not self.cfg.get('live_updates', True):
+            return
+        delay = max(ACTIVITY_SETTLE_S,
+                    ACTIVITY_MIN_GAP_S - (time.monotonic() - self._last_fetch_t))
+        self._activity_job = self.root.after(int(delay * 1000), self._activity_refresh)
+
+    def _activity_refresh(self):
+        self._activity_job = None
+        # Only a widget that is working: with an error or a rate limit on show
+        # a faster poll would only repeat the refusal.
+        if (self.cfg.get('live_updates', True) and self._has_usage
+                and not getattr(self, '_last_error', None) and not self._soft_note
+                and not self._reshaping):
+            wlog('LIVE   Claude Code activity -> refreshing')
+            self.refresh()
+
+    def _toggle_live(self):
+        self.cfg['live_updates'] = not self.cfg.get('live_updates', True)
+        save_cfg(self.cfg)
+        wlog(f'LIVE   live_updates -> {self.cfg["live_updates"]}')
 
     def _clear_error(self):
         """Hide the error panel and drop any pending action binding."""
@@ -8813,6 +8976,10 @@ class Widget:
             self._menu_row(m, (t('menu_taskbar_on') if tb else t('menu_taskbar_off')),
                            lambda: self._flyout_set(self._toggle_taskbar),
                            icon='\U0001F4CC︎', icon_ft=FT_EMOJI, tip=t('tip_taskbar'))
+            live = self.cfg.get('live_updates', True)
+            self._menu_row(m, (t('menu_live_on') if live else t('menu_live_off')),
+                           lambda: self._flyout_set(self._toggle_live),
+                           icon='\u26A1\uFE0E', icon_ft=FT_EMOJI, tip=t('tip_live'))
             self._menu_sep(m)
             self._menu_section(m, t('menu_theme'))
             theme = self.cfg.get('theme', 'dark')

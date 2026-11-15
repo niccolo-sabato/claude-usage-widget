@@ -133,6 +133,7 @@ The widget connects to Claude.ai using the same browser session you are already 
 - Three usage bars with reset times and a live countdown to the next refresh
 - Auto refresh every 3 minutes by default, configurable from 10 seconds to 1 hour
 - Instant refresh when a reset time is reached, no waiting for the next tick
+- **Live updates**: a bar glides to a new reading instead of jumping, the reset text counts down between refreshes, and the widget reads the usage again a few seconds after Claude Code has been used, so the session bar follows your work without waiting for the interval. Only the *modification times* of the files under `~/.claude/projects` are looked at, never their contents. Off under Display > Live updates
 - **Threshold notifications**: native Windows toast when session usage crosses 25 / 50 / 75 / 90 / 95 / 100 %, so you know you are approaching the limit even when focused on another window. Toggle on/off from the menu.
 - **Optional Win11 taskbar progress overlay** under the app icon: fill width tracks session usage, colour escalates from accent (0-74 %) to yellow (75-89 %) to red (90 % +). The same overlay Edge or Explorer paint during a download.
 
@@ -231,7 +232,7 @@ Open it with **≡**, the **☰** button, or by right-clicking the bar in essent
 
 - **Refresh** and the **Normal / Essential** mode toggle (top level)
 - **Display**: countdown as a pulsing dot or a numeric value, the sync-time timestamp on/off, fixed or dynamic bar colours, the dark or light theme with a restart button
-  beside it, the taskbar icon and its Win11 progress overlay, what the line **under the bars** carries (the reset time, the time left, both or neither), the weekly split, and which bars to show (each with a colour swatch). Hover any option for a short explanation.
+  beside it, the taskbar icon and its Win11 progress overlay, live updates on/off, what the line **under the bars** carries (the reset time, the time left, both or neither), the weekly split, and which bars to show (each with a colour swatch). Hover any option for a short explanation.
 - **Data & alerts**: refresh interval (10 to 3600 s) and threshold notifications
 - **Accounts**: opens the accounts window directly (add, switch, rename, remove, update each session key), with a link to the Claude.ai usage page
 - **General**: language (EN / IT / JA), start with Windows, check for updates, open the GitHub repo, open `config.json`, run the connection self-test
@@ -257,6 +258,7 @@ The widget manages its own config at `%LOCALAPPDATA%\Claude Usage\config.json`. 
   "bar_dynamic": false,                  // colour bars by usage level instead of per bar
   "bar_colors": {},                      // per-bar colour overrides from the picker
   "weekly_split": 0,                     // 3-7: the weekly bar in that many equal parts; 0 off
+  "live_updates": true,                  // glide the bars, tick the reset text, refresh on Claude Code activity
   "update_check_enabled": true,          // false: never ask GitHub for updates
   "always_check_updates": false,         // skip the 24h update-check throttle
   "debug_tk_scaling": null               // simulate higher DPI for layout testing
